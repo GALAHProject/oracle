@@ -1,0 +1,7 @@
+numpy>=1.8
+acor
+scipy
+matplotlib>=1.0.1
+pyfits
+pyyaml
+emcee>=1.1.0
