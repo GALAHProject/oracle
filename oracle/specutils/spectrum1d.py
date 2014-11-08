@@ -24,7 +24,7 @@ class Spectrum1D(object):
     :class:`astropy.specutils.Spectrum1D` module has advanced sufficiently to replace it.
     """
     
-    def __init__(self, disp, flux, variance=None, headers=None):
+    def __init__(self, disp, flux, variance=None, headers=None, **kwargs):
         """
         Initializes a `Spectrum1D` object with the given dispersion, flux, and
         variance arrays.
@@ -69,6 +69,12 @@ class Spectrum1D(object):
             self.variance = self.flux.copy()
         else:
             self.variance = variance.copy()
+
+        # Zero or negative fluxes should have a high variance
+        self.variance[0 >= self.flux] = kwargs.pop("zero_flux_variance", 1e6)
+
+        # Minimum variance
+        self.variance[0 >= self.variance] = kwargs.pop("min_variance", 1e-6)
 
         self.ivariance = 1.0/self.variance
         if headers is not None:

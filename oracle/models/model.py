@@ -13,6 +13,7 @@ import logging
 import os
 import yaml
 import numpy as np
+import warnings
 from hashlib import md5
 from functools import partial
 from scipy import stats
@@ -21,6 +22,9 @@ logger = logging.getLogger("oracle")
 
 from oracle import utils, specutils
 from oracle.models import validation
+
+# Silence 'Polyfit may be poorly conditioned' messages
+warnings.simplefilter("ignore", np.RankWarning)
 
 class Model(object):
 
@@ -84,6 +88,18 @@ class Model(object):
             module=self.__module__, hash=self.hash[:10], location=hex(id(self)))
 
 
+    def _load_grid(self):
+        """
+        This is a temporary function until I can generalise the grid.
+        """
+
+        with open("galah-ambre-grid.pickle", "r") as fp:
+            grid_points, grid_dispersion, grid_fluxes, grid_pixels = pickle.load(fp)
+        grid_fluxes = grid_fluxes.reshape(grid_points.size, sum(grid_pixels))
+
+        return (grid_points, grid_dispersion, grid_fluxes)
+
+
     def _continuum_order(self, channel_index):
         """
         Parse the configuration and return the continuum order for some channel
@@ -115,7 +131,7 @@ class Model(object):
         return md5(json.dumps(self.config).encode("utf-8")).hexdigest()
 
 
-    def mask(self, dispersion, z=0, fill_value=np.nan):
+    def mask(self, dispersion, z=0, fill_value=False):
         """
         Return an array mask for a given dispersion array and redshift, based on
         the mask information provided in the model configuration file.
@@ -148,7 +164,7 @@ class Model(object):
 
         regions = self.config.get("mask", None)
         if regions is not None:
-            mask = np.ones(len(dispersion))
+            mask = np.ones(len(dispersion), dtype=bool)
             regions = np.array(regions)
             for start, end in regions * (1. + z):
                 indices = dispersion.searchsorted([start, end])
@@ -160,7 +176,7 @@ class Model(object):
 
 
 
-    def initial_theta(self, data):
+    def initial_theta(self, data, full_output=False):
         """
         Return an initial guess of the model parameters theta using no prior
         information.
@@ -172,6 +188,9 @@ class Model(object):
             list of :class:`oracle.specutils.Spectrum1D` objects
         """
 
+        # Sort the data from blue to red first
+        data = sorted(data, key=lambda x: x.disp[0])
+
         # Need some cacher object to do fast-on-the-fly-comparisons
         parameters = self.parameters(len(data))
 
@@ -180,22 +199,13 @@ class Model(object):
         # Cacher must contain:
         # dict with info about the grid, etc., grid points record array, 
         # dispersion map, gigantic flux array
-
-        with open("galah-points.pickle", "r") as fp:
-            grid_points = pickle.load(fp)
-
-        grid_dispersion = np.memmap("galah-blue-dispersion.memmap", mode="r",
-            dtype="float32")
-        grid_fluxes = np.memmap("galah-blue-fluxes.memmap", mode="r",
-            dtype="float32").reshape(grid_points.size, -1)
-
-    
-        #grid_description, grid_points, grid_dispersion, grid_fluxes = \
-        #    load_grid(grid_filename)
+        grid_points, grid_dispersion, grid_fluxes = self._load_grid()
 
         theta = {}
         num_pixels = 0
-        continuum_coefficients = []
+        continuum_coefficients = {}
+        expected_channel_disp = []
+        expected_channel_fluxes = []
         chi_sqs = np.zeros(grid_points.size)
 
         # Parallelise channels
@@ -214,28 +224,50 @@ class Model(object):
                 channel.disp, channel.ivariance, left=np.nan, right=np.nan)
 
             # Reference only finite, unmasked pixels
-            finite = np.isfinite(rebinned_channel_flux) \
+            useful_pixels = np.isfinite(rebinned_channel_flux) \
                 * self.mask(rebinned_channel_disp)
-            num_pixels += finite.sum()
+
+            # And interpolate over the non-useful ones
+            if np.any(~useful_pixels):
+                rebinned_channel_flux[~useful_pixels] = np.interp(
+                    rebinned_channel_disp[~useful_pixels],
+                    rebinned_channel_disp[useful_pixels],
+                    rebinned_channel_flux[useful_pixels])
+                rebinned_channel_ivar[~useful_pixels] = 1e-6
+
+            num_pixels += useful_pixels.sum()
 
             # Get the continuum order
             order = self._continuum_order(i)
 
             # Cross-correlate the observed data against the grid
             if ("v_rad" in parameters) or ("v_rad.{}".format(i) in parameters):
-                v_rads, v_errs, ccf_peaks = specutils.cross_correlate.cross_correlate_grid(
-                    channel, grid_dispersion[indices[0]:indices[1]],
-                    grid_fluxes[:, indices[0]:indices[1]], continuum_order=order,
-                    threads=self.config["settings"]["threads"])
+                if i == 0:
+                    v_rads, v_errs, ccf_peaks = specutils.cross_correlate.cross_correlate_grid(
+                        rebinned_channel_disp,
+                        grid_fluxes[:, indices[0]:indices[1]],
+                        rebinned_channel_flux.copy(), continuum_order=order,
+                        threads=self.config["settings"]["threads"])
 
-                # Identify one with largest CCF max
-                highest_peak = ccf_peaks.argmax()
-                v_rad = v_rads[ccf_peaks.argmax()]
-                logger.info("Grid point with highest CCF peak in channel {0} is"\
-                    " {1} with v_rad = {2:.1f} km/s (+/- {3:.1f} km/s) and R = "\
-                    "{4:.3f}".format(i, utils.readable_dict(grid_points.dtype.names,
-                        grid_points[highest_peak]), v_rad, v_errs[highest_peak],
-                    ccf_peaks[highest_peak]))
+                    # Identify one with largest CCF max
+                    highest_peak = ccf_peaks.argmax()
+                    v_rad = v_rads[ccf_peaks.argmax()]
+                    logger.debug("Grid point with highest CCF peak in channel {0} is"\
+                        " {1} with v_rad = {2:.1f} km/s (+/- {3:.1f} km/s) and R = "\
+                        "{4:.3f}".format(i, utils.readable_dict(grid_points.dtype.names,
+                            grid_points[highest_peak]), v_rad, v_errs[highest_peak],
+                        ccf_peaks[highest_peak]))
+
+                else:
+                    v_rad, v_err, ccf_peak = specutils.cross_correlate.cross_correlate_grid(
+                        rebinned_channel_disp, np.array([
+                            grid_fluxes[chi_sqs.argmin(), indices[0]:indices[1]]]),
+                        rebinned_channel_flux.copy(), continuum_order=order)
+                    v_rad, v_err, ccf_peak = v_rad[0], v_err[0], ccf_peak[0]
+
+                    logger.debug("CCF peak in channel {0} is {1} with v_rad = "\
+                        "{2:.1f} km/s (+/- {3:.1f} km/s)".format(i, ccf_peak,
+                            v_rad, v_err))
 
                 if "v_rad" in parameters:
                     # Global, so add it to a list which we will use to take an
@@ -252,30 +284,33 @@ class Model(object):
             if order >= 0:
                 # Note this is assuming you are not doing some Big Ass Matrix(tm)
                 # operations.
-                dispersion_matrix = np.ones((order + 1, finite.size))
+                dispersion_matrix = np.ones((order + 1, rebinned_channel_disp.size))
                 for j in range(order + 1):
-                    dispersion_matrix[j] *= rebinned_channel_disp[finite]**j
+                    dispersion_matrix[j] *= rebinned_channel_disp**j
 
-                A = (rebinned_channel_flux[finite] \
-                    / grid_fluxes[:, indices[0]:indices[1]][:, finite]).T
+                A = (rebinned_channel_flux \
+                    / grid_fluxes[:, indices[0]:indices[1]]).T
                 coefficients = np.linalg.lstsq(dispersion_matrix.T, A)[0]
 
                 # Save the continuum coefficients (we will use them later)
-                continuum_coefficients.append(coefficients)
+                continuum_coefficients[i] = coefficients
                 continuum = np.dot(coefficients.T, dispersion_matrix)
         
                 # Calculate the expected fluxes and the chi-sq value at each point
-                expected_fluxes = grid_fluxes[:, indices[0]:indices[1]][:, finite]\
-                    * continuum
+                expected_fluxes = grid_fluxes[:, indices[0]:indices[1]] * continuum
 
             else:
                 # No continuum treatment.
-                expected_fluxes = grid_fluxes[:, indices[0]:indices[1]][:, finite]
+                expected_fluxes = grid_fluxes[:, indices[0]:indices[1]]
+
+            # Keep the expected fluxes if necessary
+            if full_output:
+                expected_channel_disp.append(rebinned_channel_disp)
+                expected_channel_fluxes.append(expected_fluxes)
 
             # Add to the chi-sq values
-            chi_sqs += np.nansum(
-                (rebinned_channel_flux[finite] - expected_fluxes)**2\
-                    * rebinned_channel_ivar[finite], axis=1)
+            chi_sqs += np.nansum((rebinned_channel_flux - expected_fluxes)**2\
+                    * rebinned_channel_ivar, axis=1)
 
             # Estimate instrumental broadening
             logger.warn("haven't done instrumental broadening")
@@ -302,8 +337,17 @@ class Model(object):
             "{1:.1f}".format(utils.readable_dict(grid_points.dtype.names,
                 closest_grid_point), r_chi_sq))
 
+        # Refine the continuum coefficient estimates using the grid point with
+        # the lowest chi-sq value
+
+
         # Update theta with the nearest grid point
         theta.update(dict(zip(grid_points.dtype.names, closest_grid_point)))
+
+        # And the continuum coefficients
+        for i, coefficients in continuum_coefficients.iteritems():
+            for j, coefficient in enumerate(coefficients[:, grid_index]):
+                theta["continuum.{0}.{1}".format(i, j)] = coefficient
 
         # Is microturbulence a parameter?
         if "microturbulence" in parameters:
@@ -316,9 +360,8 @@ class Model(object):
         logger.debug("Could not estimate initial parameters for {}".format(
             ", ".join(missing_parameters)))
 
-        #fig, ax = plt.subplots()
-        #ax.plot(rebinned_channel_disp, expected_fluxes[grid_index], 'b')
-        #ax.plot(channel.disp, channel.flux, 'k')
-
+        if full_output:
+            return (theta, r_chi_sq, np.hstack(expected_channel_disp),
+                np.hstack([ecf[grid_index] for ecf in expected_channel_fluxes]))
         return theta
     

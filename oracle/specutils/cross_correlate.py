@@ -141,7 +141,7 @@ def _ccf(apod_template_flux, template_flux_corr, N, index=None):
     return (ccf.argmax(), np.where(ccf >= 0.5 * h), h)
 
 
-def cross_correlate_grid(data, template_dispersion, template_fluxes,
+def cross_correlate_grid(template_dispersion, template_fluxes, observed_flux,
     continuum_order=3, apodize=0.10, threads=1):
 
     if template_dispersion.shape[0] != template_fluxes.shape[1]:
@@ -161,12 +161,11 @@ def cross_correlate_grid(data, template_dispersion, template_fluxes,
     dispersion = template_dispersion[:N]
     template_flux = template_fluxes[:, :N]
 
-    observed_flux = np.interp(dispersion, data.disp, data.flux, left=np.nan,
-        right=np.nan)
-
+    observed_flux = observed_flux.copy()[:N]
     non_finite = ~np.isfinite(observed_flux)
-    observed_flux[non_finite] = np.interp(dispersion[non_finite],
-        dispersion[~non_finite], observed_flux[~non_finite])
+    if non_finite.sum() > 0:
+        observed_flux[non_finite] = np.interp(dispersion[non_finite],
+            dispersion[~non_finite], observed_flux[~non_finite])
 
     # Normalise
     if continuum_order >= 0:

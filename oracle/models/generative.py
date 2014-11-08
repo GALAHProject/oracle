@@ -115,7 +115,7 @@ class GenerativeModel(Model):
         if 1 > num_data_channels:
             raise ValueError("number of data channels must be a positive integer")
 
-        parameters = ["effective_temperature", "surface_gravity", "metallicity",
+        parameters = ["effective_temperature", "surface_gravity", "[M/H]",
             "microturbulence"]
 
         # Single radial velocity for all channels
@@ -144,7 +144,7 @@ class GenerativeModel(Model):
         return tuple(parameters)
 
 
-    def initial_theta(self, data):
+    def initial_theta(self, data, full_output=False):
         """
         Return an initial guess of the model parameters theta using no prior
         information.
@@ -156,16 +156,18 @@ class GenerativeModel(Model):
             list of :class:`oracle.specutils.Spectrum1D` objects
         """
 
-
         # Get initial theta from the abstract model class, which will estimate
         # radial velocities, continuum coefficients, and stellar parameters
-        theta = super(GenerativeModel, self).initial_guess(data)
+        theta, r_chi_sq, model_dispersion, model_fluxes = super(GenerativeModel,
+            self).initial_theta(data, True)
 
         missing_parameters = set(self.parameters(len(data))).difference(theta)
         if len(missing_parameters) > 0:
             logger.warn("Missing parameters: {}".format(", ".join(
                 missing_parameters)))
 
+        if full_output:
+            return (theta, r_chi_sq, model_dispersion, model_fluxes)
         return theta
 
 
