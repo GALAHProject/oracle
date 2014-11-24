@@ -2,17 +2,21 @@
 
 """ oracle, the suppository of wisdom """ 
 
+from __future__ import division, absolute_import, print_function
+
 import os
 import re
 import subprocess
 import sys
 from glob import glob
+from numpy.distutils.core import Extension, setup
 
-try:
-    from setuptools import setup
 
-except ImportError:
-    from distutils.core import setup
+#try:
+#    from setuptools import setup
+
+#except ImportError:
+#    from distutils.core import setup
 
 major, minor1, minor2, release, serial =  sys.version_info
 open_kwargs = {"encoding": "utf-8"} if major >= 3 else {}
@@ -29,11 +33,27 @@ contents = readfile(os.path.join(
 
 version = version_regex.findall(contents)[0]
 
+# Extensions
+moog = Extension(name = "oracle.synthesis._moog",
+    sources = ["oracle/synthesis/source/moog/{}".format(each) for each in [
+        'MyAbfind.f', 'Partfn.f', 'Sunder.f', 'Eqlib.f', 'Nearly.f','Discov.f',
+        'Invert.f', 'Gammabark.f', 'Damping.f', 'Lineinfo.f', 'Opacit.f',
+        'Blankstring.f', 'Prinfo.f', 'Opacmetals.f', 'Synspec.f', 'Cdcalc.f',
+        'Linlimit.f', 'Taukap.f', 'Jexpint.f', 'Partnew.f', 'Opacscat.f',
+        'OpacHelium.f', 'OpacHydrogen.f', 'Opaccouls.f', 'Rinteg.f', 
+        'Trudamp.f', 'Ucalc.f', 'Voigt.f', 'Fakeline.f', 'Curve.f',
+        'Lineabund.f', 'Molquery.f', 'Oneline.f', 'Params.f', 'Stats.f',
+        'Inmodel.f', 'Inlines.f', 'Batom.f', 'Bmolec.f', 'MySynth.f']])
+
+atmosphere_interpolator = Extension(name="oracle.synthesis._interpolator",
+    sources = ["oracle/synthesis/source/interpolator.f"])
+
+
 setup(name="oracle",
     version=version,
     author="Andrew R. Casey",
     author_email="arc@ast.cam.ac.uk",
-    packages=["oracle", "oracle.models", "oracle.specutils"],
+    packages=["oracle", "oracle.models", "oracle.specutils", "oracle.synthesis"],
     url="http://www.github.com/andycasey/oracle/",
     license="MIT",
     description="the suppository of all wisdom",
@@ -43,6 +63,7 @@ setup(name="oracle",
     entry_points={
         "console_scripts": ["oracle = oracle.cli:main"]
     },
+    ext_modules=[moog, atmosphere_interpolator],
     #scripts=["oracle/"],
     include_package_data=True,
     #package_data={"": [""]}
