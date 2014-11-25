@@ -53,7 +53,8 @@ setup(name="oracle",
     version=version,
     author="Andrew R. Casey",
     author_email="arc@ast.cam.ac.uk",
-    packages=["oracle", "oracle.models", "oracle.specutils", "oracle.synthesis"],
+    packages=["oracle", "oracle.atmospheres", "oracle.models",
+        "oracle.specutils", "oracle.synthesis"],
     url="http://www.github.com/andycasey/oracle/",
     license="MIT",
     description="the suppository of all wisdom",
@@ -66,5 +67,8 @@ setup(name="oracle",
     ext_modules=[moog, atmosphere_interpolator],
     #scripts=["oracle/"],
     include_package_data=True,
+    package_data={
+        "oracle.atmospheres": ["marcs-2011-standard.pickle"]
+    }
     #package_data={"": [""]}
 )

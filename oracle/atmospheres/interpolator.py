@@ -7,6 +7,7 @@ from __future__ import division, absolute_import, print_function
 import cPickle as pickle
 import numpy as np
 import scipy.interpolate
+from pkg_resources import resource_stream
 
 
 class Interpolator(object):
@@ -24,14 +25,19 @@ class Interpolator(object):
         "logPg": [-0.4, 0.06, "1-(teff/4100)**4"],
     }
 
-    def __init__(self, pickled_atmospheres="marcs-2011-standard.pickle"):
+    def __init__(self, pickled_atmospheres=None):
         """
         Loads the pickled atmospheres.
         """
 
-        with open(pickled_atmospheres, "rb") as fp:
-            stellar_parameters, photospheres, photosphere_cols, comment \
-                = pickle.load(fp)
+        if pickled_atmospheres is None:
+            with resource_stream(__name__, "marcs-2011-standard.pickle") as fp:
+                stellar_parameters, photospheres, photosphere_cols, comment \
+                    = pickle.load(fp)
+        else:
+            with open(pickled_atmospheres, "rb") as fp:
+                stellar_parameters, photospheres, photosphere_cols, comment \
+                    = pickle.load(fp)
 
         # Look for duplicate stellar parameter rows
         array_view = stellar_parameters.view(float).reshape(
