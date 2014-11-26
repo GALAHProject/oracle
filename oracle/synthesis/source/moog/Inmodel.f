@@ -48,12 +48,12 @@ c      endif
 c      print *, "WERRRRRRR"
       do i=1,ntau
 c         k = photospheric_structure(i, 1)
-         dummy1(i) = photospheric_structure(i, 2)
-         tauref(i) = photospheric_structure(i, 3)
-         dummy2(i) = photospheric_structure(i, 4)
-         t(i) = photospheric_structure(i, 5)
-         ne(i) = photospheric_structure(i, 6)
-         pgas(i) = photospheric_structure(i, 7)
+c         dummy1(i) = photospheric_structure(i, 2)
+         tauref(i) = photospheric_structure(i, 1)
+         dummy2(i) = photospheric_structure(i, 2)
+         t(i) = photospheric_structure(i, 3)
+         ne(i) = photospheric_structure(i, 4)
+         pgas(i) = photospheric_structure(i, 5)
       enddo
 
 c      print *, "t(:ntau)", t(:ntau)

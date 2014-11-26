@@ -45,10 +45,6 @@ moog = Extension(name = "oracle.synthesis._moog",
         'Lineabund.f', 'Molquery.f', 'Oneline.f', 'Params.f', 'Stats.f',
         'Inmodel.f', 'Inlines.f', 'Batom.f', 'Bmolec.f', 'MySynth.f']])
 
-atmosphere_interpolator = Extension(name="oracle.synthesis._interpolator",
-    sources = ["oracle/synthesis/source/interpolator.f"])
-
-
 setup(name="oracle",
     version=version,
     author="Andrew R. Casey",
@@ -64,7 +60,7 @@ setup(name="oracle",
     entry_points={
         "console_scripts": ["oracle = oracle.cli:main"]
     },
-    ext_modules=[moog, atmosphere_interpolator],
+    ext_modules=[moog],
     #scripts=["oracle/"],
     include_package_data=True,
     package_data={

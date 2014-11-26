@@ -1,11 +1,11 @@
 
-      function abundances(teff_, logg_, mh_, vturb_,
+      function abundances(mh_, vturb_,
      .   photospheric_structure_, photospheric_abundances,
      .   transitions_, debug_, output, ntau_, ncols_, natoms_,
      .   nlines_)
 
       implicit real*8 (a-h,o-z)
-      real*8, intent(in) :: teff_, logg_, mh_, vturb_
+      real*8, intent(in) :: mh_, vturb_
       real*8, dimension(ntau_, ncols_), intent(in) ::
      .   photospheric_structure_
       real*8, dimension(natoms_, 2), intent(in) ::
