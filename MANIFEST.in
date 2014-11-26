@@ -1,1 +1,2 @@
 include oracle/atmospheres/marcs-2011-standard.pickle
+include oracle/models/galah-ambre-grid.pickle

@@ -15,6 +15,7 @@ import yaml
 import numpy as np
 import warnings
 from hashlib import md5
+from pkg_resources import resource_stream
 from functools import partial
 from scipy import stats
 
@@ -93,7 +94,7 @@ class Model(object):
         This is a temporary function until I can generalise the grid.
         """
 
-        with open("galah-ambre-grid.pickle", "r") as fp:
+        with resource_stream(__name__, "galah-ambre-grid.pickle") as fp:
             grid_points, grid_dispersion, grid_fluxes, grid_pixels = pickle.load(fp)
         grid_fluxes = grid_fluxes.reshape(grid_points.size, sum(grid_pixels))
 
@@ -364,4 +365,5 @@ class Model(object):
             return (theta, r_chi_sq, np.hstack(expected_channel_disp),
                 np.hstack([ecf[grid_index] for ecf in expected_channel_fluxes]))
         return theta
+
     
