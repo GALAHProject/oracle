@@ -5,8 +5,8 @@
 import numpy as np
 
 import oracle.atmospheres
-#from . import _moogsilent as moogsilent
-import oracle.synthesis._moogsilent as moogsilent
+from . import _moogsilent as moogsilent
+#import oracle.synthesis._moogsilent as moogsilent
 
 def synthesise(effective_temperature, surface_gravity, metallicity,
     microturbulence, transitions, wavelength_start, wavelength_end,

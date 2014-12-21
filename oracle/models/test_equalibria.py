@@ -1,7 +1,7 @@
 
 import oracle
 
-
+"""
 data = [oracle.specutils.Spectrum1D.load("Spectra/ccd_1/sun_blu.0002.fits")]
 
 model = oracle.models.EqualibriaModel({
@@ -23,3 +23,4 @@ model = oracle.models.EqualibriaModel({
 
 
 theta = model.initial_theta(data)
+"""

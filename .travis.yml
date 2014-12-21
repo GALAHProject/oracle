@@ -12,7 +12,7 @@ before_install:
 install: 
   - pip install coveralls
   - pip install -r requirements.txt --use-mirrors
-  - sudo python setup.py build install
+  - python setup.py build_ext --inplace
 script:
   - nosetests --with-coverage --cover-package=oracle
 after_success:
