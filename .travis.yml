@@ -5,7 +5,7 @@ virtualenv:
   system_site_packages: true
 before_install:
   # Install required packages
-  - sudo apt-get install gfortran g77 libcfitsio3-dev python-matplotlib python-pyfits python-scipy
+  - sudo apt-get install gfortran libcfitsio3-dev python-matplotlib python-pyfits python-scipy
   # Setup a faux display for matplotlib
   - "export DISPLAY=:99.0"
   - "sh -e /etc/init.d/xvfb start"
