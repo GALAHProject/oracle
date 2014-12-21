@@ -4,8 +4,8 @@
 
 import numpy as np
 
-import _moog
 import oracle.atmospheres
+from oracle.synthesis import __moogsilent__ as moogsilent
 
 
 def synthesise(effective_temperature, surface_gravity, metallicity,
@@ -22,7 +22,7 @@ def synthesise(effective_temperature, surface_gravity, metallicity,
     photospheric_structure = interpolator.interpolate(effective_temperature,
         surface_gravity, metallicity)
 
-    # Re-arrange the photospheric structure for _moog
+    # Re-arrange the photospheric structure for moogsilent
     photospheric_structure = np.asfortranarray(photospheric_structure
         .view(float).reshape(photospheric_structure.size, -1))
 
@@ -35,7 +35,7 @@ def synthesise(effective_temperature, surface_gravity, metallicity,
         wavelength_step])
     npoints = (wavelength_end - wavelength_start)/wavelength_step + 1
 
-    code, wavelengths, fluxes = _moog.synthesise(metallicity, microturbulence,
+    code, wavelengths, fluxes = moogsilent.synthesise(metallicity, microturbulence,
         photospheric_structure, abundances, transitions, syn_limits,
         opacity_contributes, npoints_=npoints, debug_=debug)
 
@@ -57,7 +57,7 @@ def abundances(effective_temperature, surface_gravity, metallicity,
     photospheric_structure = interpolator.interpolate(effective_temperature,
         surface_gravity, metallicity)
 
-    # Re-arrange the photospheric structure for _moog
+    # Re-arrange the photospheric structure for moogsilent
     photospheric_structure = np.asfortranarray(photospheric_structure
         .view(float).reshape(photospheric_structure.size, -1))
 
@@ -68,7 +68,7 @@ def abundances(effective_temperature, surface_gravity, metallicity,
         photospheric_abundances = np.asfortranarray(
             np.atleast_2d(photospheric_abundances))
 
-    code, output = _moog.abundances(metallicity, microturbulence,
+    code, output = moogsilent.abundances(metallicity, microturbulence,
         photospheric_structure, photospheric_abundances, transitions,
         debug_=debug)
 
