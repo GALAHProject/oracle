@@ -34,7 +34,7 @@ contents = readfile(os.path.join(
 version = version_regex.findall(contents)[0]
 
 # Extensions
-moog = Extension(name = "oracle.synthesis.__moogsilent__",
+moog = Extension(name = "oracle.synthesis._moogsilent",
     sources = ["oracle/synthesis/source/moog/{}".format(each) for each in [
         'MyAbfind.f', 'Partfn.f', 'Sunder.f', 'Eqlib.f', 'Nearly.f','Discov.f',
         'Invert.f', 'Gammabark.f', 'Damping.f', 'Lineinfo.f', 'Opacit.f',
@@ -52,7 +52,6 @@ setup(name="oracle",
     packages=["oracle", "oracle.atmospheres", "oracle.models",
         "oracle.specutils", "oracle.synthesis"],
     url="http://www.github.com/andycasey/oracle/",
-    license="MIT",
     description="the suppository of all wisdom",
     long_description=readfile(os.path.join(os.path.dirname(__file__), "README.md")),
     install_requires=readfile(

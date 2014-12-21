@@ -8,7 +8,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 __version__ = "0.01"
 
 import logging
-from . import (models, specutils, utils)
+from . import (models, synthesis, specutils, utils)
 
 logger = logging.getLogger("oracle")
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(message)s")
