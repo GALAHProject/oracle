@@ -96,6 +96,11 @@ class Interpolator(object):
         return indices
 
 
+    def __call__(self, *args, **kwargs):
+        """ Alias to Interpolator.interpolate """
+        return self.interpolate(*args, **kwargs)
+
+
     def interpolate(self, effective_temperature, surface_gravity, metallicity,
         opacity_scale="logTau5000"):
         """
