@@ -87,8 +87,26 @@ class Spectrum1D(object):
     def copy(self):
         """ Creates a copy of the object """
         return self.__class__(self.disp.copy(), self.flux.copy(),
-            variance=self.variance.copy(), headers=headers.copy())
+            variance=self.variance.copy(), headers=self.headers.copy())
     
+
+    def slice(self, wavelengths):
+        """
+        Slice a spectrum by some wavelengths.
+        """
+
+        assert len(wavelengths) == 2
+
+        wavelength_start, wavelength_end = wavelengths
+        index_start = self.disp.searchsorted(wavelength_start, side="left")
+        index_end = self.disp.searchsorted(wavelength_end, side="right")
+
+        disp = self.disp[index_start:index_end]
+        flux = self.flux[index_start:index_end]
+        variance = self.variance[index_start:index_end]
+
+        return self.__class__(disp, flux, variance=variance, headers=self.headers.copy())
+
 
     @classmethod
     def load(cls, filename, **kwargs):
