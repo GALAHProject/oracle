@@ -6,18 +6,13 @@ from __future__ import absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
-import cPickle as pickle
-import collections
 import logging
-
 import numpy as np
-from scipy import optimize as op
 
 from oracle import specutils, utils
 from oracle.models.model import Model
 
 logger = logging.getLogger("oracle")
-
 
 # Process is:
 #model = models.GenerativeModel("my_filename.yaml")
@@ -36,18 +31,6 @@ logger = logging.getLogger("oracle")
 #data = []
 #initial_theta, initial_r_chi_sq, info = model.initial_theta(data)
 #optimised_theta, model.fit(data, initial_theta=What)
-
-def load_grid(filename):
-    with open(filename, "rb") as fp:
-        grid_description, grid_points, grid_dispersion, grid_fluxes = \
-            pickle.load(fp)
-        
-    # Reshape the grid fluxes accordingly
-    grid_fluxes = grid_fluxes.reshape(-1, grid_dispersion.size)
-    return (grid_description, grid_points, grid_dispersion, grid_fluxes)
-
-
-
 
 class GenerativeModel(Model):
 
@@ -87,18 +70,18 @@ class GenerativeModel(Model):
         return None
 
 
-    def parameters(self, num_data_channels):
+    def parameters(self, data):
         """
         Return the model parameters for some data. The model configuration is
         applicable for a large number of observed channels, so the number of 
         observed channels is required to determine the exact number of model
         parameters.
 
-        :param num_data_channels:
-            The number of observed data channels.
+        :param data:
+            The observed data.
 
         :type num_data_channels:
-            int
+            list of :class:`oracle.specutils.Spectrum1D` objects
 
         :returns:
             A list of model parameters.
@@ -107,11 +90,10 @@ class GenerativeModel(Model):
             tuple
         """
 
-        try:
-            num_data_channels = int(num_data_channels)
-        except (ValueError, TypeError):
-            raise TypeError("number of data channels must be an integer")
-
+        # The Generative model does not strictly require the data, only the 
+        # number of observed data. But this is to be consistent with other
+        # models.
+        num_data_channels = len(data)
         if 1 > num_data_channels:
             raise ValueError("number of data channels must be a positive integer")
 
