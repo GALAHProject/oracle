@@ -10,9 +10,12 @@ before_install:
  - sudo apt-get install gfortran libcfitsio3-dev python-matplotlib python-pyfits python-scipy
  - "export DISPLAY=:99.0"
  - "sh -e /etc/init.d/xvfb start"
- - pip install coveralls PyGithub
+ - pip install coveralls
+ # Need my version of PyGithub at the moment so that we can provide context to statuses
+ - pip install https://github.com/andycasey/PyGithub/archive/master.zip
+ - python status.py
 
-install: 
+install:
  - pip install -r requirements.txt --use-mirrors
  - python setup.py build_ext --inplace
 
