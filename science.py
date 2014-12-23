@@ -15,6 +15,9 @@ script will comment on the GitHub pull request and include the result figures.
 
 """
 
+from __future__ import print_function
+
 # Download the data we require
 
 # Run the analysis on the benchmark stars
+print("science.py done")

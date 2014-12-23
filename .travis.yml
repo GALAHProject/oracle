@@ -21,6 +21,7 @@ script:
 
 after_success:
  - coveralls
+ - if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; python science.py; fi
 
 notifications:
  email:
