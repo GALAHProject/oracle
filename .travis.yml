@@ -21,8 +21,8 @@ script:
 
 after_success:
  - coveralls
- - "echo 'what $TRAVIS_PULL_REQUEST ';"
- - "if [[ $TRAVIS_PULL_REQUEST == 'true' ]]; python science.py; fi"
+ - 'echo "what $TRAVIS_PULL_REQUEST ";'
+ - "if [[ $TRAVIS_PULL_REQUEST == 'true' ]]; then python science.py; fi"
 
 notifications:
  email:
