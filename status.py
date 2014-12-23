@@ -39,7 +39,6 @@ def get_commit_info(auth_token, repo_slug, pull_request, context):
     return (commit, context_states)
 
 
-
 if __name__ == "__main__":
 
     # Check for credentials
@@ -66,7 +65,7 @@ if __name__ == "__main__":
     else:
         # Exit run
         r = commit.create_status("success", target_url="http://astrowizici.st",
-            description="Gaia benchmark stars within acceptable uncertainties",
+            description="Gaia benchmarks within mutual uncertainties",
             context=context)
         sys.exit(0)
 
