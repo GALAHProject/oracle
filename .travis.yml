@@ -26,7 +26,6 @@ after_success:
  - 'echo "LATEST_COMMIT_HASH=$LATEST_COMMIT_HASH";'
  - 'echo "CURRENT_COMMIT_HASH=$CURRENT_COMMIT_HASH";'
  - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py; fi"
-#- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && bundle exec rake tests:integration || false'
 
 notifications:
  email:
