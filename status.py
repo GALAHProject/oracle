@@ -47,15 +47,13 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Check that we are on a pull request
-    print("PR {0} {1}".format(os.environ["TRAVIS_PULL_REQUEST"],
-        type(os.environ["TRAVIS_PULL_REQUEST"])))
     if os.environ["TRAVIS_PULL_REQUEST"] == "false":
         sys.exit(0)
 
     gh = github.Github(os.environ["GH_TOKEN"])
     context = "science-verification/gaia-benchmarks"
     repo_slug = os.environ["TRAVIS_REPO_SLUG"]
-    pull_request = os.environ["TRAVIS_PULL_REQUEST"]
+    pull_request = int(os.environ["TRAVIS_PULL_REQUEST"])
 
     commit, states = get_commit_info(gh, repo_slug, pull_request)
 
