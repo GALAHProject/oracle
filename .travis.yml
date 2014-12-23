@@ -21,7 +21,12 @@ script:
 
 after_success:
  - coveralls
- - if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; python science.py; fi
+ - 'echo "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST";'
+ - 'echo "TRAVIS_JOB_NUMBER=$TRAVIS_JOB_NUMBER";'
+ - 'echo "LATEST_COMMIT_HASH=$LATEST_COMMIT_HASH";'
+ - 'echo "CURRENT_COMMIT_HASH=$CURRENT_COMMIT_HASH";'
+ - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py; fi"
+#- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && bundle exec rake tests:integration || false'
 
 notifications:
  email:

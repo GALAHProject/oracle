@@ -17,15 +17,16 @@ import warnings
 from hashlib import md5
 from pkg_resources import resource_stream
 from functools import partial
-from scipy import stats
+from scipy import stats, optimize as op
 
 logger = logging.getLogger("oracle")
 
 from oracle import utils, specutils
-from oracle.models import validation
+from oracle.models import profiles, validation
 
 # Silence 'Polyfit may be poorly conditioned' messages
 warnings.simplefilter("ignore", np.RankWarning)
+
 
 class Model(object):
 
@@ -126,6 +127,21 @@ class Model(object):
             return -1
 
 
+    def _continuum(self, dispersion, channel_index, theta):
+        """
+        Return the continuum at each dispersion point for the given channel.
+        """
+
+        order = self._continuum_order(channel_index)
+        if 0 > order:
+            return np.ones(dispersion.size)
+
+        coefficients = [theta["continuum.{0}.{1}".format(channel_index, i)] \
+            for i in range(order + 1)]
+
+        return np.polyval(coefficients[::-1], dispersion)
+
+
     @property
     def hash(self):
         """ Return a MD5 hash of the JSON-dumped model configuration. """ 
@@ -193,7 +209,7 @@ class Model(object):
         data = sorted(data, key=lambda x: x.disp[0])
 
         # Need some cacher object to do fast-on-the-fly-comparisons
-        parameters = self.parameters(len(data))
+        parameters = self.parameters(data)
 
         # Load the pickled cacher object thing, and work out some estimates
         # of the model parameters
@@ -244,20 +260,21 @@ class Model(object):
             # Cross-correlate the observed data against the grid
             if ("v_rad" in parameters) or ("v_rad.{}".format(i) in parameters):
                 if i == 0:
-                    v_rads, v_errs, ccf_peaks = specutils.cross_correlate.cross_correlate_grid(
-                        rebinned_channel_disp,
-                        grid_fluxes[:, indices[0]:indices[1]],
-                        rebinned_channel_flux.copy(), continuum_order=order,
-                        threads=self.config["settings"]["threads"])
+                    v_rads, v_errs, ccf_peaks = \
+                        specutils.cross_correlate.cross_correlate_grid(
+                            rebinned_channel_disp,
+                            grid_fluxes[:, indices[0]:indices[1]],
+                            rebinned_channel_flux.copy(), continuum_order=order,
+                            threads=self.config["settings"]["threads"])
 
                     # Identify one with largest CCF max
                     highest_peak = ccf_peaks.argmax()
                     v_rad = v_rads[ccf_peaks.argmax()]
-                    logger.debug("Grid point with highest CCF peak in channel {0} is"\
-                        " {1} with v_rad = {2:.1f} km/s (+/- {3:.1f} km/s) and R = "\
-                        "{4:.3f}".format(i, utils.readable_dict(grid_points.dtype.names,
-                            grid_points[highest_peak]), v_rad, v_errs[highest_peak],
-                        ccf_peaks[highest_peak]))
+                    logger.debug("Grid point with highest CCF peak in channel "\
+                        "{0} is {1} with v_rad = {2:.1f} km/s (+/- {3:.1f} km/"\
+                        "s) and R = {4:.3f}".format(i, utils.readable_dict(
+                            grid_points.dtype.names, grid_points[highest_peak]),
+                        v_rad, v_errs[highest_peak], ccf_peaks[highest_peak]))
 
                 else:
                     v_rad, v_err, ccf_peak = specutils.cross_correlate.cross_correlate_grid(
@@ -285,7 +302,7 @@ class Model(object):
             if order >= 0:
                 # Note this is assuming you are not doing some Big Ass Matrix(tm)
                 # operations.
-                dispersion_matrix = np.ones((order + 1, rebinned_channel_disp.size))
+                dispersion_matrix = np.ones((order+1, rebinned_channel_disp.size))
                 for j in range(order + 1):
                     dispersion_matrix[j] *= rebinned_channel_disp**j
 
@@ -365,5 +382,82 @@ class Model(object):
             return (theta, r_chi_sq, np.hstack(expected_channel_disp),
                 np.hstack([ecf[grid_index] for ecf in expected_channel_fluxes]))
         return theta
+
+
+    def fit_absorption_profile(self, wavelength, spectrum, continuum=None,
+        initial_fwhm=None, initial_depth=None, wavelength_tolerance=0.10,
+        surrounding=1.0):
+        """
+        Fit an absorption profile to the provided spectrum.
+        """
+
+        # allow wavelength to move by some amount?
+
+        # initial guess of fwhm?
+        # initial guess of line depth?
+        # initial guess of continuum if not given a blending spectrum?
+
+        
+        if continuum is None:
+            data_range = (wavelength - surrounding, wavelength + surrounding)
+            data = spectrum.slice(data_range)
+            continuum = 1.
+
+        else:
+            data_range = (continuum.disp[0], continuum.disp[-1])
+            data = spectrum.slice(data_range)
+            continuum = np.interp(data.disp, continuum.disp, continuum.flux)
+
+
+        index = data.disp.searchsorted(wavelength)
+
+        if initial_depth is None:
+            if isinstance(continuum, (float, int)):
+                initial_depth = 1. - data.flux[index]/continuum
+            else:
+                initial_depth = 1. - data.flux[index]/continuum[index]
+
+
+        if initial_fwhm is None:
+            if isinstance(continuum, (float, int)):
+                mid_line_value = continuum * (1 - 0.5 * initial_depth)
+
+            else:
+                mid_line_value = continuum[index] * (1 - 0.5 * initial_depth)
+
+            # Find the wavelengths from the central wavelength where this value
+            # exists
+            pos_mid_point = data.disp[index:][(data.flux[index:] > mid_line_value)][0]
+            neg_mid_point = data.disp[:index][(data.flux[:index] > mid_line_value)][-1]            
+            initial_fwhm = pos_mid_point - neg_mid_point
+
+
+        def absorption_profile(wavelength, fwhm, depth):
+            return continuum * (1 - depth * profiles.gaussian(wavelength, fwhm,
+                data.disp))
+
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        ax.plot(data.disp, data.flux, 'k')
+        ax.plot(data.disp, continuum, 'b')
+        ax.plot(data.disp, absorption_profile(wavelength, initial_fwhm/2.355, initial_depth), 'r')
+
+
+        def chi_sq(theta):
+            wavelength, sigma, depth = theta
+            model = absorption_profile(wavelength, sigma, depth)
+            difference = (data.flux - model)**2 * data.ivariance
+            return difference[np.isfinite(difference)].sum()
+
+        theta_init = np.array([wavelength, initial_fwhm/2.355, initial_depth])
+        theta_opt = op.fmin(chi_sq, theta_init)
+
+        ax.plot(data.disp, absorption_profile(*theta_opt), 'g')
+
+        raise a
+
+        return theta_opt
+
+
 
     
