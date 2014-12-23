@@ -3,6 +3,9 @@ language: python
 python:
  - "2.7"
 
+virtualenv:
+  system_site_packages: true
+
 before_install:
  - sudo apt-get install gfortran libcfitsio3-dev python-matplotlib python-pyfits python-scipy
  - "export DISPLAY=:99.0"
