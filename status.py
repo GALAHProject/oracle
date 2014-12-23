@@ -1,3 +1,6 @@
+# coding: utf-8
+
+""" Update GitHub pull requests with science verification statuses """ 
 
 from __future__ import print_function
 
@@ -64,9 +67,19 @@ if __name__ == "__main__":
 
     else:
         # Exit run
-        r = commit.create_status("success", target_url="http://astrowizici.st",
-            description="Gaia benchmarks within mutual uncertainties",
-            context=context)
+        # Was any science actually done?
+        if os.path.exists("science.log"):
+            # [TODO] Parse the log/similar for results and make checks.
+            # Then set as either success/failure
+            r = commit.create_status("success", target_url="http://astrowizici.st",
+                description="Gaia benchmarks within mutual uncertainties",
+                context=context)
+
+        else:
+            r = commit.create_status("error", target_url="http://astrowizici.st",
+                description="An error occurred and no results were found",
+                context=context)
+
         sys.exit(0)
 
 

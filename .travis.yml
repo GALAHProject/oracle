@@ -7,13 +7,15 @@ virtualenv:
  system_site_packages: true
 
 before_install:
+ # Need my version of PyGithub at the moment so that we can provide context to statuses
+ - pip install https://github.com/andycasey/PyGithub/archive/master.zip
+ - python status.py
+ 
+ # OK now install the stuff we need
  - sudo apt-get install gfortran libcfitsio3-dev python-matplotlib python-pyfits python-scipy
  - "export DISPLAY=:99.0"
  - "sh -e /etc/init.d/xvfb start"
  - pip install coveralls
- # Need my version of PyGithub at the moment so that we can provide context to statuses
- - pip install https://github.com/andycasey/PyGithub/archive/master.zip
- - python status.py
 
 install:
  - pip install -r requirements.txt --use-mirrors
