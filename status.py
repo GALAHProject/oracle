@@ -22,7 +22,7 @@ def get_last_commit_in_pull_request(auth_token, repo_slug, pull_request):
     return commit
 
 
-def get_commit_info(auth_token, repo_slug, pull_request):
+def get_commit_info(auth_token, repo_slug, pull_request, context):
     """
     Check if this pull request has a pending state with the same context.
     """
@@ -31,7 +31,7 @@ def get_commit_info(auth_token, repo_slug, pull_request):
 
     context_states = []
     for status in commit.get_statuses():
-        if status.raw_data["context"] == CONTEXT: 
+        if status.raw_data["context"] == context: 
             context_states.append(status.raw_data["state"])
 
     context_states = list(set(context_states))
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     repo_slug = os.environ["TRAVIS_REPO_SLUG"]
     pull_request = int(os.environ["TRAVIS_PULL_REQUEST"])
 
-    commit, states = get_commit_info(gh, repo_slug, pull_request)
+    commit, states = get_commit_info(gh, repo_slug, pull_request, context)
 
     if len(states) == 0:
         # Entry run
