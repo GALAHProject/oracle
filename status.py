@@ -62,7 +62,7 @@ if __name__ == "__main__":
     if len(states) == 0:
         # Entry run
         r = commit.create_status("pending", target_url="http://astrowizici.st",
-            description="Analysing benchmark stars", context=context)
+            description="Analysing benchmark stars :telescope:", context=context)
         sys.exit(0)
 
     else:
