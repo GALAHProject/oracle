@@ -62,13 +62,13 @@ if __name__ == "__main__":
     if len(states) == 0:
         # Entry run
         r = commit.create_status("pending", target_url="http://astrowizici.st",
-            "Analysing benchmark stars", context=context)
+            description="Analysing benchmark stars", context=context)
         sys.exit(0)
 
     else:
         # Exit run
         r = commit.create_status("success", target_url="http://astrowizici.st",
-            "Gaia benchmark stars within acceptable uncertainties",
+            description="Gaia benchmark stars within acceptable uncertainties",
             context=context)
         sys.exit(0)
 
