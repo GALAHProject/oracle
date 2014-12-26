@@ -31,7 +31,7 @@ after_success:
  - 'echo "TRAVIS_COMMIT=$TRAVIS_COMMIT";'
  - 'echo "LATEST_COMMIT_HASH=$LATEST_COMMIT_HASH";'
  - 'echo "CURRENT_COMMIT_HASH=$CURRENT_COMMIT_HASH";'
- - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py; fi"
+ - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py > science.log; fi"
 
 after_script:
  - python status.py 
