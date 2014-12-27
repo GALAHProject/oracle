@@ -386,7 +386,7 @@ class Model(object):
 
     def fit_absorption_profile(self, wavelength, spectrum, continuum=None,
         initial_fwhm=None, initial_depth=None, wavelength_tolerance=0.10,
-        surrounding=1.0):
+        surrounding=1.0, outliers=True, full_output=False):
         """
         Fit an absorption profile to the provided spectrum.
         """
@@ -432,31 +432,132 @@ class Model(object):
             initial_fwhm = pos_mid_point - neg_mid_point
 
 
+        # Gaussian case
         def absorption_profile(wavelength, fwhm, depth):
             return continuum * (1 - depth * profiles.gaussian(wavelength, fwhm,
                 data.disp))
 
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots()
-        ax.plot(data.disp, data.flux, 'k')
-        ax.plot(data.disp, continuum, 'b')
-        ax.plot(data.disp, absorption_profile(wavelength, initial_fwhm/2.355, initial_depth), 'r')
+        def integrate_absorption_profile(wavelength, fwhm, depth):
+            return fwhm * depth
 
 
-        def chi_sq(theta):
-            wavelength, sigma, depth = theta
-            model = absorption_profile(wavelength, sigma, depth)
-            difference = (data.flux - model)**2 * data.ivariance
-            return difference[np.isfinite(difference)].sum()
+        # Should we model the outliers?
+        if outliers:
+            def negative_log_likelihood(theta):
+                wavelength, sigma, depth, outlier_mu, outlier_sigma, P = theta
 
-        theta_init = np.array([wavelength, initial_fwhm/2.355, initial_depth])
-        theta_opt = op.fmin(chi_sq, theta_init)
+                if not (1 > P > 0) or 0 > sigma or 0 > outlier_sigma \
+                or 0 > wavelength:
+                    return np.nan
 
-        ax.plot(data.disp, absorption_profile(*theta_opt), 'g')
+                model_line = absorption_profile(wavelength, sigma, depth)
+                model_background = outlier_mu
 
-        raise a
+                ivariance_line = data.ivariance
+                ivariance_background = data.ivariance + outlier_sigma**2
 
-        return theta_opt
+                likelihood_line = -0.5 * ((data.flux - model_line)**2 \
+                    * ivariance_line - np.log(ivariance_line))
+                likelihood_background = -0.5 * ((data.flux - model_background)**2 \
+                    * ivariance_background - np.log(ivariance_background))
+
+                likelihood = np.sum(np.logaddexp(
+                    np.log(1 - P) + likelihood_line,
+                    np.log(P) + likelihood_background))
+
+                # Return the negative likelihood, since this function will be
+                # minimised
+                return -likelihood
+
+            initial_sigma = initial_fwhm/2.355
+            finite = np.isfinite(data.flux)
+            initial_outlier_mu = np.median(data.flux[finite])
+            initial_outlier_sigma = 1e-4
+
+            # approximate width of the line/approximate width covered by the 
+            # input data
+            initial_P = 1 - (2. * 5 * initial_sigma)/np.ptp(data.disp)
+
+            # Limit the initial fraction to be between [0, 1]
+            tolerance = 1e-4
+            initial_P = np.clip(initial_P, tolerance, 1 - tolerance)
+
+            labels = ("wavelength", "sigma", "depth", "outlier_mu",
+                "outlier_sigma", "outlier_fraction")
+
+            # Start with some initial parameters
+            initial_theta = np.array([wavelength, initial_sigma, initial_depth,
+                initial_outlier_mu, initial_outlier_sigma, initial_P])
+            initial_text = ", ".join(["{0} = {1:.2f}".format(label, value) \
+                for label, value in zip(labels, initial_theta)])
+            logger.debug("Initial theta for absorption profile at {0:.2f} A is "\
+                "{1}".format(wavelength, initial_text))
+
+            # Optimise the negative log likelihood
+            optimal_theta, fopt, num_iter, num_funcalls, warnflag = op.fmin(
+                negative_log_likelihood, initial_theta, disp=False,
+                full_output=True)
+
+            # Report on the optimised parameters
+            optimal_text = ", ".join(["{0} = {1:.2f}".format(label, value) \
+                for label, value in zip(labels, optimal_theta)])
+            logger.debug("Optimal theta for absorption profile at {0:.2f} A is "\
+                "{1}".format(wavelength, optimal_text))
+
+        else:
+            # The chi-sq function
+            def chi_sq(theta):
+                wavelength, sigma, depth = theta
+                model = absorption_profile(wavelength, sigma, depth)
+                difference = (data.flux - model)**2 * data.ivariance
+                return difference[np.isfinite(difference)].sum()
+
+            labels = ("wavelength", "sigma", "depth")
+
+            # Prepare the initial theta values
+            initial_sigma = initial_fwhm/2.355
+            initial_theta = np.array([wavelength, initial_sigma, initial_depth])
+
+            # Optimise the chi-squared value
+            optimal_theta, fopt, num_iter, num_funcalls, warnflag = op.fmin(
+                chi_sq, initial_theta, disp=False, full_output=True)
+
+        # Integrate the profile to get an equivalent width
+        equivalent_width = integrate_absorption_profile(*optimal_theta[:3]) * 1000. # milliAngstroms
+        # [TODO] astropy.units
+
+        # Return result if no additional information is requested
+        if not full_output:
+            return (optimal_theta, equivalent_width)
+
+        # Get our returning information together
+        initial = dict(zip(labels, initial_theta))
+        optimal = dict(zip(labels, optimal_theta))
+
+        minimised_quantity = "negative_log_likelihood" if outliers else "chi_sq"
+        continuum_spectrum = specutils.Spectrum1D(disp=data.disp,
+            flux=continuum, variance=np.zeros(data.disp.size))
+        initial_profile = specutils.Spectrum1D(disp=data.disp,
+            flux=absorption_profile(wavelength, initial_sigma, initial_depth),
+            variance=np.zeros(data.disp.size))
+        optimal_profile = specutils.Spectrum1D(disp=data.disp,
+            flux=absorption_profile(*optimal_theta[:3]),
+            variance=np.zeros(data.disp.size))
+
+        info = {
+            "initial_theta": initial,
+            "optimal_theta": optimal,
+            minimised_quantity: fopt,
+            "pixels": data.disp.size,
+            "num_iter": num_iter,
+            "num_funcalls": num_funcalls,
+            "warnflag": warnflag,
+            "continuum": continuum_spectrum,
+            "initial_profile": initial_profile,
+            "optimal_profile": optimal_profile
+        }
+
+        return (optimal_theta, equivalent_width, info)
 
 
 

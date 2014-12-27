@@ -227,8 +227,7 @@ class EqualibriaModel(Model):
         theta, r_chi_sq, model_dispersion, model_fluxes = super(EqualibriaModel,
             self).initial_theta(data, True)
 
-        # Now we need to estimate abundances of all of the lines:
-        # FOR EACH LINE:
+        # Now we need to estimate abundances of all of the lines. At each line:
         # (1) Take the initial model theta, interpolate a model atmospheres
         # (2) At each line, see if there are any blending lines that we need to
         #     synthesise.
@@ -258,6 +257,7 @@ class EqualibriaModel(Model):
         blending_line_wavelengths = np.array([l[0] \
             for l in self.config["model"].get("blending_lines", [])])
 
+        measured_atomic_lines = []
         for i, atomic_line in enumerate(self.config["model"]["atomic_lines"]):
 
             wavelength, species, excitation_potential, loggf, damp1, damp2, \
@@ -295,30 +295,32 @@ class EqualibriaModel(Model):
             # Splice a small portion of the spectrum
             continuum = specutils.Spectrum1D(blending_dispersion, blending_flux)
 
-            # Fit an absorption profile in context of the surround
-            profile_parameters, equivalent_width = self.fit_absorption_profile(
-                wavelength, data[channel_index], continuum=continuum)
+            # Fit an absorption profile in context of the surrounding region
+            profile_parameters, equivalent_width, profile_info = \
+                self.fit_absorption_profile(wavelength, data[channel_index],
+                    continuum=continuum, full_output=True)
+
+            measured_atomic_lines.append([
+                wavelength, species, excitation_potential, loggf, damp1, damp2,
+                equivalent_width])
+
+        # Calculate abundances from the integrated equalivent widths
+        # [TODO] Use the pre-interpolated photospheric structure?
+        abundances = synthesis.moog.abundances(theta["effective_temperature"],
+            theta["surface_gravity"], theta["[M/H]"], theta["microturbulence"],
+            measured_atomic_lines)
 
 
-            # Multiply the spectrum by the continuum function
-
-            # Apply radial velocity to the model spectrum
-
-            # Update the initial wavelength with the correction for radial
-            # velocity
-
-            # Mask the model spectra as appropriate
-
-            # Fit the profile!
-
-        # Create an array of equaivalent widths
-
-        # Calculate abundances from the integrated equalivent width
-        #        abundances = synthesis.moog.abundances(stellar_parameters,
-        #    microturbulence, measured_atomic_lines)
+        raise a
 
         # Add them to the measured atomic lines table and turn it into a named
         # array
+
+        # Create an array of equaivalent widths
+        measured_atomic_lines = np.core.records.fromarrays(
+            np.array(measured_atomic_lines).T, names=("wavelength", "species",
+                "excitation_potential", "loggf", "damp1", "damp2",
+                "equivalent_width"))
 
 
         missing_parameters = set(self.parameters(data)).difference(theta)
