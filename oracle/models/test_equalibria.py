@@ -27,6 +27,11 @@ def equalibria():
 
     theta = model.initial_theta(data)
 
+    stellar_parameters = model.estimate_stellar_parameters(data,
+        initial_theta=theta)
+    
+    raise a
+
 # Don't run this test on Travis.
 if "TRAVIS_BUILD_ID" not in os.environ:
     equalibria()

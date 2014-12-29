@@ -8,6 +8,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import logging
 import numpy as np
+from scipy import stats, optimize as op
 
 from oracle import atmospheres, specutils, synthesis, utils
 from oracle.models.model import Model
@@ -34,7 +35,7 @@ class EqualibriaModel(Model):
         }
     }
 
-    _line_parameter_format = "A({0:.1f}@{1:.2f})"
+    _line_parameter_format = "A({species:.1f}@{wavelength:.2f})"
 
     def __init__(self, configuration):
         """
@@ -115,7 +116,7 @@ class EqualibriaModel(Model):
             for wavelength_start, wavelength_end in wavelength_ranges:
                 if wavelength_end >= wavelength and wavelength >= wavelength_start:
                     parameters.append(self._line_parameter_format.format(
-                        wavelength, species))
+                        wavelength=wavelength, species=species))
                     num_atomic_lines += 1
 
         if 2 > num_atomic_lines:
@@ -222,35 +223,94 @@ class EqualibriaModel(Model):
             list of :class:`oracle.specutils.Spectrum1D` objects
         """
 
-        # Get initial theta from the abstract model class, which will estimate
+        # Get initial theta from the base model class, which will estimate the
         # radial velocities, continuum coefficients, and stellar parameters
         theta, r_chi_sq, model_dispersion, model_fluxes = super(EqualibriaModel,
-            self).initial_theta(data, True)
+            self).initial_theta(data, full_output=True, **kwargs)
 
-        # Now we need to estimate abundances of all of the lines. At each line:
-        # (1) Take the initial model theta, interpolate a model atmospheres
-        # (2) At each line, see if there are any blending lines that we need to
-        #     synthesise.
-        # (4) The sub-model parameters will be line parameters
-        # (5) Fit the sub-model parameters (the profile) and get an equivalent
-        #     width
-        
-        # THEN: Use the equivalent widths to estimate abundances for all of the
-        # lines. 
+        if full_output:
+            return (theta, r_chi_sq, model_dispersion, model_fluxes)
+        return theta
 
-        # OK, now do it:
-        # (1) Take the initial model theta, interpolate a model atmospheres
-        atmosphere_kwargs = kwargs.pop("atmosphere_kwargs", {})
-        interpolator = atmospheres.Interpolator(**atmosphere_kwargs)
 
-        # Get the stellar parameters (microturbulence not necessary for interp)
-        parameter_names = ("effective_temperature", "surface_gravity", "[M/H]")
-        stellar_parameters = [theta[p] for p in parameter_names]
+    def estimate_stellar_parameters(self, data, initial_theta=None, **kwargs):
+        """
+        Return point estimates for the stellar parameters (effective temperature,
+        surface gravity, metallicity, microturbulence) using an excitation and
+        ionisation balance approach.
+
+        :param data:
+            The observed data.
+
+        :type data:
+            list of `oracle.specutils.Spectrum1D` objects
+
+        :param initial_theta: [optional]
+            Initial estimates of the stellar parameters, radial velocities, and
+            continuum parameters (where appropriate).
+
+        :type initial_theta:
+            dict
+
+        :returns:
+            Point estimates of the effective temperature, surface gravity,
+            metallicity, and microturbulence.
+        """
+
+        if initial_theta is None:
+            initial_theta = self.initial_theta(data)
+
+        else:
+            logger.warn("assert that all parameters are provided by initial theta")
+
+        # Get the initial stellar parameters
+        initial_stellar_parameters = [initial_theta[label] for label in \
+            ("effective_temperature", "surface_gravity", "[M/H]", 
+                "microturbulence")]
+
+        # Optimisation
+        state_kwargs = { "theta": initial_theta }
+        state_function = lambda x: self.equalibrium_state(data, *x,
+            **state_kwargs)
+
+        # Optional parameters
+        xtol = kwargs.pop("xtol", 1e-10)
+        maxfev = kwargs.pop("maxfev", 50)
+
+        result = op.fsolve(state_function, initial_stellar_parameters,
+            fprime=_stellar_parameter_jacobian_approximation, col_deriv=True,
+            epsfcn=0, xtol=xtol, maxfev=maxfev, full_output=True)
+
+
+        raise NotImplementedError
+
+
+    def equalibrium_state(self, data, effective_temperature,
+        surface_gravity, metallicity, microturbulence, theta=None,
+        full_output=False, **kwargs):
+        """
+        Return the excitation and ionisation state. This information includes:
+
+        # slope of mean line abundance vs excitation excitation_potential
+        # mean difference between neutral and ionised lines
+        # slope of mean line abundance vs reduced equivalent width
+        # mean difference between input metallicty and mean output metallicity
+
+        """
+
+        if theta is None:
+            theta = {}
+
+        interpolator = kwargs.pop("interpolator", None)
+        if interpolator is None:
+            # Interpolate a model atmospheres
+            atmosphere_kwargs = kwargs.pop("atmosphere_kwargs", {})
+            interpolator = atmospheres.Interpolator(**atmosphere_kwargs)
 
         # Interpolate the photospheric quantities
         interpolator_kwargs = kwargs.pop("atmosphere_interpolator_kwargs", {})
-        photospheric_structure = interpolator(*stellar_parameters, **interpolator_kwargs)
-
+        photospheric_structure = interpolator(effective_temperature,
+            surface_gravity, metallicity, **interpolator_kwargs)        
 
         # Load the wavelengths of the blending lines, since we will access them
         # a lot.
@@ -266,6 +326,7 @@ class EqualibriaModel(Model):
             # Blending spectrum will need to be synthesised at a sufficiently
             # high sampling rate to match the data. We also need to know *which*
             # channel the transition is in
+
             pixel_size, channel_indices = minimum_pixel_sampling(data, wavelength)
 
             if len(channel_indices) > 1:
@@ -275,9 +336,9 @@ class EqualibriaModel(Model):
 
             channel_index = channel_indices[0]
 
-            # (3) Synthesise the blending spectrum and apply the continuum to it.
+            # Synthesise the blending spectrum and apply the continuum to it
             blending_dispersion, blending_flux = self._synthesise_blending_spectrum(
-                photospheric_structure, theta["[M/H]"], theta["microturbulence"], 
+                photospheric_structure, metallicity, microturbulence,
                 wavelength - synthesise_surrounding,
                 wavelength + synthesise_surrounding,
                 pixel_size, opacity_contributes,
@@ -306,31 +367,82 @@ class EqualibriaModel(Model):
 
         # Calculate abundances from the integrated equalivent widths
         # [TODO] Use the pre-interpolated photospheric structure?
-        abundances = synthesis.moog.abundances(theta["effective_temperature"],
-            theta["surface_gravity"], theta["[M/H]"], theta["microturbulence"],
-            measured_atomic_lines)
+        abundances = synthesis.moog.abundances(effective_temperature,
+            surface_gravity, metallicity, microturbulence, measured_atomic_lines)
 
-
-        raise a
-
-        # Add them to the measured atomic lines table and turn it into a named
-        # array
-
-        # Create an array of equaivalent widths
+        # Add them to the measured atomic lines table and turn it into a recarray
         measured_atomic_lines = np.core.records.fromarrays(
-            np.array(measured_atomic_lines).T, names=("wavelength", "species",
-                "excitation_potential", "loggf", "damp1", "damp2",
-                "equivalent_width"))
+            np.vstack([np.array(measured_atomic_lines).T, abundances]),
+            names=("wavelength", "species", "excitation_potential", "loggf",
+                "damp1", "damp2", "equivalent_width", "abundance"))
 
+        # Calculate the excitation and ionisation state
+        logger.warn("Assuming only one kind of atomic species")
+        neutral_lines = (measured_atomic_lines["species"] % 1) == 0
+        ionised_lines = ~neutral_lines
 
-        missing_parameters = set(self.parameters(data)).difference(theta)
-        if len(missing_parameters) > 0:
-            logger.warn("Missing parameters: {}".format(", ".join(
-                missing_parameters)))
+        outliers_removed = False
+        while True:
+
+            # Excitation slope 
+            excitation_slope = stats.linregress(
+                x=measured_atomic_lines["excitation_potential"][neutral_lines],
+                y=measured_atomic_lines["abundance"][neutral_lines])[0]
+
+            # Slope with reduced equivalent width and line abundance
+            reduced_equivalent_width = np.log(
+                measured_atomic_lines["equivalent_width"]\
+                    /measured_atomic_lines["wavelength"])
+            line_strength_slope = stats.linregress(
+                x=reduced_equivalent_width[neutral_lines],
+                y=measured_atomic_lines["abundance"][neutral_lines])[0]
+
+            # Calculate the ionisation state
+            ionisation_state = \
+                np.mean(measured_atomic_lines["abundance"][neutral_lines]) \
+                    - np.mean(measured_atomic_lines["abundance"][ionised_lines])
+
+            # Calculate the abundance state
+            abundance_state = np.mean(measured_atomic_lines["abundance"] \
+                - metallicity \
+                + atmospheres.solar_abundances(measured_atomic_lines["species"]))
+
+            if outliers_removed:
+                # Re-fit the state
+                break
+
+            else:
+                # Remove them
+                outliers_removed = True
+
+        # Collate the state information together.
+        state = np.array([
+            excitation_potential,
+            ionisation_state,
+            abundance_state,
+            line_strength_slope
+        ])
 
         if full_output:
-            return (theta, r_chi_sq, model_dispersion, model_fluxes)
-        return theta
+            return (state, measured_atomic_lines)
+        return state
+
+
+
+
+    def fit(self, data, initial_theta=None):
+        """
+        Calculate point estimates of the model parameters given the data.
+        """
+
+        if initial_theta is None:
+            initial_theta = self.initial_theta(data)
+
+        # Given some input stellar parameters, synthesise spectra, fit lines and
+        # get abundances, then use jacobian
+
+        
+
 
 
 
@@ -355,8 +467,8 @@ def minimum_pixel_sampling(data, wavelength):
     return (pixel_size, channel_indices)
 
 
-def jacobian_default(effective_temperature, surface_gravity, metallicity,
-    microturbulence):
+def _stellar_parameter_jacobian_approximation(effective_temperature,
+    surface_gravity, metallicity, microturbulence):
     """
     Calculate the approximate Jacobian matrix, given some stellar parameters.
     """
