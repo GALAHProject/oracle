@@ -467,14 +467,14 @@ def minimum_pixel_sampling(data, wavelength):
     return (pixel_size, channel_indices)
 
 
-def _stellar_parameter_jacobian_approximation(effective_temperature,
-    surface_gravity, metallicity, microturbulence):
+def _stellar_parameter_jacobian_approximation(stellar_parameters):
     """
     Calculate the approximate Jacobian matrix, given some stellar parameters.
     """
 
-    # Needs teff, vt, logg, feh arrangement
-    raise ValueError("update the jacobian matrix!")
+    # Use short names because 30" terminals didn't exist in the 1600's and therefore we should be forever punished for it.
+    teff, logg, feh, vt = stellar_parameters
+    
     return np.array([
         [ 4.5143e-08*teff - 4.3018e-04, -6.4264e-04*vt + 2.4581e-02, 
             1.7168e-02*logg - 5.3255e-02,  1.1205e-02*feh - 7.3342e-03],
