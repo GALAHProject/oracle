@@ -464,6 +464,11 @@ def minimum_pixel_sampling(data, wavelength):
             if pixel_size > diff[index] or not np.isfinite(pixel_size):
                 pixel_size = diff[index]
 
+    if len(channel_indices) == 0 and not np.isfinite(pixel_size):
+        raise ValueError("cannot find wavelength {0:.2f} in any data channel"\
+            .format(wavelength))
+
+
     return (pixel_size, channel_indices)
 
 
@@ -474,6 +479,9 @@ def _stellar_parameter_jacobian_approximation(stellar_parameters):
 
     # Use short names because 30" terminals didn't exist in the 1600's and therefore we should be forever punished for it.
     teff, logg, feh, vt = stellar_parameters
+    logger.debug("Updating Jacobian at Teff = {teff:.0f} K, logg = {logg:.2f},"\
+        " [M/H] = {feh:.2f}, vt = {vt:.2f}".format(teff=teff, logg=logg, feh=feh,
+            vt=vt))
     
     return np.array([
         [ 4.5143e-08*teff - 4.3018e-04, -6.4264e-04*vt + 2.4581e-02, 
