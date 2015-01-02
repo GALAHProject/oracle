@@ -255,7 +255,15 @@ class EqualibriaModel(Model):
             # high sampling rate to match the data. We also need to know *which*
             # channel the transition is in
 
-            pixel_size, channel_indices = minimum_pixel_sampling(data, wavelength)
+            try:
+                pixel_size, channel_indices = minimum_pixel_sampling(
+                    data, wavelength)
+
+            except ValueError:
+                logger.exception("Cannot find wavelength {0:.3f} in any data "
+                    "channel. Skipping this transition.".format(wavelength))
+                continue
+                
 
             if len(channel_indices) > 1:
                 logger.warn("Found transition {2} in {1} channels".format(
