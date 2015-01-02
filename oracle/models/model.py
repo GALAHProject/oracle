@@ -148,7 +148,7 @@ class Model(object):
         return md5(json.dumps(self.config).encode("utf-8")).hexdigest()
 
 
-    def mask(self, dispersion, z=0, fill_value=False):
+    def mask(self, dispersion, z=0, fill_value=False, **kwargs):
         """
         Return an array mask for a given dispersion array and redshift, based on
         the mask information provided in the model configuration file.
@@ -179,7 +179,8 @@ class Model(object):
             :class:`numpy.array`
         """
 
-        regions = self.config.get("mask", None)
+        mask_key = kwargs.pop("mask_key", "mask")
+        regions = self.config["model"].get(mask_key, None)
         if regions is not None:
             mask = np.ones(len(dispersion), dtype=bool)
             regions = np.array(regions)
@@ -234,58 +235,80 @@ class Model(object):
                 channel.disp[-1]])
 
             # Temporarily transform the data to the model dispersion points
+            # (This is far cheaper than the alternative, and is good enough for
+            # a simple cross-correlation)
             rebinned_channel_disp = grid_dispersion[indices[0]:indices[1]]
             rebinned_channel_flux = np.interp(rebinned_channel_disp,
                 channel.disp, channel.flux, left=np.nan, right=np.nan)
             rebinned_channel_ivar = np.interp(rebinned_channel_disp,
-                channel.disp, channel.ivariance, left=np.nan, right=np.nan)
-
-            # Reference only finite, unmasked pixels
-            useful_pixels = np.isfinite(rebinned_channel_flux) \
-                * self.mask(rebinned_channel_disp)
-
-            # And interpolate over the non-useful ones
-            if np.any(~useful_pixels):
-                rebinned_channel_flux[~useful_pixels] = np.interp(
-                    rebinned_channel_disp[~useful_pixels],
-                    rebinned_channel_disp[useful_pixels],
-                    rebinned_channel_flux[useful_pixels])
-                rebinned_channel_ivar[~useful_pixels] = 1e-6
-
-            num_pixels += useful_pixels.sum()
+                channel.disp, channel.ivariance, left=np.nan, right=np.nan)   
 
             # Get the continuum order
             order = self._continuum_order(i)
+            ccf_mask = ~(self.mask(rebinned_channel_disp,
+                mask_key="cross_correlation_mask") * np.isfinite(rebinned_channel_flux))
 
             # Cross-correlate the observed data against the grid
             if ("v_rad" in parameters) or ("v_rad.{}".format(i) in parameters):
+
+                # Apply the cross-correlation mask
+                if np.any(ccf_mask):
+
+                    ccf_disp = rebinned_channel_disp
+                    ccf_flux = rebinned_channel_flux.copy()
+                    
+                    # And interpolate over the small portions of non-useful pixels
+                    ccf_flux[ccf_mask] = np.interp(
+                        ccf_disp[ccf_mask],
+                        ccf_disp[~ccf_mask],
+                        ccf_flux[~ccf_mask])
+
+                    # Slice edges that are *completely* ccf_masked            
+                    changes = np.where(np.diff(ccf_mask))[0]
+                    ccf_li = None if not ccf_mask[0]  else changes[0]  + 1
+                    ccf_ri = None if not ccf_mask[-1] else changes[-1] - 1
+
+                    ccf_disp = ccf_disp[ccf_li:ccf_ri]
+                    ccf_flux = ccf_flux[ccf_li:ccf_ri]
+
+                    ccf_li = [ccf_li, 0][ccf_li is None] 
+                    ccf_ri = [ccf_ri, 0][ccf_ri is None]
+
+                else:
+                    ccf_li, ccf_ri = 0, 0
+                    ccf_disp = rebinned_channel_disp
+                    ccf_flux = rebinned_channel_flux.copy()
+
+                # If this is the first channel, then cross-correlate the spectra
+                # against the entire grid
                 if i == 0:
                     v_rads, v_errs, ccf_peaks = \
                         specutils.cross_correlate.cross_correlate_grid(
-                            rebinned_channel_disp,
-                            grid_fluxes[:, indices[0]:indices[1]],
-                            rebinned_channel_flux.copy(), continuum_order=order,
+                            ccf_disp,
+                            grid_fluxes[:, indices[0] + ccf_li:indices[1] + ccf_ri],
+                            ccf_flux, continuum_order=order,
                             threads=self.config["settings"]["threads"])
 
-                    # Identify one with largest CCF max
+                    # Identify the grid point with highest CCF peak
                     highest_peak = ccf_peaks.argmax()
-                    v_rad = v_rads[ccf_peaks.argmax()]
+                    v_rad, v_err, ccf_peak = (v_rads[highest_peak],
+                        v_errs[highest_peak], ccf_peaks[highest_peak])
                     logger.debug("Grid point with highest CCF peak in channel "\
                         "{0} is {1} with v_rad = {2:.1f} km/s (+/- {3:.1f} km/"\
                         "s) and R = {4:.3f}".format(i, utils.readable_dict(
                             grid_points.dtype.names, grid_points[highest_peak]),
-                        v_rad, v_errs[highest_peak], ccf_peaks[highest_peak]))
+                        v_rad, v_err, ccf_peak))
 
                 else:
                     v_rad, v_err, ccf_peak = specutils.cross_correlate.cross_correlate_grid(
-                        rebinned_channel_disp, np.array([
-                            grid_fluxes[chi_sqs.argmin(), indices[0]:indices[1]]]),
-                        rebinned_channel_flux.copy(), continuum_order=order)
+                        ccf_disp, np.array([grid_fluxes[chi_sqs.argmin(),
+                            indices[0] + ccf_li:indices[1] + ccf_ri]]),
+                        ccf_flux, continuum_order=order)
                     v_rad, v_err, ccf_peak = v_rad[0], v_err[0], ccf_peak[0]
 
-                    logger.debug("CCF peak in channel {0} is {1} with v_rad = "\
-                        "{2:.1f} km/s (+/- {3:.1f} km/s)".format(i, ccf_peak,
-                            v_rad, v_err))
+                logger.debug("CCF peak in channel {0} is {1} with v_rad = "\
+                    "{2:.1f} km/s (+/- {3:.1f} km/s)".format(i, ccf_peak, v_rad,
+                        v_err))
 
                 if "v_rad" in parameters:
                     # Global, so add it to a list which we will use to take an
@@ -298,17 +321,30 @@ class Model(object):
                     # Measured radial velocity applies to this channel only
                     theta["v_rad.{}".format(i)] = v_rad
 
+
             # Calculate continuum coefficients for each model grid point
+            continuum_mask = ~(self.mask(rebinned_channel_disp,
+                mask_key="continuum_mask") * np.isfinite(rebinned_channel_flux))
             if order >= 0:
+
+                continuum_disp = rebinned_channel_disp[~continuum_mask]
+                continuum_flux = rebinned_channel_flux[~continuum_mask].copy()
+                # This might fail with nans/infs
+
                 # Note this is assuming you are not doing some Big Ass Matrix(tm)
                 # operations.
+
+                # The dispersion matrix will use rebinned channel dispersion
+                # points because we will use it later to calculate the expected
+                # fluxes at each point
                 dispersion_matrix = np.ones((order+1, rebinned_channel_disp.size))
                 for j in range(order + 1):
                     dispersion_matrix[j] *= rebinned_channel_disp**j
 
-                A = (rebinned_channel_flux \
-                    / grid_fluxes[:, indices[0]:indices[1]]).T
-                coefficients = np.linalg.lstsq(dispersion_matrix.T, A)[0]
+                A = (continuum_flux \
+                    / grid_fluxes[:, indices[0]:indices[1]][:, ~continuum_mask]).T
+                coefficients = np.linalg.lstsq(
+                    dispersion_matrix[:, ~continuum_mask].T, A)[0]
 
                 # Save the continuum coefficients (we will use them later)
                 continuum_coefficients[i] = coefficients
@@ -327,8 +363,11 @@ class Model(object):
                 expected_channel_fluxes.append(expected_fluxes)
 
             # Add to the chi-sq values
-            chi_sqs += np.nansum((rebinned_channel_flux - expected_fluxes)**2\
-                    * rebinned_channel_ivar, axis=1)
+            tm = continuum_mask + ccf_mask
+            num_pixels += (~tm).sum()
+            differences = (rebinned_channel_flux[~tm] - expected_fluxes[:, ~tm])**2\
+                * rebinned_channel_ivar[~tm]
+            chi_sqs += np.nansum(differences, axis=1)
 
             # Estimate instrumental broadening
             logger.warn("haven't done instrumental broadening")

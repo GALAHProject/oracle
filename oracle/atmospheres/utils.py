@@ -2,10 +2,10 @@
 
 """ Atmosphere utilities """
 
+from __future__ import division, absolute_import, print_function
+
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 __all__ = ["estimate_microturbulence"]
-
-from __future__ import division, absolute_import, print_function
 
 
 def estimate_microturbulence(effective_temperature, surface_gravity):
