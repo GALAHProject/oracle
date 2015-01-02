@@ -22,7 +22,7 @@ def unpack_atomic_transition(transition, **defaults):
     _defaults = {
         "synthesise_surrounding": 1.5,
         "opacity_contribution": 1.0,
-        "damp1": 0,
+        "van_der_waals_broadening": 0,
         "damp2": 0
     }
     _defaults.update(defaults)
@@ -31,7 +31,8 @@ def unpack_atomic_transition(transition, **defaults):
         wavelength, species, excitation_potential, loggf = [transition[k] \
             for k in ("wavelength", "species", "excitation_potential", "loggf")]
 
-        damp1 = transition.get("damp1", _defaults["damp1"])
+        van_der_waals_broadening = transition.get("van_der_waals_broadening",
+            _defaults["van_der_waals_broadening"])
         damp2 = transition.get("damp2", _defaults["damp2"])
         opacity_contribution = transition.get("opacity_contribution",
             _defaults["opacity_contribution"])
@@ -40,13 +41,14 @@ def unpack_atomic_transition(transition, **defaults):
 
     else:
 
-        damp1, damp2 = _defaults["damp1"], _defaults["damp2"]
+        van_der_waals_broadening = _defaults["van_der_waals_broadening"]
+        damp2 = _defaults["damp2"]
         opacity_contribution = _defaults["opacity_contribution"]
         synthesise_surrounding = _defaults["synthesise_surrounding"]
 
         wavelength, species, excitation_potential, loggf = transition[:4]
         if len(transition) > 4:
-            damp1 = transition[4]
+            van_der_waals_broadening = transition[4]
 
             if len(transition) > 5:
                 damp2 = transition[5]

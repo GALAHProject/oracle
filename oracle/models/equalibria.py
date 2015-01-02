@@ -248,7 +248,7 @@ class EqualibriaModel(Model):
         measured_atomic_transitions = []
         for i, atomic_transition in enumerate(self.config["model"]["atomic_transitions"]):
 
-            wavelength, species, excitation_potential, loggf, damp1, damp2, \
+            wavelength, species, excitation_potential, loggf, van_der_waals_broadening, damp2, \
                 synthesise_surrounding, opacity_contributes = utils.unpack_atomic_transition(atomic_transition)
 
             # Blending spectrum will need to be synthesised at a sufficiently
@@ -301,8 +301,8 @@ class EqualibriaModel(Model):
                 # Save the information
                 profiles.append(profile_info)
                 measured_atomic_transitions.append([
-                    wavelength, species, excitation_potential, loggf, damp1,
-                    damp2, equivalent_width])
+                    wavelength, species, excitation_potential, loggf,
+                    van_der_waals_broadening, damp2, equivalent_width])
 
         # Calculate abundances from the integrated equalivent widths
         # [TODO] Use the pre-interpolated photospheric structure?
@@ -322,7 +322,7 @@ class EqualibriaModel(Model):
             np.vstack([np.array(measured_atomic_transitions[filter_lines]).T,
                 abundances]),
             names=("wavelength", "species", "excitation_potential", "loggf",
-                "damp1", "damp2", "equivalent_width", "abundance"))
+                "van_der_waals_broadening", "damp2", "equivalent_width", "abundance"))
 
         # Calculate the excitation and ionisation state
         logger.warn("Assuming only one kind of atomic species")
