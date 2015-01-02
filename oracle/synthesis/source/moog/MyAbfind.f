@@ -15,6 +15,7 @@
 
       real*8, dimension(nlines_), intent(out) :: output
 
+
 c      if (.not. present(debug_)) then
 c         debug_ = 0
 c      endif
@@ -32,7 +33,6 @@ c      real*8, dimension(1, 7) :: strong_transitions_
       include 'Linex.com'
       include 'Mol.com'
       include 'Pstuff.com'
-
 
 c      print *, "teff_ etc", teff_, logg_, mh_, vturb_
 c      print *, "photospheric_struct", photospheric_structure_
@@ -154,6 +154,7 @@ c         print *, "finishing"
       endif
       lim1obs = lim1line
       lim2obs = lim2line
+      lim2line = 0 + nlines_
 c      print *, "lim1line, lim2line", lim1line, lim2line
 
 
@@ -274,7 +275,7 @@ c       call finish(0)
 c       print *, "finishing"
 c       print *, "abundances", abundout(:nlines)
 
-       output = abundout(:nlines)
+       output = abundout(1:nlines)
 c       abundances = abundout(:nlines)
 c       what = abundout(:nlines)
 
