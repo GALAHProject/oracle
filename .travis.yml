@@ -7,8 +7,10 @@ virtualenv:
  system_site_packages: true
 
 before_install:
+ # Install PyGithub, which we will use to update the GitHub commit status
  # Need my version of PyGithub at the moment so that we can provide context to statuses
  - pip install https://github.com/andycasey/PyGithub/archive/master.zip
+ # If applicable, set a pending status for the commit
  - python status.py
  
  # OK now install the stuff we need
@@ -26,14 +28,11 @@ script:
 
 after_success:
  - coveralls
- - 'echo "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST";'
- - 'echo "TRAVIS_JOB_NUMBER=$TRAVIS_JOB_NUMBER";'
- - 'echo "TRAVIS_COMMIT=$TRAVIS_COMMIT";'
- - 'echo "LATEST_COMMIT_HASH=$LATEST_COMMIT_HASH";'
- - 'echo "CURRENT_COMMIT_HASH=$CURRENT_COMMIT_HASH";'
+ # If we are on a pull request, run the science verification tests.
  - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py > science.log; fi"
 
 after_script:
+ # Where applicable, update the commit status with a success, error, or failure
  - python status.py 
 
 notifications:
