@@ -552,6 +552,7 @@ class Model(object):
             "num_iter": num_iter,
             "num_funcalls": num_funcalls,
             "warnflag": warnflag,
+            "data": data,
             "continuum": continuum_spectrum,
             "initial_profile": initial_profile,
             "optimal_profile": optimal_profile
