@@ -6,6 +6,7 @@ from __future__ import division, absolute_import, print_function
 
 import numpy as np
 
+from ..atmospheres import utils
 from oracle.utils import element
 from .interpolator import Interpolator
 

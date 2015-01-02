@@ -21,7 +21,7 @@ from scipy import ndimage, stats, optimize as op
 
 logger = logging.getLogger("oracle")
 
-from oracle import utils, specutils
+from oracle import atmospheres, utils, specutils
 from oracle.models import profiles, validation
 
 # Silence 'Polyfit may be poorly conditioned' messages
@@ -369,9 +369,10 @@ class Model(object):
 
         # Is microturbulence a parameter?
         if "microturbulence" in parameters:
-            theta.setdefault("microturbulence", utils.estimate_microturbulence(
-                closest_grid_point["effective_temperature"],
-                closest_grid_point["surface_gravity"]))
+            theta.setdefault("microturbulence",
+                atmospheres.utils.estimate_microturbulence(
+                    closest_grid_point["effective_temperature"],
+                    closest_grid_point["surface_gravity"]))
 
         # See which parameters could not be estimated
         missing_parameters = set(parameters).difference(theta)

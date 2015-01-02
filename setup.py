@@ -34,7 +34,7 @@ contents = readfile(os.path.join(
 version = version_regex.findall(contents)[0]
 
 # Extensions
-moog = Extension(name = "oracle.synthesis._moogsilent",
+moog = Extension(name = "oracle.synthesis._mini_moog",
     sources = ["oracle/synthesis/source/moog/{}".format(each) for each in [
         'MyAbfind.f', 'Partfn.f', 'Sunder.f', 'Eqlib.f', 'Nearly.f','Discov.f',
         'Invert.f', 'Gammabark.f', 'Damping.f', 'Lineinfo.f', 'Opacit.f',

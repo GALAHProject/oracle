@@ -10,8 +10,9 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 import numpy as np
 
 import oracle.atmospheres
-from . import _moogsilent as moogsilent
-#import oracle.synthesis._moogsilent as moogsilent
+#from . import _moog as moogsilent
+from . import _mini_moog as moog
+#import oracle.synthesis._moog as moogsilent
 
 
 def _format_transitions(transitions):
@@ -86,7 +87,7 @@ def _synthesise(photospheric_structure, metallicity, microturbulence,
     syn_limits = np.asfortranarray([wavelength_start, wavelength_end, delta])
     npoints = (wavelength_end - wavelength_start)/delta + 1
 
-    code, wavelengths, fluxes = moogsilent.synthesise(
+    code, wavelengths, fluxes = moog.synthesise(
         metallicity, microturbulence, photospheric_structure,
         photospheric_abundances, transitions, syn_limits, opacity_contributes,
         npoints_=npoints, debug_=debug)
@@ -122,7 +123,7 @@ def synthesise(effective_temperature, surface_gravity, metallicity,
     syn_limits = np.asfortranarray([wavelength_start, wavelength_end, delta])
     npoints = (wavelength_end - wavelength_start)/delta + 1
 
-    code, wavelengths, fluxes = moogsilent.synthesise(metallicity, microturbulence,
+    code, wavelengths, fluxes = moog.synthesise(metallicity, microturbulence,
         photospheric_structure, photospheric_abundances, transitions, syn_limits,
         opacity_contributes, npoints_=npoints, debug_=debug)
 
@@ -150,7 +151,7 @@ def abundances(effective_temperature, surface_gravity, metallicity,
     photospheric_abundances = _format_abundances(photospheric_abundances)
     transitions = _format_transitions(transitions)
 
-    code, output = moogsilent.abundances(metallicity, microturbulence,
+    code, output = moog.abundances(metallicity, microturbulence,
         photospheric_structure, photospheric_abundances, transitions,
         debug_=debug)
 

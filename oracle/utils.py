@@ -59,43 +59,8 @@ def unpack_atomic_transition(transition, **defaults):
                     if len(transition) > 7:
                         synthesise_surrounding = transition[7]
 
-    return (wavelength, species, excitation_potential, loggf, damp1, damp2,
+    return (wavelength, species, excitation_potential, loggf, van_der_waals_broadening, damp2,
         synthesise_surrounding, opacity_contribution)
-
-
-
-# This shouldn't be here, but I don't know where to put it yet.
-def estimate_microturbulence(effective_temperature, surface_gravity):
-    """
-    Estimate microtubulence from relations between effective temperature and
-    surface gravity. For giants (logg < 3.5) the relationship employed is from
-    Kirby et al. (2008, ) and for dwarfs (logg >= 3.5) the Reddy et al. (2003, 
-        ) relation is used.
-
-    :param effective_temperature:
-        The effective temperature of the star in Kelvin.
-
-    :type effective_temperature:
-        float
-
-    :param surface_gravity:
-        The surface gravity of the star.
-
-    :type surface_gravity:
-        float
-
-    :returns:
-        The estimated microturbulence (in km/s) from the given stellar parameters.
-
-    :rtype:
-        float
-    """
-
-    if surface_gravity >= 3.5:
-        return 1.28 + 3.3e-4 * (effective_temperature - 6000) \
-            - 0.64 * (surface_gravity - 4.5)
-    else:
-        return 2.70 - 0.509 * surface_gravity
 
 
 def readable_dict(keys, values):
