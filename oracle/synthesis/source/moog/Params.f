@@ -116,7 +116,7 @@ c  source function with scat+abs          scatopt
       linprintopt  = 1
       fluxintopt   = 0
       plotopt      = 0
-      dampingopt   = 0
+      dampingopt   = 1
       specfileopt  = 0
       linfileopt   = 0
       iunits       = 0
@@ -131,7 +131,7 @@ c  source function with scat+abs          scatopt
       gfstyle      = 0
       maxshift     = 0
       dostrong     = 0
-      molset       = 0
+      molset       = 1
  
 
 c  INITIALIZE SOME VARIABLES:
