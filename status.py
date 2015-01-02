@@ -46,7 +46,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Check that we are on a pull request
-    if os.environ["TRAVIS_PULL_REQUEST"] == "false":
+    if os.environ.get("TRAVIS_PULL_REQUEST", "false") == "false":
         sys.exit(0)
 
     gh = github.Github(os.environ["GH_TOKEN"])
