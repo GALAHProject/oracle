@@ -426,7 +426,7 @@ class Model(object):
 
     def fit_absorption_profile(self, wavelength, spectrum, continuum=None,
         initial_fwhm=None, initial_depth=None, wavelength_tolerance=0.10,
-        surrounding=1.0, outliers=True, full_output=False):
+        surrounding=1.0, outliers=True, scale_continuum=True, full_output=False):
         """
         Fit an absorption profile to the provided spectrum.
         """
@@ -451,10 +451,12 @@ class Model(object):
             #continuum = np.interp(data.disp, continuum.disp, continuum.flux)
 
         index = data.disp.searchsorted(wavelength)
-        continuum_at_wavelength = continuum if scalar_continuum else continuum.flux[index]
+        cindex = continuum.disp.searchsorted(wavelength)
+        continuum_at_wavelength = continuum if scalar_continuum else continuum.flux[cindex]
 
         if initial_depth is None:
             initial_depth = 1. - data.flux[index]/continuum_at_wavelength
+            initial_depth = np.clip(initial_depth, 1e-3, 1-1e-3)
 
         if initial_fwhm is None:
             mid_line_value = continuum_at_wavelength * (1 - 0.5 * initial_depth)
@@ -508,13 +510,15 @@ class Model(object):
         # Should we model the outliers?
         if outliers:
             def negative_log_likelihood(theta):
-                wavelength, sigma, depth, outlier_mu, outlier_sigma, P = theta
+                wl, sigma, depth, outlier_mu, outlier_sigma, P = theta[:6]
+                scale = theta[6] if scale_continuum else 1.
 
                 if not (1 > P > 0) or 0 > sigma or 0 > outlier_sigma \
-                or 0 > wavelength:
+                or 0 > wl or abs(wavelength - wl) > wavelength_tolerance \
+                or not (1 > depth > 0):
                     return np.nan
 
-                model_line = absorption_profile(wavelength, sigma, depth)
+                model_line = scale * absorption_profile(wl, sigma, depth)
                 model_background = outlier_mu
 
                 ivariance_line = data.ivariance
@@ -547,11 +551,13 @@ class Model(object):
             initial_P = np.clip(initial_P, tolerance, 1 - tolerance)
 
             labels = ("wavelength", "sigma", "depth", "outlier_mu",
-                "outlier_sigma", "outlier_fraction")
+                "outlier_sigma", "outlier_fraction", "scale_continuum")
 
             # Start with some initial parameters
-            initial_theta = np.array([wavelength, initial_sigma, initial_depth,
-                initial_outlier_mu, initial_outlier_sigma, initial_P])
+            initial_theta = [wavelength, initial_sigma, initial_depth,
+                initial_outlier_mu, initial_outlier_sigma, initial_P]
+            if scale_continuum:
+                initial_theta.append(1)
             initial_text = ", ".join(["{0} = {1:.2f}".format(label, value) \
                 for label, value in zip(labels, initial_theta)])
             logger.debug("Initial theta for absorption profile at {0:.2f} A is "\
@@ -571,8 +577,14 @@ class Model(object):
         else:
             # The chi-sq function
             def chi_sq(theta):
-                wavelength, sigma, depth = theta
-                model = absorption_profile(wavelength, sigma, depth)
+                wl, sigma, depth = theta[:3]
+                scale = theta[3] if scale_continuum else 1.
+
+                if 0 > sigma or 0 > wl or not (1 > depth > 0) \
+                or abs(wl - wavelength) > wavelength_tolerance:
+                    return np.nan
+
+                model = scale * absorption_profile(wl, sigma, depth)
                 difference = (data.flux - model)**2 * data.ivariance
                 return difference[np.isfinite(difference)].sum()
 
@@ -580,7 +592,9 @@ class Model(object):
 
             # Prepare the initial theta values
             initial_sigma = initial_fwhm/2.355
-            initial_theta = np.array([wavelength, initial_sigma, initial_depth])
+            initial_theta = [wavelength, initial_sigma, initial_depth]
+            if scale_continuum:
+                initial_theta.append(1)
 
             # Optimise the chi-squared value
             optimal_theta, fopt, num_iter, num_funcalls, warnflag = op.fmin(
