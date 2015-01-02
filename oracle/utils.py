@@ -20,7 +20,7 @@ logger = logging.getLogger("oracle")
 def unpack_atomic_transition(transition, **defaults):
 
     _defaults = {
-        "synthesise_surrounding": 1.0,
+        "synthesise_surrounding": 1.5,
         "opacity_contribution": 1.0,
         "damp1": 0,
         "damp2": 0

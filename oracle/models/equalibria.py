@@ -36,8 +36,8 @@ class EqualibriaModel(Model):
             "threads": 1
         }
     }
-
     _line_parameter_format = "A({species:.1f}@{wavelength:.2f})"
+
 
     def __init__(self, configuration):
         """
@@ -135,8 +135,6 @@ class EqualibriaModel(Model):
         return tuple(parameters)
 
 
-
-
     def initial_theta(self, data, full_output=False, **kwargs):
         """
         Return an initial guess of the model parameters theta using no prior
@@ -157,37 +155,6 @@ class EqualibriaModel(Model):
         if full_output:
             return (theta, r_chi_sq, model_dispersion, model_fluxes)
         return theta
-
-
-    def _synthesise_blending_spectrum(self, metallicity, microturbulence,
-        photospheric_structure, wavelength_start, wavelength_end, wavelength_step,
-        opacity_contributes, blending_line_wavelengths=None):
-
-        if blending_line_wavelengths is None:
-            blending_line_wavelengths = np.array([l[0] \
-                for l in self.config["model"]["blending_lines"]])
-
-        nearby_blending_line = \
-            (wavelength_end >= blending_line_wavelengths) * \
-            (blending_line_wavelengths >= wavelength_start)
-
-        blending_dispersion = np.arange(wavelength_start, wavelength_end +
-            wavelength_step, wavelength_step)
-
-        if blending_line_wavelengths.size == 0 \
-        or nearby_blending_line.sum() == 0:
-            return (blending_dispersion, np.ones(blending_dispersion.size))
-
-        npoints = blending_dispersion.size
-        abundances = np.asfortranarray(np.array([26.0, 7.50]))
-        transitions = np.asfortranarray(self.config["model"]["blending_lines"][:, :6])
-
-        syn_limits = np.asfortranarray([wavelength_start, wavelength_end])
-        code, blending_dispersion, blending_flux = synthesis.moog._moog.synthesise(
-            metallicity, microturbulence, photospheric_structure, abundances,
-            transitions, syn_limits, opacity_contributes, npoints_=npoints)
-
-        return (blending_dispersion, blending_flux)
 
 
     def estimate_stellar_parameters(self, data, initial_theta=None, **kwargs):
@@ -226,7 +193,11 @@ class EqualibriaModel(Model):
                 "microturbulence")]
 
         # Optimisation
-        state_kwargs = { "theta": initial_theta }
+        state_kwargs = kwargs.copy()
+        state_kwargs.update({
+            "theta": initial_theta,
+            "full_output": False
+        })
         state_function = lambda x: self.equalibrium_state(data, *x,
             **state_kwargs)
 
@@ -234,6 +205,7 @@ class EqualibriaModel(Model):
         xtol = kwargs.pop("xtol", 1e-10)
         maxfev = kwargs.pop("maxfev", 50)
 
+        # Optimise the state function
         result = op.fsolve(state_function, initial_stellar_parameters,
             fprime=stellar_parameter_jacobian_approximation, col_deriv=True,
             epsfcn=0, xtol=xtol, maxfev=maxfev, full_output=True)
@@ -270,11 +242,8 @@ class EqualibriaModel(Model):
         photospheric_structure = interpolator(effective_temperature,
             surface_gravity, metallicity, **interpolator_kwargs)        
 
-        # Load the wavelengths of the blending lines, since we will access them
-        # a lot.
-        blending_line_wavelengths = np.array([l[0] \
-            for l in self.config["model"].get("blending_lines", [])])
-
+        # We want to save the profile information and the details of the
+        # measured atomic transitions
         profiles = []
         measured_atomic_transitions = []
         for i, atomic_transition in enumerate(self.config["model"]["atomic_transitions"]):
@@ -295,36 +264,45 @@ class EqualibriaModel(Model):
 
             channel_index = channel_indices[0]
 
-            # Synthesise the blending spectrum and apply the continuum to it
-            blending_dispersion, blending_flux = self._synthesise_blending_spectrum(
+            # Synthesise the blending spectrum
+            blending_dispersion, blending_flux = synthesis._synthesise(
                 photospheric_structure, metallicity, microturbulence,
+                atomic_transition.get("blending_transitions", None),
                 wavelength - synthesise_surrounding,
                 wavelength + synthesise_surrounding,
-                pixel_size, opacity_contributes,
-                blending_line_wavelengths=blending_line_wavelengths)
+                wavelength_step=pixel_size/4., # Oversample the pixels
+                opacity_contributes=opacity_contributes)
 
             # Apply continuum to the blending spectrum
             blending_flux *= self._continuum(blending_dispersion, channel_index,
                 theta)
 
             # Apply radial velocity to the dispersion
-            print("vacuum to air pls")
             c, v = 299792.458, theta.get("v_rad.{}".format(channel_index), 0)
             blending_dispersion *= (1. + v/c)
 
-            # Splice a small portion of the spectrum
+            # [TODO] astropy.constants
+
+            # Create a spectrum object of the continuum
             continuum = specutils.Spectrum1D(blending_dispersion, blending_flux)
 
             # Fit an absorption profile in context of the surrounding region
-            profile_parameters, equivalent_width, profile_info = \
-                self.fit_absorption_profile(wavelength, data[channel_index],
-                    continuum=continuum, full_output=True)
+            try:
+                profile_parameters, equivalent_width, profile_info = \
+                    self.fit_absorption_profile(wavelength, data[channel_index],
+                        continuum=continuum, full_output=True)
 
-            # Save the information
-            profiles.append(profile_info)
-            measured_atomic_transitions.append([
-                wavelength, species, excitation_potential, loggf, damp1, damp2,
-                equivalent_width])
+            except ValueError:
+                logger.exception("Failed to measure atomic transition at "
+                    "{0:.3f}:".format(wavelength))
+                continue
+
+            else:
+                # Save the information
+                profiles.append(profile_info)
+                measured_atomic_transitions.append([
+                    wavelength, species, excitation_potential, loggf, damp1,
+                    damp2, equivalent_width])
 
         # Calculate abundances from the integrated equalivent widths
         # [TODO] Use the pre-interpolated photospheric structure?
@@ -335,7 +313,7 @@ class EqualibriaModel(Model):
             kwargs.pop("minimum_equivalent_width", 5), 0, np.inf)
         filter_lines = (measured_atomic_transitions[:, 6] > minimum_equivalent_width)
 
-        abundances = synthesis.moog.abundances(effective_temperature,
+        abundances = synthesis.abundances(effective_temperature,
             surface_gravity, metallicity, microturbulence,
             transitions=measured_atomic_transitions[filter_lines])
 
@@ -383,7 +361,6 @@ class EqualibriaModel(Model):
 
             else:
                 # Remove the outliers
-
                 outliers_removed = True
 
         # Collate the state information together (temperature, surface gravity,
@@ -397,12 +374,16 @@ class EqualibriaModel(Model):
 
         import matplotlib.pyplot as plt
         for i, (profile, use) in enumerate(zip(profiles, filter_lines)):
-            if not use: continue
+            #if not use: continue
             fig, ax = plt.subplots()
             ax.plot(profile["data"].disp, profile["data"].flux, 'k')
-            ax.plot(profile["continuum"].disp, profile["continuum"].flux, 'b')
+            ax.plot(profile["initial_continuum"].disp, profile["initial_continuum"].flux, 'r:')
             ax.plot(profile["initial_profile"].disp, profile["initial_profile"].flux, 'r')
+
+            ax.plot(profile["optimal_continuum"].disp, profile["optimal_continuum"].flux, 'g:')
             ax.plot(profile["optimal_profile"].disp, profile["optimal_profile"].flux, 'g')
+            ax.set_title(str(use))
+            ax.set_xlim(profile["data"].disp[0], profile["data"].disp[-1])
 
             filename = "fig-{0:.2f}.png".format(profile["initial_theta"]["wavelength"])
             fig.savefig(filename)
@@ -412,26 +393,11 @@ class EqualibriaModel(Model):
         for filtered, profile in zip(filter_lines, profiles):
             profile["filtered"] = filtered
 
+        raise a
+
         if full_output:
             return (state, acceptable_atomic_transitions, profiles)
         return state
-
-
-
-
-    def fit(self, data, initial_theta=None):
-        """
-        Calculate point estimates of the model parameters given the data.
-        """
-
-        if initial_theta is None:
-            initial_theta = self.initial_theta(data)
-
-        # Given some input stellar parameters, synthesise spectra, fit lines and
-        # get abundances, then use jacobian
-
-        
-
 
 
 
@@ -457,29 +423,5 @@ def minimum_pixel_sampling(data, wavelength):
         raise ValueError("cannot find wavelength {0:.2f} in any data channel"\
             .format(wavelength))
 
-
     return (pixel_size, channel_indices)
-
-
-def _stellar_parameter_jacobian_approximation(stellar_parameters):
-    """
-    Calculate the approximate Jacobian matrix, given some stellar parameters.
-    """
-
-    # Use short names because 30" terminals didn't exist in the 1600's and therefore we should be forever punished for it.
-    teff, logg, feh, vt = stellar_parameters
-    logger.debug("Updating Jacobian at Teff = {teff:.0f} K, logg = {logg:.2f},"\
-        " [M/H] = {feh:.2f}, vt = {vt:.2f}".format(teff=teff, logg=logg, feh=feh,
-            vt=vt))
-    
-    return np.array([
-        [ 4.5143e-08*teff - 4.3018e-04, -6.4264e-04*vt + 2.4581e-02, 
-            1.7168e-02*logg - 5.3255e-02,  1.1205e-02*feh - 7.3342e-03],
-        [-1.0055e-07*teff + 7.5583e-04,  5.0811e-02*vt - 3.1919e-01,
-            -6.7963e-02*logg + 7.3189e-02, -4.1335e-02*feh - 6.0225e-02],
-        [-1.9097e-08*teff + 1.8040e-04, -3.8736e-03*vt + 7.6987e-03,
-            -6.4754e-03*logg - 2.0095e-02, -4.1837e-03*feh - 4.1084e-03],
-        [-7.3958e-09*teff + 1.0175e-04,  6.5783e-03*vt - 3.6509e-02,    
-            -9.7692e-03*logg + 3.2322e-02, -1.7391e-02*feh - 1.0502e-01]
-    ])
 
