@@ -17,6 +17,51 @@ from scipy.special import wofz
 logger = logging.getLogger("oracle")
 
 
+def unpack_atomic_transition(transition, **defaults):
+
+    _defaults = {
+        "synthesise_surrounding": 1.0,
+        "opacity_contribution": 1.0,
+        "damp1": 0,
+        "damp2": 0
+    }
+    _defaults.update(defaults)
+
+    if isinstance(transition, dict):
+        wavelength, species, excitation_potential, loggf = [transition[k] \
+            for k in ("wavelength", "species", "excitation_potential", "loggf")]
+
+        damp1 = transition.get("damp1", _defaults["damp1"])
+        damp2 = transition.get("damp2", _defaults["damp2"])
+        opacity_contribution = transition.get("opacity_contribution",
+            _defaults["opacity_contribution"])
+        synthesise_surrounding = transition.get("synthesise_surrounding",
+            _defaults["synthesise_surrounding"])
+
+    else:
+
+        damp1, damp2 = _defaults["damp1"], _defaults["damp2"]
+        opacity_contribution = _defaults["opacity_contribution"]
+        synthesise_surrounding = _defaults["synthesise_surrounding"]
+
+        wavelength, species, excitation_potential, loggf = transition[:4]
+        if len(transition) > 4:
+            damp1 = transition[4]
+
+            if len(transition) > 5:
+                damp2 = transition[5]
+
+                if len(transition) > 6:
+                    synthesise_surrounding = transition[6]
+
+                    if len(transition) > 7:
+                        synthesise_surrounding = transition[7]
+
+    return (wavelength, species, excitation_potential, loggf, damp1, damp2,
+        synthesise_surrounding, opacity_contribution)
+
+
+
 # This shouldn't be here, but I don't know where to put it yet.
 def estimate_microturbulence(effective_temperature, surface_gravity):
     """

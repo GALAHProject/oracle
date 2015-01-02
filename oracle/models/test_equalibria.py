@@ -16,9 +16,17 @@ def equalibria():
                 "redshift": True,
                 "instrumental_resolution": True,
                 "continuum": 2,
-                "atomic_lines": [
+                "atomic_transitions": [
+                    {  
+                        "wavelength": 4720.1489,
+                        "species": 26.1,
+                        "excitation_potential": 3.197,
+                        "loggf": -4.48,
+                        "blending_transitions": None,
+                        "mask": None
+                    },
                     # wavelength, species, chi, loggf, damp1, damp2, synthesise_surrounding, opacity_contribution
-                    [4720.1489, 26.1, 3.197, -4.48],
+                    #[4720.1489, 26.1, 3.197, -4.48],
                     [4731.4531, 26.1, 2.891, -3.1],
                     [4788.7568, 26.0, 3.237, -1.763],
                     [4793.9619, 26.0, 3.047, -3.43],

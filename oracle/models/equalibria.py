@@ -12,6 +12,8 @@ from scipy import stats, optimize as op
 
 from oracle import atmospheres, specutils, synthesis, utils
 from oracle.models.model import Model
+from oracle.models.jacobian \
+    import approximate as stellar_parameter_jacobian_approximation
 
 logger = logging.getLogger("oracle")
 
@@ -102,69 +104,59 @@ class EqualibriaModel(Model):
                     for j in range(order + 1)])
 
         # Atomic line abundances
-        num_atomic_lines = 0
+        num_atomic_transitions = 0
         wavelength_ranges = [(each.disp[0], each.disp[-1]) for each in data]
 
-        atomic_lines = self.config["model"].get("atomic_lines", None)
-        if atomic_lines is None:
-            atomic_lines = np.loadtxt(self.config["model"]["atomic_lines_filename"])
+        atomic_transitions = self.config["model"].get("atomic_transitions", None)
+        if atomic_transitions is None:
+            # If not specified, try and load simplistic information from a file
+            atomic_transitions = np.loadtxt(self.config["model"]["atomic_transitions_filename"])
 
-        for atomic_line in atomic_lines:
-            wavelength, species = atomic_line[:2]
+        for atomic_transition in atomic_transitions:
+
+            if isinstance(atomic_transition, dict):
+                wavelength = atomic_transition["wavelength"]
+                species = atomic_transition["species"]
+
+            else:
+                # Assume list
+                wavelength, species = atomic_transition[:2]
 
             # Ensure the wavelength is within the observed region
             for wavelength_start, wavelength_end in wavelength_ranges:
                 if wavelength_end >= wavelength and wavelength >= wavelength_start:
                     parameters.append(self._line_parameter_format.format(
                         wavelength=wavelength, species=species))
-                    num_atomic_lines += 1
+                    num_atomic_transitions += 1
 
-        if 2 > num_atomic_lines:
+        if 2 > num_atomic_transitions:
             raise ValueError("less than two atomic lines provided for equalibria")
 
         return tuple(parameters)
 
 
-    def solve_stellar_parameters(self, measured_atomic_lines, refit_frequency=1,
-        jacobian=None, outlier=None):
+
+
+    def initial_theta(self, data, full_output=False, **kwargs):
         """
-        Solve for stellar parameters by excitation and ionisation balance.
+        Return an initial guess of the model parameters theta using no prior
+        information.
 
+        :param data:
+            The observed data.
+
+        :type data:
+            list of :class:`oracle.specutils.Spectrum1D` objects
         """
 
-        if jacobian is None:
-            jacobian = jacobian_default
+        # Get initial theta from the base model class, which will estimate the
+        # radial velocities, continuum coefficients, and stellar parameters
+        theta, r_chi_sq, model_dispersion, model_fluxes = super(EqualibriaModel,
+            self).initial_theta(data, full_output=True, **kwargs)
 
-        elif jacobian == False:
-            jacobian = None
-
-
-
-
-
-        return None
-
-
-    def _unpack_atomic_line(self, transition):
-        synthesise_surrounding = 1.0
-        opacity_contribution = 1.0
-        damp1, damp2 = 0, 0
-
-        wavelength, species, excitation_potential, loggf = transition[:4]
-        if len(transition) > 4:
-            damp1 = transition[4]
-
-            if len(transition) > 5:
-                damp2 = transition[5]
-
-                if len(transition) > 6:
-                    synthesise_surrounding = transition[6]
-
-                    if len(transition) > 7:
-                        synthesise_surrounding = transition[7]
-
-        return (wavelength, species, excitation_potential, loggf, damp1, damp2,
-            synthesise_surrounding, opacity_contribution)
+        if full_output:
+            return (theta, r_chi_sq, model_dispersion, model_fluxes)
+        return theta
 
 
     def _synthesise_blending_spectrum(self, metallicity, microturbulence,
@@ -196,41 +188,6 @@ class EqualibriaModel(Model):
             transitions, syn_limits, opacity_contributes, npoints_=npoints)
 
         return (blending_dispersion, blending_flux)
-
-
-        # Fit an absorption profile in context of the surround
-        #    profile_parameters, equivalent_width = self.fit_profile(
-        #        wavelength, data[channel_index], 
-        #        blending_spectrum=np.vstack([blending_dispersion, blending_flux]).T,
-        #        function=self.config["model"]["profile_function"])
-
-    def fit_profile(self, wavelength, data, blending_spectrum=None,
-        function="gaussian"):
-
-
-        raise NotImplementedError
-
-
-    def initial_theta(self, data, full_output=False, **kwargs):
-        """
-        Return an initial guess of the model parameters theta using no prior
-        information.
-
-        :param data:
-            The observed data.
-
-        :type data:
-            list of :class:`oracle.specutils.Spectrum1D` objects
-        """
-
-        # Get initial theta from the base model class, which will estimate the
-        # radial velocities, continuum coefficients, and stellar parameters
-        theta, r_chi_sq, model_dispersion, model_fluxes = super(EqualibriaModel,
-            self).initial_theta(data, full_output=True, **kwargs)
-
-        if full_output:
-            return (theta, r_chi_sq, model_dispersion, model_fluxes)
-        return theta
 
 
     def estimate_stellar_parameters(self, data, initial_theta=None, **kwargs):
@@ -278,8 +235,9 @@ class EqualibriaModel(Model):
         maxfev = kwargs.pop("maxfev", 50)
 
         result = op.fsolve(state_function, initial_stellar_parameters,
-            fprime=_stellar_parameter_jacobian_approximation, col_deriv=True,
+            fprime=stellar_parameter_jacobian_approximation, col_deriv=True,
             epsfcn=0, xtol=xtol, maxfev=maxfev, full_output=True)
+
 
 
         raise NotImplementedError
@@ -317,11 +275,12 @@ class EqualibriaModel(Model):
         blending_line_wavelengths = np.array([l[0] \
             for l in self.config["model"].get("blending_lines", [])])
 
-        measured_atomic_lines = []
-        for i, atomic_line in enumerate(self.config["model"]["atomic_lines"]):
+        profiles = []
+        measured_atomic_transitions = []
+        for i, atomic_transition in enumerate(self.config["model"]["atomic_transitions"]):
 
             wavelength, species, excitation_potential, loggf, damp1, damp2, \
-                synthesise_surrounding, opacity_contributes = self._unpack_atomic_line(atomic_line)
+                synthesise_surrounding, opacity_contributes = utils.unpack_atomic_transition(atomic_transition)
 
             # Blending spectrum will need to be synthesised at a sufficiently
             # high sampling rate to match the data. We also need to know *which*
@@ -361,24 +320,35 @@ class EqualibriaModel(Model):
                 self.fit_absorption_profile(wavelength, data[channel_index],
                     continuum=continuum, full_output=True)
 
-            measured_atomic_lines.append([
+            # Save the information
+            profiles.append(profile_info)
+            measured_atomic_transitions.append([
                 wavelength, species, excitation_potential, loggf, damp1, damp2,
                 equivalent_width])
 
         # Calculate abundances from the integrated equalivent widths
         # [TODO] Use the pre-interpolated photospheric structure?
+        measured_atomic_transitions = np.array(measured_atomic_transitions)
+
+        # Only use positive lines
+        minimum_equivalent_width = np.clip(
+            kwargs.pop("minimum_equivalent_width", 5), 0, np.inf)
+        filter_lines = (measured_atomic_transitions[:, 6] > minimum_equivalent_width)
+
         abundances = synthesis.moog.abundances(effective_temperature,
-            surface_gravity, metallicity, microturbulence, measured_atomic_lines)
+            surface_gravity, metallicity, microturbulence,
+            transitions=measured_atomic_transitions[filter_lines])
 
         # Add them to the measured atomic lines table and turn it into a recarray
-        measured_atomic_lines = np.core.records.fromarrays(
-            np.vstack([np.array(measured_atomic_lines).T, abundances]),
+        acceptable_atomic_transitions = np.core.records.fromarrays(
+            np.vstack([np.array(measured_atomic_transitions[filter_lines]).T,
+                abundances]),
             names=("wavelength", "species", "excitation_potential", "loggf",
                 "damp1", "damp2", "equivalent_width", "abundance"))
 
         # Calculate the excitation and ionisation state
         logger.warn("Assuming only one kind of atomic species")
-        neutral_lines = (measured_atomic_lines["species"] % 1) == 0
+        neutral_lines = (acceptable_atomic_transitions["species"] % 1) == 0
         ionised_lines = ~neutral_lines
 
         outliers_removed = False
@@ -386,45 +356,64 @@ class EqualibriaModel(Model):
 
             # Excitation slope 
             excitation_slope = stats.linregress(
-                x=measured_atomic_lines["excitation_potential"][neutral_lines],
-                y=measured_atomic_lines["abundance"][neutral_lines])[0]
+                x=acceptable_atomic_transitions["excitation_potential"][neutral_lines],
+                y=acceptable_atomic_transitions["abundance"][neutral_lines])[0]
 
             # Slope with reduced equivalent width and line abundance
             reduced_equivalent_width = np.log(
-                measured_atomic_lines["equivalent_width"]\
-                    /measured_atomic_lines["wavelength"])
+                acceptable_atomic_transitions["equivalent_width"]\
+                    /acceptable_atomic_transitions["wavelength"])
             line_strength_slope = stats.linregress(
                 x=reduced_equivalent_width[neutral_lines],
-                y=measured_atomic_lines["abundance"][neutral_lines])[0]
+                y=acceptable_atomic_transitions["abundance"][neutral_lines])[0]
 
             # Calculate the ionisation state
             ionisation_state = \
-                np.mean(measured_atomic_lines["abundance"][neutral_lines]) \
-                    - np.mean(measured_atomic_lines["abundance"][ionised_lines])
+                acceptable_atomic_transitions["abundance"][neutral_lines].mean() \
+                    - acceptable_atomic_transitions["abundance"][ionised_lines].mean()
 
             # Calculate the abundance state
-            abundance_state = np.mean(measured_atomic_lines["abundance"] \
-                - metallicity \
-                + atmospheres.solar_abundances(measured_atomic_lines["species"]))
+            abundance_state = (acceptable_atomic_transitions["abundance"] \
+                - (atmospheres.solar_abundances(acceptable_atomic_transitions["species"])
+                    + metallicity)).mean()
 
             if outliers_removed:
                 # Re-fit the state
                 break
 
             else:
-                # Remove them
+                # Remove the outliers
+
                 outliers_removed = True
 
-        # Collate the state information together.
+        # Collate the state information together (temperature, surface gravity,
+        # metallicity, microturbulence)
         state = np.array([
-            excitation_potential,
+            excitation_slope,
             ionisation_state,
             abundance_state,
             line_strength_slope
         ])
 
+        import matplotlib.pyplot as plt
+        for i, (profile, use) in enumerate(zip(profiles, filter_lines)):
+            if not use: continue
+            fig, ax = plt.subplots()
+            ax.plot(profile["data"].disp, profile["data"].flux, 'k')
+            ax.plot(profile["continuum"].disp, profile["continuum"].flux, 'b')
+            ax.plot(profile["initial_profile"].disp, profile["initial_profile"].flux, 'r')
+            ax.plot(profile["optimal_profile"].disp, profile["optimal_profile"].flux, 'g')
+
+            filename = "fig-{0:.2f}.png".format(profile["initial_theta"]["wavelength"])
+            fig.savefig(filename)
+            plt.close("all")
+            print("created {0}".format(filename))
+
+        for filtered, profile in zip(filter_lines, profiles):
+            profile["filtered"] = filtered
+
         if full_output:
-            return (state, measured_atomic_lines)
+            return (state, acceptable_atomic_transitions, profiles)
         return state
 
 
