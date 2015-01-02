@@ -17,7 +17,7 @@ import warnings
 from hashlib import md5
 from pkg_resources import resource_stream
 from functools import partial
-from scipy import stats, optimize as op
+from scipy import ndimage, stats, optimize as op
 
 logger = logging.getLogger("oracle")
 
@@ -397,49 +397,73 @@ class Model(object):
         # initial guess of line depth?
         # initial guess of continuum if not given a blending spectrum?
 
-        
+        scalar_continuum = True if continuum is None \
+            or isinstance(continuum, (int, float)) else False
+
         if continuum is None:
             data_range = (wavelength - surrounding, wavelength + surrounding)
             data = spectrum.slice(data_range)
-            continuum = 1.
+            continuum = 1
 
         else:
             data_range = (continuum.disp[0], continuum.disp[-1])
             data = spectrum.slice(data_range)
-            continuum = np.interp(data.disp, continuum.disp, continuum.flux)
-
+            #continuum = np.interp(data.disp, continuum.disp, continuum.flux)
 
         index = data.disp.searchsorted(wavelength)
+        continuum_at_wavelength = continuum if scalar_continuum else continuum.flux[index]
 
         if initial_depth is None:
-            if isinstance(continuum, (float, int)):
-                initial_depth = 1. - data.flux[index]/continuum
-            else:
-                initial_depth = 1. - data.flux[index]/continuum[index]
-
+            initial_depth = 1. - data.flux[index]/continuum_at_wavelength
 
         if initial_fwhm is None:
-            if isinstance(continuum, (float, int)):
-                mid_line_value = continuum * (1 - 0.5 * initial_depth)
-
-            else:
-                mid_line_value = continuum[index] * (1 - 0.5 * initial_depth)
+            mid_line_value = continuum_at_wavelength * (1 - 0.5 * initial_depth)
 
             # Find the wavelengths from the central wavelength where this value
             # exists
-            pos_mid_point = data.disp[index:][(data.flux[index:] > mid_line_value)][0]
-            neg_mid_point = data.disp[:index][(data.flux[:index] > mid_line_value)][-1]            
+            pos_mid_point, neg_mid_point = np.nan, np.nan
+            pos_indices = data.flux[index:] > mid_line_value
+            if pos_indices.any():
+                pos_mid_point = data.disp[index:][pos_indices][0]
+
+            neg_indices = data.flux[:index] > mid_line_value
+            if neg_indices.any():
+                neg_mid_point = data.disp[:index][neg_indices][-1]
+
+            # If both positive and negative mid points are nans, then we cannot
+            # estimate the FWHM with this method
+            if not np.isfinite([pos_mid_point, neg_mid_point]).any():
+                raise ValueError("cannot estimate initial fwhm")
+
+            # If either mid point is a nan, take the initial fwhm from one side
+            # of the profile
             initial_fwhm = pos_mid_point - neg_mid_point
 
+            if not np.isfinite(initial_fwhm):
+                initial_fwhm = np.array([
+                    2 * (pos_mid_point - wavelength),
+                    2 * (wavelength - neg_mid_point)
+                ])
+                finite = np.isfinite(initial_fwhm)
+                initial_fwhm = initial_fwhm[finite][0]
 
         # Gaussian case
-        def absorption_profile(wavelength, fwhm, depth):
-            return continuum * (1 - depth * profiles.gaussian(wavelength, fwhm,
+        def absorption_profile(wavelength, sigma, depth):
+            #return ndimage.gaussian_filter(continuum, sigma/np.diff(data.disp).mean())\
+            #    * (1 - depth * profiles.gaussian(wavelength, sigma, data.disp))
+            if scalar_continuum:
+                c_ = continuum
+
+            else:
+                smoothed_continuum = ndimage.gaussian_filter(
+                    continuum.flux, sigma/np.diff(continuum.disp).mean())
+                c_ = np.interp(data.disp, continuum.disp, smoothed_continuum)
+
+            return c_ * (1 - depth * profiles.gaussian(wavelength, sigma,
                 data.disp))
 
-        def integrate_absorption_profile(wavelength, fwhm, depth):
-            return fwhm * depth
-
+        def integrate_absorption_profile(wavelength, sigma, depth):
+            return sigma * depth
 
         # Should we model the outliers?
         if outliers:
@@ -534,9 +558,19 @@ class Model(object):
         initial = dict(zip(labels, initial_theta))
         optimal = dict(zip(labels, optimal_theta))
 
+        # Create a smoothed continuum spectrum using the optimal theta
+        initially_smoothed_continuum = ndimage.gaussian_filter(continuum.flux,
+            initial["sigma"]/np.diff(continuum.disp).mean())
+        optimally_smoothed_continuum = ndimage.gaussian_filter(continuum.flux,
+            optimal["sigma"]/np.diff(continuum.disp).mean())
+        initial_continuum = specutils.Spectrum1D(disp=continuum.disp,
+            flux=initially_smoothed_continuum,
+            variance=np.zeros(continuum.disp.size))
+        optimal_continuum = specutils.Spectrum1D(disp=continuum.disp,
+            flux=optimally_smoothed_continuum,
+            variance=np.zeros(continuum.disp.size))
+
         minimised_quantity = "negative_log_likelihood" if outliers else "chi_sq"
-        continuum_spectrum = specutils.Spectrum1D(disp=data.disp,
-            flux=continuum, variance=np.zeros(data.disp.size))
         initial_profile = specutils.Spectrum1D(disp=data.disp,
             flux=absorption_profile(wavelength, initial_sigma, initial_depth),
             variance=np.zeros(data.disp.size))
@@ -553,7 +587,8 @@ class Model(object):
             "num_funcalls": num_funcalls,
             "warnflag": warnflag,
             "data": data,
-            "continuum": continuum_spectrum,
+            "initial_continuum": initial_continuum,
+            "optimal_continuum": optimal_continuum,
             "initial_profile": initial_profile,
             "optimal_profile": optimal_profile
         }
