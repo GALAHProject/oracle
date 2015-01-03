@@ -99,7 +99,7 @@ class Spectrum1D(object):
             variance=self.variance.copy(), headers=self.headers.copy())
     
 
-    def slice(self, wavelengths):
+    def slice(self, wavelengths, copy=False):
         """
         Slice a spectrum by some wavelengths.
         """
@@ -110,9 +110,15 @@ class Spectrum1D(object):
         index_start = self.disp.searchsorted(wavelength_start, side="left")
         index_end = self.disp.searchsorted(wavelength_end, side="right")
 
-        disp = self.disp[index_start:index_end]
-        flux = self.flux[index_start:index_end]
-        variance = self.variance[index_start:index_end]
+        if copy:
+            disp = self.disp[index_start:index_end].copy()
+            flux = self.flux[index_start:index_end].copy()
+            variance = self.variance[index_start:index_end].copy()
+
+        else:
+            disp = self.disp[index_start:index_end]
+            flux = self.flux[index_start:index_end]
+            variance = self.variance[index_start:index_end]
 
         return self.__class__(disp, flux, variance=variance,
             headers=self.headers.copy())
