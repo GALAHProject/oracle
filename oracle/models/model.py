@@ -1,4 +1,5 @@
-# coding: utf-8
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 """ An abstract model class for stellar spectra """
 
@@ -8,7 +9,6 @@ __all__ = ["Model"]
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import cPickle as pickle
-import json
 import logging
 import os
 import yaml
@@ -16,7 +16,6 @@ import numpy as np
 import warnings
 from hashlib import md5
 from pkg_resources import resource_stream
-from functools import partial
 from scipy import ndimage, stats, optimize as op
 
 logger = logging.getLogger("oracle")
@@ -60,7 +59,7 @@ class Model(object):
                 else:
                     # We expect a dictionary.
                     if not isinstance(configuration, dict):
-                        raise IOError("configuration file does not exist or the"\
+                        raise IOError("configuration file doesn't exist or the"\
                             " YAML string provided does not describe a valid "\
                             "dictionary")
 
@@ -90,14 +89,20 @@ class Model(object):
             module=self.__module__, hash=self.hash[:10], location=hex(id(self)))
 
 
-    def _load_grid(self):
+    def _load_grid(self, filename=None):
         """
         This is a temporary function until I can generalise the grid.
         """
 
-        with resource_stream(__name__, "galah-ambre-grid.pickle") as fp:
-            grid_points, grid_dispersion, grid_fluxes, grid_pixels = pickle.load(fp)
-        grid_fluxes = grid_fluxes.reshape(grid_points.size, sum(grid_pixels))
+        if filename is None:
+            with resource_stream(__name__, "galah-ambre-grid.pickle") as fp:
+                grid_points, grid_dispersion, grid_fluxes, px = pickle.load(fp)
+
+        else:
+            with open(filename, "rb") as fp:
+                grid_points, grid_dispersion, grid_fluxes, px = pickle.load(fp)
+
+        grid_fluxes = grid_fluxes.reshape(grid_points.size, sum(px))
 
         return (grid_points, grid_dispersion, grid_fluxes)
 
@@ -144,8 +149,8 @@ class Model(object):
 
     @property
     def hash(self):
-        """ Return a MD5 hash of the JSON-dumped model configuration. """ 
-        return md5(json.dumps(self.config).encode("utf-8")).hexdigest()
+        """ Return a MD5 hash of the YAML-dumped model configuration. """ 
+        return md5(yaml.dump(self.config).encode("utf-8")).hexdigest()
 
 
     def mask(self, dispersion, z=0, fill_value=False, **kwargs):
@@ -193,8 +198,7 @@ class Model(object):
             return np.ones(len(dispersion), dtype=bool)
 
 
-
-    def initial_theta(self, data, full_output=False):
+    def initial_theta(self, data, full_output=False, **kwargs):
         """
         Return an initial guess of the model parameters theta using no prior
         information.
@@ -206,18 +210,13 @@ class Model(object):
             list of :class:`oracle.specutils.Spectrum1D` objects
         """
 
-        # Sort the data from blue to red first
         data = sorted(data, key=lambda x: x.disp[0])
-
-        # Need some cacher object to do fast-on-the-fly-comparisons
         parameters = self.parameters(data)
 
-        # Load the pickled cacher object thing, and work out some estimates
-        # of the model parameters
-        # Cacher must contain:
-        # dict with info about the grid, etc., grid points record array, 
-        # dispersion map, gigantic flux array
-        grid_points, grid_dispersion, grid_fluxes = self._load_grid()
+        # This will include the stellar parameters (grid points), dispersion
+        # points, and fluxes
+        filename = kwargs.pop("grid_filename", None)
+        grid_points, grid_dispersion, grid_fluxes = self._load_grid(filename)
 
         theta = {}
         num_pixels = 0
@@ -226,8 +225,7 @@ class Model(object):
         expected_channel_fluxes = []
         chi_sqs = np.zeros(grid_points.size)
 
-        # Parallelise channels
-        logger.warn("andy you should parallelise this part")
+        # [TODO] Andy you should parallelise this part
         for i, channel in enumerate(data):
 
             # Splice the wavelengths
@@ -246,7 +244,8 @@ class Model(object):
             # Get the continuum order
             order = self._continuum_order(i)
             ccf_mask = ~(self.mask(rebinned_channel_disp,
-                mask_key="cross_correlation_mask") * np.isfinite(rebinned_channel_flux))
+                mask_key="cross_correlation_mask") \
+                * np.isfinite(rebinned_channel_flux))
 
             # Cross-correlate the observed data against the grid
             if ("v_rad" in parameters) or ("v_rad.{}".format(i) in parameters):
@@ -279,13 +278,14 @@ class Model(object):
                     ccf_disp = rebinned_channel_disp
                     ccf_flux = rebinned_channel_flux.copy()
 
-                # If this is the first channel, then cross-correlate the spectra
-                # against the entire grid
                 if i == 0:
+                    # If this is the first channel, then cross-correlate the
+                    # data against the entire grid
+                
                     v_rads, v_errs, ccf_peaks = \
                         specutils.cross_correlate.cross_correlate_grid(
                             ccf_disp,
-                            grid_fluxes[:, indices[0] + ccf_li:indices[1] + ccf_ri],
+                            grid_fluxes[:, indices[0]+ccf_li:indices[1]+ccf_ri],
                             ccf_flux, continuum_order=order,
                             threads=self.config["settings"]["threads"])
 
@@ -300,10 +300,16 @@ class Model(object):
                         v_rad, v_err, ccf_peak))
 
                 else:
-                    v_rad, v_err, ccf_peak = specutils.cross_correlate.cross_correlate_grid(
-                        ccf_disp, np.array([grid_fluxes[chi_sqs.argmin(),
-                            indices[0] + ccf_li:indices[1] + ccf_ri]]),
-                        ccf_flux, continuum_order=order)
+                    # The following times we just cross-correlate the data
+                    # against the best point from the grid the previous time
+
+                    v_rad, v_err, ccf_peak = \
+                        specutils.cross_correlate.cross_correlate_grid(
+                            ccf_disp, np.array([grid_fluxes[chi_sqs.argmin(),
+                                indices[0] + ccf_li:indices[1] + ccf_ri]]),
+                            ccf_flux, continuum_order=order)
+
+                    # We take the first item because there's only one grid point
                     v_rad, v_err, ccf_peak = v_rad[0], v_err[0], ccf_peak[0]
 
                 logger.debug("CCF peak in channel {0} is {1} with v_rad = "\
@@ -321,37 +327,40 @@ class Model(object):
                     # Measured radial velocity applies to this channel only
                     theta["v_rad.{}".format(i)] = v_rad
 
-
-            # Calculate continuum coefficients for each model grid point
+            # We need the continuum mask regardless of whether continuum is
+            # actually determined or not. This is because the continuum mask
+            # is later used to determine which pixels are used for the nearest
+            # grid point
             continuum_mask = ~(self.mask(rebinned_channel_disp,
                 mask_key="continuum_mask") * np.isfinite(rebinned_channel_flux))
-            if order >= 0:
 
+            # Calculate continuum coefficients for each model grid point
+            if order >= 0:
                 continuum_disp = rebinned_channel_disp[~continuum_mask]
                 continuum_flux = rebinned_channel_flux[~continuum_mask].copy()
-                # This might fail with nans/infs
+                # [TODO] This might fail with nans/infs in the data
 
-                # Note this is assuming you are not doing some Big Ass Matrix(tm)
+                # Note below we assume you are not doing some Big Ass Matrix(tm)
                 # operations.
 
                 # The dispersion matrix will use rebinned channel dispersion
                 # points because we will use it later to calculate the expected
                 # fluxes at each point
-                dispersion_matrix = np.ones((order+1, rebinned_channel_disp.size))
+                disp_matrix = np.ones((order+1, rebinned_channel_disp.size))
                 for j in range(order + 1):
-                    dispersion_matrix[j] *= rebinned_channel_disp**j
+                    disp_matrix[j] *= rebinned_channel_disp**j
 
                 A = (continuum_flux \
-                    / grid_fluxes[:, indices[0]:indices[1]][:, ~continuum_mask]).T
-                coefficients = np.linalg.lstsq(
-                    dispersion_matrix[:, ~continuum_mask].T, A)[0]
+                    / grid_fluxes[:,indices[0]:indices[1]][:,~continuum_mask]).T
+                coefficients = np.linalg.lstsq(disp_matrix[:,~continuum_mask].T,
+                    A)[0]
 
                 # Save the continuum coefficients (we will use them later)
                 continuum_coefficients[i] = coefficients
-                continuum = np.dot(coefficients.T, dispersion_matrix)
+                continuum = np.dot(coefficients.T, disp_matrix)
         
-                # Calculate the expected fluxes and the chi-sq value at each point
-                expected_fluxes = grid_fluxes[:, indices[0]:indices[1]] * continuum
+                # Calculate the expected flux and chi-sq values at each point
+                expected_fluxes = grid_fluxes[:,indices[0]:indices[1]]*continuum
 
             else:
                 # No continuum treatment.
@@ -365,37 +374,38 @@ class Model(object):
             # Add to the chi-sq values
             tm = continuum_mask + ccf_mask
             num_pixels += (~tm).sum()
-            differences = (rebinned_channel_flux[~tm] - expected_fluxes[:, ~tm])**2\
-                * rebinned_channel_ivar[~tm]
+            differences = (rebinned_channel_flux[~tm] \
+                - expected_fluxes[:, ~tm])**2 * rebinned_channel_ivar[~tm]
             chi_sqs += np.nansum(differences, axis=1)
 
             # Estimate instrumental broadening
             logger.warn("haven't done instrumental broadening")
 
             # Determine the best match so far
-            grid_index = chi_sqs.argmin()
-            r_chi_sq = chi_sqs[grid_index] / (num_pixels - len(parameters) - 1)
+            g_index = chi_sqs.argmin()
+            r_chi_sq = chi_sqs[g_index] / (num_pixels - len(parameters) - 1)
             logger.debug(u"Grid point with lowest χ² point so far is {0} with "\
                 u"reduced χ² = {1:.1f}".format(utils.readable_dict(
-                    grid_points.dtype.names, grid_points[grid_index]), r_chi_sq))
+                    grid_points.dtype.names, grid_points[g_index]), r_chi_sq))
 
         # Do we need to conglomerate radial velocity measurements together?
         if "v_rad" in parameters:
             median_v_rad = np.median(theta["v_rad"])
-            logger.debug("Calculating ensemble radial velocity from {0} to be "\
-                "{1} km/s".format(theta["v_rad"], median_v_rad))
+            logger.info("Calculating ensemble radial velocity from {0} to be "\
+                "{1:.1f} km/s".format(theta["v_rad"], median_v_rad))
             theta["v_rad"] = median_v_rad
 
-        # OK, now determine the nearest point as that which has the lowest chi-sq
-        grid_index = chi_sqs.argmin()
-        closest_grid_point = grid_points[grid_index]
-        r_chi_sq = chi_sqs[grid_index] / (num_pixels - len(parameters) - 1)
-        logger.info(u"Grid point with lowest χ² point is {0} with reduced χ² = "\
-            "{1:.1f}".format(utils.readable_dict(grid_points.dtype.names,
+        # Now determine the nearest point as that which has the lowest chi-sq
+        g_index = chi_sqs.argmin()
+        closest_grid_point = grid_points[g_index]
+        r_chi_sq = chi_sqs[g_index] / (num_pixels - len(parameters) - 1)
+        logger.info(u"Grid point with lowest χ² point is {0} with reduced χ² ="\
+            " {1:.1f}".format(utils.readable_dict(grid_points.dtype.names,
                 closest_grid_point), r_chi_sq))
 
         # Refine the continuum coefficient estimates using the grid point with
-        # the lowest chi-sq value
+        # the lowest chi-sq value?
+        # [TODO] Perhaps we should do this
 
 
         # Update theta with the nearest grid point
@@ -403,7 +413,7 @@ class Model(object):
 
         # And the continuum coefficients
         for i, coefficients in continuum_coefficients.iteritems():
-            for j, coefficient in enumerate(coefficients[:, grid_index]):
+            for j, coefficient in enumerate(coefficients[:, g_index]):
                 theta["continuum.{0}.{1}".format(i, j)] = coefficient
 
         # Is microturbulence a parameter?
@@ -420,13 +430,14 @@ class Model(object):
 
         if full_output:
             return (theta, r_chi_sq, np.hstack(expected_channel_disp),
-                np.hstack([ecf[grid_index] for ecf in expected_channel_fluxes]))
+                np.hstack([ecf[g_index] for ecf in expected_channel_fluxes]))
         return theta
 
 
     def fit_absorption_profile(self, wavelength, spectrum, continuum=None,
         initial_fwhm=None, initial_depth=None, wavelength_tolerance=0.10,
-        surrounding=1.0, outliers=True, scale_continuum=True, full_output=False):
+        surrounding=1.0, outliers=False, scale_continuum=True,
+        full_output=False):
         """
         Fit an absorption profile to the provided spectrum.
         """
@@ -490,16 +501,20 @@ class Model(object):
                 initial_fwhm = initial_fwhm[finite][0]
 
         # Gaussian case
-        def absorption_profile(wavelength, sigma, depth):
+        def absorption_profile(wavelength, sigma, depth, continuum_sigma=0):
             #return ndimage.gaussian_filter(continuum, sigma/np.diff(data.disp).mean())\
             #    * (1 - depth * profiles.gaussian(wavelength, sigma, data.disp))
             if scalar_continuum:
                 c_ = continuum
 
             else:
-                smoothed_continuum = ndimage.gaussian_filter(
-                    continuum.flux, sigma/np.diff(continuum.disp).mean())
-                c_ = np.interp(data.disp, continuum.disp, smoothed_continuum)
+                if continuum_sigma > 0:
+                    smoothed_continuum = ndimage.gaussian_filter(
+                        continuum.flux, continuum_sigma/np.diff(continuum.disp).mean())
+                    c_ = np.interp(data.disp, continuum.disp, smoothed_continuum)
+
+                else:
+                    c_ = np.interp(data.disp, continuum.disp, continuum.flux)
 
             return c_ * (1 - depth * profiles.gaussian(wavelength, sigma,
                 data.disp))
@@ -578,13 +593,14 @@ class Model(object):
             # The chi-sq function
             def chi_sq(theta):
                 wl, sigma, depth = theta[:3]
-                scale = theta[3] if scale_continuum else 1.
+                continuum_sigma = theta[3] if len(theta) > 3 else 0
+                scale = theta[4] if scale_continuum else 1.
 
-                if 0 > sigma or 0 > wl or not (1 > depth > 0) \
+                if 0 > sigma or 0 > continuum_sigma or 0 > wl or not (1 > depth > 0) \
                 or abs(wl - wavelength) > wavelength_tolerance:
                     return np.nan
 
-                model = scale * absorption_profile(wl, sigma, depth)
+                model = scale * absorption_profile(wl, sigma, depth, continuum_sigma)
                 difference = (data.flux - model)**2 * data.ivariance
                 return difference[np.isfinite(difference)].sum()
 
@@ -592,7 +608,7 @@ class Model(object):
 
             # Prepare the initial theta values
             initial_sigma = initial_fwhm/2.355
-            initial_theta = [wavelength, initial_sigma, initial_depth]
+            initial_theta = [wavelength, initial_sigma, initial_depth, initial_sigma]
             if scale_continuum:
                 initial_theta.append(1)
 
