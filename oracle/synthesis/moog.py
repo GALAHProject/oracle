@@ -92,7 +92,7 @@ def _synthesise(photospheric_structure, metallicity, microturbulence,
         photospheric_abundances, transitions, syn_limits, opacity_contributes,
         npoints_=npoints, debug_=debug)
 
-    return (wavelengths[::oversample], fluxes[::oversample])
+    return (wavelengths, fluxes)
 
 
 def synthesise(effective_temperature, surface_gravity, metallicity,
@@ -127,7 +127,7 @@ def synthesise(effective_temperature, surface_gravity, metallicity,
         photospheric_structure, photospheric_abundances, transitions, syn_limits,
         opacity_contributes, npoints_=npoints, debug_=debug)
 
-    return (wavelengths[::oversample], fluxes[::oversample])
+    return (wavelengths, fluxes)
 
 
 def abundances(effective_temperature, surface_gravity, metallicity,
