@@ -8,9 +8,14 @@ from __future__ import absolute_import, print_function
 __all__ = ["AtomicTransition"]
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
-
 import logging
 
+import numpy as np
+from scipy import ndimage, optimize as op
+
+from oracle import synthesis
+from oracle.models import profiles
+from oracle.specutils import Spectrum1D
 from oracle.utils import (atomic_number as parse_atomic_number,
     element as parse_element)
 
@@ -29,6 +34,8 @@ class AtomicTransition(object):
 
         float_if_not_none = lambda x: float(x) if x is not None else x
         self.blending_transitions = blending_transitions
+        if blending_transitions is not None:
+            self.blending_transitions = np.atleast_2d(blending_transitions)
         self.excitation_potential = float_if_not_none(excitation_potential)
         self.loggf = float_if_not_none(loggf)
         self.mask = mask
@@ -46,7 +53,7 @@ class AtomicTransition(object):
 
     def __unicode__(self):
         species_repr = "Unspecified transition" if self.species is None \
-            else "{0} {1} ".format(self.element, "I" * self.ionisation_level)
+            else "{0} {1}".format(self.element, "I" * self.ionisation_level)
         return u"{species_repr} at {wavelength:.1f} Å".format(
             species_repr=species_repr, wavelength=self.wavelength)
 
@@ -63,8 +70,8 @@ class AtomicTransition(object):
 
     def fit_profile(self, data, initial_theta=None, kind="gaussian", 
         continuum_order=None, surrounding=1.5, outlier_pixels=None,
-        constrain_parameters=None, atmosphere_kwargs=None,
-        synthesis_kwargs=None, full_output=False, **kwargs):
+        constrain_parameters=None, synthesise_kwargs=None, optimise_kwargs=None,
+        full_output=False, **kwargs):
         """
         Model and fit the atomic transition with an absorption profile. This
         function can account for continuum, radial velocity offsets (by limiting
@@ -109,7 +116,6 @@ class AtomicTransition(object):
             `microturbulence`.
 
             # Discuss outlier parameters.
-
 
         :type initial_theta:
             dict
@@ -158,18 +164,17 @@ class AtomicTransition(object):
         :type constrain_parameters:
             dict
 
-        :param atmosphere_kwargs: [optional]
-            Keyword arguments to supply to the atmosphere interpolator. This is
-            only employed when a blending spectrum is required.
-
-        :type atmosphere_kwargs:
-            dict
-
-        :param synthesis_kwargs: [optional]
-            Keyword arguments to supply to the synthesis function. This is only
+        :param synthesise_kwargs: [optional]
+            Keyword arguments to supply to the synthesise function. This is only
             employed when a blending spectrum is required.
 
-        :type synthesis_kwargs:
+        :type synthesise_kwargs:
+            dict
+
+        :param optimise_kwargs: [optional]
+            Keyword arguments to supply to the optimisation function.
+
+        :type optimise_kwargs:
             dict
 
         :param full_output:
@@ -180,15 +185,15 @@ class AtomicTransition(object):
 
         :returns:
             The model parameters.
-
-        :raises ValueError:
-            - If an unavailable profile type was provided.
-            - If `continuum_order` is not a positive integer.
-
-        :raises TypeError:
-            - If `continuum_order` is not an integer-like type.
-
         """
+
+        if not isinstance(data, Spectrum1D):
+            raise TypeError("data must be a oracle.specutils.Spectrum1D object")
+
+        if not (data.disp[-1] > self.wavelength > data.disp[0]):
+            raise ValueError("the atomic transition is not in the bounds of the"
+                " input data ({0:.0f} outside [{1:.0f}, {2:.0f}])".format(
+                    self.wavelength, data.disp[0], data.disp[-1]))
 
         if initial_theta is None:
             initial_theta = {}
@@ -196,6 +201,10 @@ class AtomicTransition(object):
         kind, available = kind.lower(), ("gaussian", "voigt", "lorentzian")
         if kind not in available:
             raise ValueError("available profile types are {}".format(available))
+
+        # [TODO] fix this
+        if kind in ("voigt", "lorentzian"):
+            raise NotImplementedError("sry gooby")
 
         if continuum_order is not None:
             try:
@@ -221,11 +230,8 @@ class AtomicTransition(object):
             constrain_parameters = dict((k.lower(), v) \
                 for k, v in constrain_parameters.iteritems())
 
-        if atmosphere_kwargs is None:
-            atmosphere_kwargs = {}
-
-        if synthesis_kwargs is None:
-            synthesis_kwargs = {}
+        if synthesise_kwargs is None:
+            synthesise_kwargs = {}
 
         # Establish the fit parameters
         parameters = ["line_depth"]
@@ -243,119 +249,272 @@ class AtomicTransition(object):
         # Continuum
         if continuum_order is not None:
             parameters.extend(["continuum.{}".format(i) \
-                for i in range(continuum_order + 1)]
+                for i in range(continuum_order + 1)])
 
         # Blending spectrum FWHM?
+        stellar_parameter_keys = ("effective_temperature", "surface_gravity",
+            "metallicity", "microturbulence")
         if self.blending_transitions is not None \
         and len(self.blending_transitions) > 0:
             parameters.append("blending_fwhm")
 
             # Since we have to synthesise a blending spectrum, check that we
             # have the required stellar parameters in initial_theta
-            stellar_parameters = ("effective_temperature", "surface_gravity",
-                "metallicity", "microturbulence")
-            if not all([k in initial_theta for k in stellar_parameters]):
+            if not all([k in initial_theta for k in stellar_parameter_keys]):
                 raise KeyError("stellar parameters ({}) are required for "\
                     "synthesis because this transition has blending transitions"
                     .format(", ".join(stellar_parameter_keys)))
 
         logger.debug("{0} has {1} parameters: {2}".format(self, len(parameters),
             ", ".join(parameters)))
+
+        # Create a copy of a region of the data and (where applicable,..) apply
+        # a mask to the data.
+        region = (self.wavelength - surrounding, self.wavelength + surrounding)
+        data = data.slice(region, copy=True)
+        if self.mask is not None:
+            data = data.mask_dispersions(self.mask)
             
+        # Estimate the initial values of parameters that were not given.
+        missing_parameters = set(parameters).difference(initial_theta)
+        logger.debug("Need to estimate {0} parameters: {1}".format(
+            len(missing_parameters), ", ".join(missing_parameters)))
+
+        # Order of estimates (in increasing difficulty)
+        # -> wavelength, continuum.N, line_depth, fwhm (et al.), blending_fwhm
+        theta = { "wavelength": self.wavelength }
+        for parameter in set(parameters).intersection(initial_theta):
+            # Use setdefault so we don't overwrite the wavelength
+            theta.setdefault(parameter, initial_theta[parameter])
 
         # Synthesise a blending spectrum if necessary
+        if "blending_fwhm" in parameters:
+            effective_temperature, surface_gravity, metallicity, microturbulence\
+                = [initial_theta[k] for k in stellar_parameter_keys]
 
-        # Estimate the initial values of parameters that were not given.
+            pixel_size = np.diff(data.disp).min()
+            synthesise_kwargs.setdefault("oversample", 4)
+            synthesise_kwargs.setdefault("wavelength_step", pixel_size)
 
-        # Create a copy of the data and (if it exists) apply a mask to the data.
+            blending_spectrum = Spectrum1D(*synthesis.synthesise(
+                effective_temperature, surface_gravity, metallicity,
+                microturbulence, self.blending_transitions, region[0], region[1],
+                **synthesise_kwargs))
+        else:
+            blending_spectrum = None
 
+        # Do we need to estimate continuum parameters?
+        # Note here it's either all or nothing. Either initial_theta provides us
+        # with all of the continuum.* parameters we need, or we estimate them
+        # all ourselves
+        if any([p.startswith("continuum.") for p in missing_parameters]):
+            if blending_spectrum is None:
+                # Polyfit
+                # [TODO] any outlier removal required?
+                coefficients = np.polyfit(data.disp, data.flux, continuum_order)
 
-        # Define the minimisation function
-            # -> check for any violations in constrain_parameters or sensible
-            #    physics
-            # -> copy the blending spectrum
-            # -> smooth the blending spectrum
-            # -> form the absorption profile (from unity)
-            # -> multiply the two together
-            # -> scale it by the continuum
+            else:
+                # Divide with the blending spectrum
+                disp_matrix = np.ones((continuum_order+1, data.disp.size))
+                for i in range(continuum_order + 1):
+                    disp_matrix[i] *= data.disp**i
 
-            # -> [eventually] account for outlier pixels
-            # -> calculate a chi_sq value
+                # Ensure blending spectrum is on the same pixel scale (e.g.,
+                # there has been no rebinning)
+                rbs = np.interp(
+                    data.disp, blending_spectrum.flux, blending_spectrum.flux)
+                A = (data.flux/rbs).T
+                coefficients = np.linalg.lstsq(disp_matrix.T, A)[0][::-1]
 
+            # Update theta with the coefficients we have estimated
+            theta.update(dict(zip(["continuum.{}".format(i) \
+                for i in range(continuum_order + 1)], coefficients)))
 
-        """
-        Simplest case:
+        else:
+            # Get the continuum coefficients, we may need them later.
+            if continuum_order is None:
+                coefficients = [1] # sneaky sneaky
 
-        transition = AtomicTransition(wavelength=5775.12)
-        transition.fit(data)
+            else:
+                coefficients = [theta["continuum.{}".format(i)] \
+                    for i in range(continuum_order + 1)]
 
-        # What do
-        # No continuum
-        # No synthesis
-        # No mask
-        # No species information
-        # ... Fit with a Gaussian profile.
-        #     Return the fit parameters.
-        #     Integrate the profile for an equivalent width, which we store in
-        #        the class.
+        # Do we need to estimate the line depth?
+        if "line_depth" in missing_parameters:
+            continuum_at_wavelength = np.polyval(coefficients, self.wavelength)
+            index = data.disp.searchsorted(self.wavelength)
+            line_depth = 1 - data.flux[index]/continuum_at_wavelength
+            
+            # Ensure the initial value is limited within a sensible range
+            tolerance = kwargs.pop("initial_line_depth_tolerance", 1e-3)
+            theta["line_depth"] = np.clip(line_depth, tolerance, 1 - tolerance)
 
+        # Do we need to estimate any of the profile parameters?
+        # [TODO] here we just do Gaussian because simplicity. Expand on that
+        if "fwhm" in missing_parameters:
+            mid_flux = continuum_at_wavelength * (1 - 0.5 * theta["line_depth"])
 
-        # With species information:
+            # Find the wavelengths from the central wavelength where this value
+            # exists
+            pos_mid_point, neg_mid_point = np.nan, np.nan
+            index = data.disp.searchsorted(self.wavelength)
+            pos_indices = data.flux[index:] > mid_flux
+            if pos_indices.any():
+                pos_mid_point = data.disp[index:][pos_indices][0]
 
-        transition = AtomicTransition(wavelength=5775.12, excitation_potential=1.2,
-            species=26.0, loggf=0.00)
-        transition.fit(data)
+            neg_indices = data.flux[:index] > mid_flux
+            if neg_indices.any():
+                neg_mid_point = data.disp[:index][neg_indices][-1]
 
-        # What do?
-        # Same as above.
-        # We can't provide an abundance unless we have stellar parameter
-        # information as well.
+            # If both positive and negative mid points are nans, then we cannot
+            # estimate the FWHM with this method
+            if not np.isfinite([pos_mid_point, neg_mid_point]).any():
+                raise ValueError("cannot estimate initial fwhm")
 
-        # Perhaps self.abundance should be self.abundance(effective_temperature,
-            surface_gravity, metallicity, ...etc)?
-        # --> Yes.
-    
+            # If either mid point is a nan, take the initial fwhm from one side
+            # of the profile
+            initial_fwhm = pos_mid_point - neg_mid_point
+            if not np.isfinite(initial_fwhm):
+                initial_fwhm = np.array([
+                    2 * (pos_mid_point - self.wavelength),
+                    2 * (self.wavelength - neg_mid_point)
+                ])
+                finite = np.isfinite(initial_fwhm)
+                initial_fwhm = initial_fwhm[finite][0]
 
-        # With a mask:
+            theta["fwhm"] = initial_fwhm
 
-        transition = AtomicTransition(wavelength=5775.12, excitation_potential=1.2,
-            species=26.0, loggf=0.00, mask=[5776.5, 5779.1])
-        transition.fit(data)
+        # Do we need to estimate the blending FWHM? If so we will just take it
+        # from the initial profile FWHM
+        if "blending_fwhm" in missing_parameters:
+            theta["blending_fwhm"] = theta["fwhm"]
 
-        # What do?
-        # Same as above, except use the mask in the fitting process
+        assert len(set(parameters).difference(theta)) == 0, "Missing parameter!"
 
+        invalid_return = np.nan
 
-        # With blending transitions:
+        def chi_sq(x, full_output=False):
 
-        transition = AtomicTransition(wavelength=5775.12, excitation_potential=1.2,
-            species=26.0, loggf=0.00, mask=[5776.5, 5779.1],
-            blending_transitions=[[5774.1, 12.0, 0.00, 0.00]])
-        
-        [or AtomicTransitions could be given as the blending transitions]
-        transition.fit(data)
+            # Extra variables for free due to scope:
+            # invalid_return, constrain_parameters, blending_spectrum, data,
+            # continuum_order, Spectrum1D?
 
-        # raise an error: stellar parameters are required
+            xd = dict(zip(parameters, x))
 
+            # Physically sensible constraints
+            if 0 > xd["fwhm"] or not (1 > xd["line_depth"] > 0) \
+            or 0 > xd.get("blending_fwhm", 1):
+                return invalid_return \
+                    if not full_output else 3 * (invalid_return, )
 
-        # With blending transitions but no atomic data for the line itself?
-        # --> That's OK, but .abundance() will fail
+            # Constraints provided by the user
+            for parameter, (lower, upper) in constrain_parameters.iteritems():
+                if (lower is not None and lower > xd[parameter]) \
+                or (upper is not None and upper < xd[parameter]):
+                    return invalid_return \
+                        if not full_output else 3 * (invalid_return, )
 
+            # Smooth the blending spectrum
+            if blending_spectrum is not None:
+                fwhm = xd["blending_fwhm"]/np.diff(blending_spectrum.disp).min()
+                blending_spectrum_flux = ndimage.gaussian_filter(
+                    blending_spectrum.flux, fwhm/2.355)
 
-        # OK, so we have blending transitions. Now let's see what we do for
-        # fit_profile()
-        # options:
-        # kind = gaussian
-        # continuum_order = None,
-        # constrain_parameters={'wavelength'}
-        # atmosphere kwargs
-        # outlier_treatment
+                # Resample to the data dispersion points
+                blending_spectrum_flux = np.interp(data.disp,
+                    blending_spectrum.disp, blending_spectrum_flux)
+            else:
+                blending_spectrum_flux = np.ones(data.disp.size)
 
-        # free parameters are:
-        # line depth, fwhm, fwhm of blending spectrum, any continuum parameters,
-        """
+            # Form the absorption profile
+            absorption_profile = \
+                1 - xd["line_depth"] * profiles.gaussian(
+                    xd.get("wavelength", self.wavelength), xd["fwhm"]/2.355,
+                    data.disp)
 
+            # Scale by the continuum (if applicable)
+            continuum = 1 if continuum_order is None \
+                else np.polyval([xd["continuum.{}".format(i)] \
+                    for i in range(continuum_order + 1)], data.disp)
 
+            # Put everything together 
+            model = blending_spectrum_flux * absorption_profile * continuum
+
+            # Calculate the chi-squared value
+            chi_sqs = (model - data.flux)**2 * data.ivariance
+            finite = np.isfinite(chi_sqs)
+            chi_sq = chi_sqs[finite].sum()
+
+            if full_output:
+                r_chi_sq = chi_sq / (finite.sum() - len(xd) - 1)
+                return (chi_sq, r_chi_sq, Spectrum1D(data.disp, model))
+            return chi_sq
+
+        minimisation_function = chi_sq
+
+        # Check for any violations in the initial parameters
+        p0 = np.array([theta[p] for p in parameters])
+        try:
+            # initial chi-sq, initial reduced chi-sq, initial model fit
+            ic, irc, imf = minimisation_function(p0, full_output=True)
+
+        except:
+            logger.exception("Exception raised when trying to start profile "
+                "fitting:")
+            raise
+
+        else:
+            if not np.isfinite(ic) or ic == invalid_return:
+                raise ValueError("invalid value returned by minimisation "
+                    "function when initial theta values were provided")
+
+        # [TODO] Allow for something other than ye-olde Nelder & Meade?
+        op_info = { "p0": theta }
+        p1, fopt, num_iter, num_funcalls, warnflag = op.fmin(
+            minimisation_function, p0, disp=False, full_output=True)
+        oc, orc, omf = minimisation_function(p1, full_output=True)
+        op_info.update({
+            "fopt": fopt,
+            "num_iter": num_iter,
+            "num_funcalls": num_funcalls,
+            "warnflag": warnflag
+        })
+        optimal_theta = dict(zip(parameters, p1))
+
+        # Any sanity checks?
+        if "blending_fwhm" in optimal_theta:
+            fwhm_change = optimal_theta["blending_fwhm"]/optimal_theta["fwhm"]
+            if not (2 > fwhm_change > 0.5):
+                logging.debug("Profile and blending FWHM differ substantially "
+                    "from each other: profile_fwhm = {0:.2f} Angstrom, blending"
+                    "_fwhm = {1:.2f}".format(optimal_theta["fwhm"],
+                        optimal_theta["blending_fwhm"]))
+
+        # What information should we save to the class?
+        self._fit_profile_result = (optimal_theta, oc, orc, omf, op_info)
+
+        profile_integrals = {
+            # Other profile functions will probably need additional information
+            # other than just 'x' (the optimal dictionary)
+            # For those playing at home: pi^2/2.355 == 0.752634331594699
+            "gaussian": lambda x: x["line_depth"] * abs(x["fwhm"]) * 0.752634332
+        }
+        # Calculate the equivalent width (in milli Angstroms)
+        # [TODO] use astropy.units to provide some relative measure
+        self.equivalent_width = 1000 * profile_integrals[kind](optimal_theta)
+
+        if full_output:
+            return (optimal_theta, oc, orc, omf, op_info)
+
+        # I could not sleep for 65 days because I worried about whether I should
+        # be returning a list of values or a dictionary by default. In the end I
+        # decided that since the length (and order) of model parameters can vary
+        # depending on the input keywords, and that the model parameters are not
+        # easily accessible, I should return a dictionary here to be 'explicit'.
+
+        # (The above paragraph pleases my OCD)
+
+        return optimal_theta
 
 
 def _parse_ionisation_level(ionisation_level):
@@ -403,7 +562,7 @@ def _parse_species(species):
     else:
         element = parse_element(species)
         atomic_number = int(species)
-        ionisation_level = int(10 * (species - atomic_number))
+        ionisation_level = int(10 * (species - atomic_number)) + 1
         
     return (element, atomic_number, ionisation_level, species)
         
