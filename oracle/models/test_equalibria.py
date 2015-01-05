@@ -15,10 +15,9 @@ def equalibria():
 
     model = oracle.models.EqualibriaModel("hermes-atomic-linelist.yaml")
 
-    theta, r_chi_sq, expected_dispersion, expected_fluxes = model.initial_theta(data, full_output=True)
+    theta, r_chi_sq, expected_dispersion, expected_flux = model.initial_theta(
+        data, full_output=True)
 
-    raise a
-    
     stellar_parameters = model.estimate_stellar_parameters(data,
         initial_theta=theta)
 
