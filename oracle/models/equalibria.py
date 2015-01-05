@@ -12,6 +12,7 @@ from scipy import stats, optimize as op
 
 from oracle import atmospheres, specutils, synthesis, utils
 from oracle.models.model import Model
+from oracle.models import transitions
 from oracle.models.jacobian \
     import approximate as stellar_parameter_jacobian_approximation
 
@@ -195,7 +196,7 @@ class EqualibriaModel(Model):
         # Optimisation
         state_kwargs = kwargs.copy()
         state_kwargs.update({
-            "theta": initial_theta,
+            "initial_theta": initial_theta,
             "full_output": False
         })
         state_function = lambda x: self.equalibrium_state(data, *x,
@@ -216,7 +217,7 @@ class EqualibriaModel(Model):
 
 
     def equalibrium_state(self, data, effective_temperature,
-        surface_gravity, metallicity, microturbulence, theta=None,
+        surface_gravity, metallicity, microturbulence, initial_theta=None,
         full_output=False, **kwargs):
         """
         Return the excitation and ionisation state. This information includes:
@@ -228,8 +229,8 @@ class EqualibriaModel(Model):
 
         """
 
-        if theta is None:
-            theta = {}
+        if initial_theta is None:
+            initial_theta = self.initial_theta(data)
 
         interpolator = kwargs.pop("interpolator", None)
         if interpolator is None:
@@ -242,75 +243,75 @@ class EqualibriaModel(Model):
         photospheric_structure = interpolator(effective_temperature,
             surface_gravity, metallicity, **interpolator_kwargs)        
 
+        atomic_transitions = self.config["model"]["atomic_transitions"]
+
         # We want to save the profile information and the details of the
         # measured atomic transitions
+        profile_initial_theta = kwargs.pop("profile_initial_theta", {})
+        profile_initial_theta.update({
+            "effective_temperature": effective_temperature,
+            "surface_gravity": surface_gravity,
+            "metallicity": metallicity,
+            "microturbulence": microturbulence,
+            "fwhm": 0.20
+        })
+
+        # Allow for profile keyword arguments on a per-transition basis.
+        profile_kwargs_list = kwargs.pop("profile_kwargs", None)
+        if profile_kwargs_list is None:
+            profile_kwargs_list = [{"full_output": True}] * len(atomic_transitions)
+        else:
+            [each.update({"full_output": True}) for each in profile_kwargs_list]
+
         profiles = []
+        default_fwhm = 0.10
         measured_atomic_transitions = []
-        for i, atomic_transition in enumerate(self.config["model"]["atomic_transitions"]):
+        for i, atomic_transition in enumerate(atomic_transitions):
 
-            wavelength, species, excitation_potential, loggf, van_der_waals_broadening, damp2, \
-                synthesise_surrounding, opacity_contributes = utils.unpack_atomic_transition(atomic_transition)
+            atomic_transition = transitions.AtomicTransition(**atomic_transition)
 
-            # Blending spectrum will need to be synthesised at a sufficiently
-            # high sampling rate to match the data. We also need to know *which*
-            # channel the transition is in
+            ps, ci = minimum_pixel_sampling(data, atomic_transition.wavelength)
+            ci = ci[0]
 
-            try:
-                pixel_size, channel_indices = minimum_pixel_sampling(
-                    data, wavelength)
+            continuum_order = self._continuum_order(ci)
+            continuum_order = None if 0 > continuum_order else min([1, continuum_order])
 
-            except ValueError:
-                logger.exception("Cannot find wavelength {0:.3f} in any data "
-                    "channel. Skipping this transition.".format(wavelength))
-                continue
-                
+            profile_initial_theta_ = profile_initial_theta.copy()
+            constrain_parameters = {
+                "wavelength": [
+                    atomic_transition.wavelength - 0.05,
+                    atomic_transition.wavelength + 0.05
+                    ],
+                "fwhm": [0, 0.5],
+                "blending_fwhm": [0, 0.5]
+            }
+            while True:
+                try:
+                    result = atomic_transition.fit_profile(data[ci],
+                        initial_theta=profile_initial_theta_,
+                        constrain_parameters=constrain_parameters,
+                        continuum_order=continuum_order, **profile_kwargs_list[i])
 
-            if len(channel_indices) > 1:
-                logger.warn("Found transition {2} in {1} channels".format(
-                    wavelength, len(channel_indices)))
-                raise NotImplementedError("haven't decided what to do about this")
+                except ValueError:
+                    if "fwhm" in profile_initial_theta_:
+                        raise
+                    profile_initial_theta_["fwhm"] = default_fwhm
+                    continue
 
-            channel_index = channel_indices[0]
+                else:
+                    break
 
-            # Synthesise the blending spectrum
-            blending_dispersion, blending_flux = synthesis._synthesise(
-                photospheric_structure, metallicity, microturbulence,
-                atomic_transition.get("blending_transitions", None),
-                wavelength - synthesise_surrounding,
-                wavelength + synthesise_surrounding,
-                wavelength_step=pixel_size/4., # Oversample the pixels
-                opacity_contributes=opacity_contributes)
-
-            # Apply continuum to the blending spectrum
-            blending_flux *= self._continuum(blending_dispersion, channel_index,
-                theta)
-
-            # Apply radial velocity to the dispersion
-            c, v = 299792.458, theta.get("v_rad.{}".format(channel_index), 0)
-            blending_dispersion *= (1. + v/c)
-
-            # [TODO] astropy.constants
-
-            # Create a spectrum object of the continuum
-            continuum = specutils.Spectrum1D(blending_dispersion, blending_flux)
-
-            # Fit an absorption profile in context of the surrounding region
-            try:
-                profile_parameters, equivalent_width, profile_info = \
-                    self.fit_absorption_profile(wavelength, data[channel_index],
-                        continuum=continuum, full_output=True)
-
-            except ValueError:
-                logger.exception("Failed to measure atomic transition at "
-                    "{0:.3f}:".format(wavelength))
-                continue
-
-            else:
-                # Save the information
-                profiles.append(profile_info)
-                measured_atomic_transitions.append([
-                    wavelength, species, excitation_potential, loggf,
-                    van_der_waals_broadening, damp2, equivalent_width])
+            # Save the information
+            #(optimal_theta, oc, orc, omf, op_info)
+            profiles.append(result)
+        
+            measured_atomic_transitions.append([
+                atomic_transition.wavelength,
+                atomic_transition.species,
+                atomic_transition.excitation_potential,
+                atomic_transition.loggf,
+                0, 0,
+                atomic_transition.equivalent_width])
 
         # Calculate abundances from the integrated equalivent widths
         # [TODO] Use the pre-interpolated photospheric structure?
@@ -383,23 +384,20 @@ class EqualibriaModel(Model):
         import matplotlib.pyplot as plt
         for i, (profile, use) in enumerate(zip(profiles, filter_lines)):
             #if not use: continue
-            fig, ax = plt.subplots()
-            ax.plot(profile["data"].disp, profile["data"].flux, 'k')
-            ax.plot(profile["initial_continuum"].disp, profile["initial_continuum"].flux, 'r:')
-            ax.plot(profile["initial_profile"].disp, profile["initial_profile"].flux, 'r')
+            if isinstance(profile[3], specutils.Spectrum1D):
+                fig, ax = plt.subplots()
+                ax.plot(profile[4]["data"].disp, profile[4]["data"].flux, 'k')
+                #ax.plot(profile["initial_profile"].disp, profile["initial_profile"].flux, 'r')
+                ax.plot(profile[3].disp, profile[3].flux, 'g')
+                ax.set_title(str(use))
+                ax.set_xlim(profile[4]["data"].disp[0], profile[4]["data"].disp[-1])
+                ax.set_xticklabels(["{0:.2f}".format(e) for e in ax.get_xticks()])
 
-            ax.plot(profile["optimal_continuum"].disp, profile["optimal_continuum"].flux, 'g:')
-            ax.plot(profile["optimal_profile"].disp, profile["optimal_profile"].flux, 'g')
-            ax.set_title(str(use))
-            ax.set_xlim(profile["data"].disp[0], profile["data"].disp[-1])
-
-            filename = "fig-{0:.2f}.png".format(profile["initial_theta"]["wavelength"])
-            fig.savefig(filename)
-            plt.close("all")
-            print("created {0}".format(filename))
-
-        for filtered, profile in zip(filter_lines, profiles):
-            profile["filtered"] = filtered
+                filename = "fig-{0:.2f}.png".format(atomic_transitions[i]["wavelength"])
+                fig.savefig(filename)
+                
+                plt.close("all")
+                print("created {0}".format(filename))
 
         raise a
 

@@ -17,7 +17,7 @@ from oracle import synthesis
 from oracle.models import profiles
 from oracle.specutils import Spectrum1D
 from oracle.utils import (atomic_number as parse_atomic_number,
-    element as parse_element)
+    element as parse_element, overlap)
 
 logger = logging.getLogger("oracle")
 
@@ -25,7 +25,8 @@ logger = logging.getLogger("oracle")
 class AtomicTransition(object):
 
     def __init__(self, wavelength, species=None, excitation_potential=None,
-        loggf=None, blending_transitions=None, mask=None, **kwargs):
+        loggf=None, blending_transitions=None, mask=None, continuum_regions=None,
+        **kwargs):
         """
         Initialise the class
         """
@@ -39,6 +40,11 @@ class AtomicTransition(object):
         self.excitation_potential = float_if_not_none(excitation_potential)
         self.loggf = float_if_not_none(loggf)
         self.mask = mask
+        if continuum_regions is None:
+            self.continuum_regions = [[]]
+
+        else:
+            self.continuum_regions = np.atleast_2d(continuum_regions)
 
         # Species can be 'Fe I', '26.0', 26.1, 'Fe' (assumed neutral)
         self.element, self.atomic_number, self.ionisation_level, self.species \
@@ -69,9 +75,9 @@ class AtomicTransition(object):
 
 
     def fit_profile(self, data, initial_theta=None, kind="gaussian", 
-        continuum_order=None, surrounding=1.5, outlier_pixels=None,
-        constrain_parameters=None, synthesise_kwargs=None, optimise_kwargs=None,
-        full_output=False, **kwargs):
+        continuum_order=None, continuum_regions=None, surrounding=2,
+        outlier_pixels=None, constrain_parameters=None, synthesise_kwargs=None,
+        optimise_kwargs=None, full_output=False, **kwargs):
         """
         Model and fit the atomic transition with an absorption profile. This
         function can account for continuum, radial velocity offsets (by limiting
@@ -138,6 +144,10 @@ class AtomicTransition(object):
             If continuum is treated, initial values for the continuum can be
             provided by the 'continuum.0', ..., 'continuum.N' keys in
             `initial_theta`.
+
+            Note that if `continuum_regions` are given during initialisation
+            then the continuum will be fit to these regions only, and there will
+            be no 'continuum.N' parameters in the profile fitting sequence.
 
         :type continuum_order:
             int
@@ -214,6 +224,18 @@ class AtomicTransition(object):
             if continuum_order < 0:
                 raise ValueError("continuum order must be a positive integer")
 
+        # Check that the continuum regions are valid
+        if len(self.continuum_regions) >= 2:
+            any_acceptable_continuum_regions = False
+            for start, end in self.continuum_regions:
+                if overlap(start, end, data.disp[0], data.disp[-1]):
+                    any_acceptable_continuum_regions = True
+                break
+
+            if not any_acceptable_continuum_regions:
+                raise ValueError("continuum regions {0} do not overlap with the"
+                    " data [{1:.0f} to {2:.0f}]".format(self.continuum_regions,
+                        data.disp[0], data.disp[-1]))
         try:
             surrounding = float(surrounding)
         except (ValueError, TypeError):
@@ -221,7 +243,7 @@ class AtomicTransition(object):
         if surrounding < 0:
             raise ValueError("surrounding region must be a positive float")
 
-        # outlier_pixels
+        # [TODO] outlier_pixels
 
         if constrain_parameters is None:
             constrain_parameters = {}
@@ -232,6 +254,9 @@ class AtomicTransition(object):
 
         if synthesise_kwargs is None:
             synthesise_kwargs = {}
+
+        if optimise_kwargs is None:
+            optimise_kwargs = {}
 
         # Establish the fit parameters
         parameters = ["line_depth"]
@@ -247,7 +272,7 @@ class AtomicTransition(object):
             parameters.append("wavelength")
 
         # Continuum
-        if continuum_order is not None:
+        if continuum_order is not None and 2 > len(self.continuum_regions):
             parameters.extend(["continuum.{}".format(i) \
                 for i in range(continuum_order + 1)])
 
@@ -273,7 +298,9 @@ class AtomicTransition(object):
         region = (self.wavelength - surrounding, self.wavelength + surrounding)
         data = data.slice(region, copy=True)
         if self.mask is not None:
-            data = data.mask_dispersions(self.mask)
+            data = data.mask_by_dispersion(self.mask)
+
+        finite = np.isfinite(data.flux)
             
         # Estimate the initial values of parameters that were not given.
         missing_parameters = set(parameters).difference(initial_theta)
@@ -303,41 +330,70 @@ class AtomicTransition(object):
         else:
             blending_spectrum = None
 
-        # Do we need to estimate continuum parameters?
-        # Note here it's either all or nothing. Either initial_theta provides us
-        # with all of the continuum.* parameters we need, or we estimate them
-        # all ourselves
-        if any([p.startswith("continuum.") for p in missing_parameters]):
-            if blending_spectrum is None:
-                # Polyfit
-                # [TODO] any outlier removal required?
-                coefficients = np.polyfit(data.disp, data.flux, continuum_order)
-
-            else:
-                # Divide with the blending spectrum
-                disp_matrix = np.ones((continuum_order+1, data.disp.size))
-                for i in range(continuum_order + 1):
-                    disp_matrix[i] *= data.disp**i
-
-                # Ensure blending spectrum is on the same pixel scale (e.g.,
-                # there has been no rebinning)
-                rbs = np.interp(
-                    data.disp, blending_spectrum.flux, blending_spectrum.flux)
-                A = (data.flux/rbs).T
-                coefficients = np.linalg.lstsq(disp_matrix.T, A)[0][::-1]
-
-            # Update theta with the coefficients we have estimated
-            theta.update(dict(zip(["continuum.{}".format(i) \
-                for i in range(continuum_order + 1)], coefficients)))
+        # Continuum treatment.
+        if continuum_order is None:
+            # No continuum treatment
+            coefficients = [1]
 
         else:
-            # Get the continuum coefficients, we may need them later.
-            if continuum_order is None:
-                coefficients = [1] # sneaky sneaky
+            # Do we have continuum_regions?
+            # If so then we can explicitly set the continuum from the
+            # blending_spectrum/or the data.
+
+            # If we don't have continuum_regions then we will need to estimate
+            # continuum parameters from blending_spectrum/or the data
+
+            # Do we need to fit for continuum coefficients?
+            # We don't if continuum_regions is None and if all the continuum
+            # parameters are specified in theta
+            if 2 > len(self.continuum_regions) and \
+            not any([p.startswith("continuum.") for p in missing_parameters]):
+                # Get the input coefficients from initial_theta
+                coefficients = [initial_theta["continuum.{}".format(i)] \
+                    for i in range(continuum_order + 1)]
+
+                # And update theta with these coefficients.
+                theta.update(dict(zip(["continuum.{}".format(i) \
+                    for i in range(continuum_order + 1)], coefficients)))
 
             else:
-                coefficients = [theta["continuum.{}".format(i)] \
-                    for i in range(continuum_order + 1)]
+                # We need to fit.
+                # Prepare a mask for finite pixels and continuum regions where
+                # appropriate
+                if len(self.continuum_regions) >= 2:
+                    continuum_mask = np.zeros(data.disp.size, dtype=bool)
+                    for start, end in self.continuum_regions:
+                        indices = data.disp.searchsorted([start, end])
+                        continuum_mask[indices[0]:indices[1]] = True
+                    continuum_mask *= finite
+
+                else:
+                    continuum_mask = finite
+
+                if blending_spectrum is None:
+                    # No blending spectrum, just use the data
+                    coefficients = np.polyfit(data.disp[continuum_mask],
+                        data.flux[continuum_mask], continuum_order)
+
+                else:
+                    # Divide with the blending spectrum
+                    disp_matrix = np.ones((continuum_order+1, continuum_mask.sum()))
+                    for i in range(continuum_order + 1):
+                        disp_matrix[i] *= data.disp[continuum_mask]**i
+
+                    # Ensure blending spectrum is on the same pixel scale (e.g.,
+                    # there has been no rebinning)
+                    rbs = np.interp(data.disp[continuum_mask],
+                        blending_spectrum.disp, blending_spectrum.flux)
+                    A = (data.flux[continuum_mask]/rbs).T
+                    coefficients = np.linalg.lstsq(disp_matrix.T, A)[0][::-1]
+
+
+                # Are the coefficients free parameters, or explicitly set?
+                if "continuum.0" in parameters:
+                    # Update theta with the coefficients we have estimated
+                    theta.update(dict(zip(["continuum.{}".format(i) \
+                        for i in range(continuum_order + 1)], coefficients)))
 
         # Do we need to estimate the line depth?
         if "line_depth" in missing_parameters:
@@ -392,12 +448,8 @@ class AtomicTransition(object):
         assert len(set(parameters).difference(theta)) == 0, "Missing parameter!"
 
         invalid_return = np.nan
-
-        def chi_sq(x, full_output=False):
-
-            # Extra variables for free due to scope:
-            # invalid_return, constrain_parameters, blending_spectrum, data,
-            # continuum_order, Spectrum1D?
+        fixed_continuum = np.polyval(coefficients, data.disp)
+        def chi_sq(x, full_output=False, return_scalar=True):
 
             xd = dict(zip(parameters, x))
 
@@ -433,7 +485,7 @@ class AtomicTransition(object):
                     data.disp)
 
             # Scale by the continuum (if applicable)
-            continuum = 1 if continuum_order is None \
+            continuum = fixed_continuum if "continuum.0" not in xd \
                 else np.polyval([xd["continuum.{}".format(i)] \
                     for i in range(continuum_order + 1)], data.disp)
 
@@ -442,8 +494,12 @@ class AtomicTransition(object):
 
             # Calculate the chi-squared value
             chi_sqs = (model - data.flux)**2 * data.ivariance
+
             finite = np.isfinite(chi_sqs)
-            chi_sq = chi_sqs[finite].sum()
+            chi_sq = chi_sqs[finite]
+
+            if return_scalar:
+                chi_sq = chi_sq.sum()
 
             if full_output:
                 r_chi_sq = chi_sq / (finite.sum() - len(xd) - 1)
@@ -454,6 +510,9 @@ class AtomicTransition(object):
 
         # Check for any violations in the initial parameters
         p0 = np.array([theta[p] for p in parameters])
+        if (~np.isfinite(p0)).any():
+            raise ValueError("non-finite initial value")
+
         try:
             # initial chi-sq, initial reduced chi-sq, initial model fit
             ic, irc, imf = minimisation_function(p0, full_output=True)
@@ -470,14 +529,22 @@ class AtomicTransition(object):
 
         # [TODO] Allow for something other than ye-olde Nelder & Meade?
         op_info = { "p0": theta }
+        op_kwargs = optimise_kwargs.copy()
+        op_kwargs["full_output"] = True
+        op_kwargs["xtol"] = 1e-5
+        op_kwargs["ftol"] = 1e-5
+        op_kwargs.setdefault("disp", False)
+        #p1, cov_x, op_info, mesg, ier = op.leastsq(
+        
         p1, fopt, num_iter, num_funcalls, warnflag = op.fmin(
-            minimisation_function, p0, disp=False, full_output=True)
+            minimisation_function, p0, **op_kwargs)
         oc, orc, omf = minimisation_function(p1, full_output=True)
         op_info.update({
             "fopt": fopt,
             "num_iter": num_iter,
             "num_funcalls": num_funcalls,
-            "warnflag": warnflag
+            "warnflag": warnflag,
+            "data": data
         })
         optimal_theta = dict(zip(parameters, p1))
 
