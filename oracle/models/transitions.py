@@ -41,7 +41,7 @@ class AtomicTransition(object):
         self.loggf = float_if_not_none(loggf)
         self.mask = mask
         if continuum_regions is None:
-            self.continuum_regions = [[]]
+            self.continuum_regions = np.array([])
 
         else:
             self.continuum_regions = np.atleast_2d(continuum_regions)
@@ -225,7 +225,7 @@ class AtomicTransition(object):
                 raise ValueError("continuum order must be a positive integer")
 
         # Check that the continuum regions are valid
-        if len(self.continuum_regions) >= 2:
+        if self.continuum_regions.size >= 2:
             any_acceptable_continuum_regions = False
             for start, end in self.continuum_regions:
                 if overlap(start, end, data.disp[0], data.disp[-1]):
@@ -272,7 +272,7 @@ class AtomicTransition(object):
             parameters.append("wavelength")
 
         # Continuum
-        if continuum_order is not None and 2 > len(self.continuum_regions):
+        if continuum_order is not None and 2 > self.continuum_regions.size:
             parameters.extend(["continuum.{}".format(i) \
                 for i in range(continuum_order + 1)])
 
@@ -325,8 +325,8 @@ class AtomicTransition(object):
 
             blending_spectrum = Spectrum1D(*synthesis.synthesise(
                 effective_temperature, surface_gravity, metallicity,
-                microturbulence, self.blending_transitions, region[0], region[1],
-                **synthesise_kwargs))
+                microturbulence, self.blending_transitions, region[0],
+                region[1], **synthesise_kwargs))
         else:
             blending_spectrum = None
 
@@ -346,7 +346,7 @@ class AtomicTransition(object):
             # Do we need to fit for continuum coefficients?
             # We don't if continuum_regions is None and if all the continuum
             # parameters are specified in theta
-            if 2 > len(self.continuum_regions) and \
+            if 2 > self.continuum_regions.size and \
             not any([p.startswith("continuum.") for p in missing_parameters]):
                 # Get the input coefficients from initial_theta
                 coefficients = [initial_theta["continuum.{}".format(i)] \
@@ -360,7 +360,7 @@ class AtomicTransition(object):
                 # We need to fit.
                 # Prepare a mask for finite pixels and continuum regions where
                 # appropriate
-                if len(self.continuum_regions) >= 2:
+                if self.continuum_regions.size >= 2:
                     continuum_mask = np.zeros(data.disp.size, dtype=bool)
                     for start, end in self.continuum_regions:
                         indices = data.disp.searchsorted([start, end])
