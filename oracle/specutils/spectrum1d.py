@@ -99,6 +99,15 @@ class Spectrum1D(object):
             variance=self.variance.copy(), headers=self.headers.copy())
     
 
+    def mask_by_dispersion(self, mask, mask_value=np.nan):
+
+        flux = self.flux.copy()
+        for start, end in mask:
+            indices = self.disp.searchsorted([start, end])
+            flux[indices[0]:indices[1]] = mask_value
+
+        return self.__class__(self.disp, flux, variance=self.variance, headers=self.headers.copy())
+
     def slice(self, wavelengths, copy=False):
         """
         Slice a spectrum by some wavelengths.

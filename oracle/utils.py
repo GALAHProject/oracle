@@ -4,7 +4,8 @@
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
-__all__ = ["atomic_number", "element", "reflect_about", "latexify", "readable_dict"]
+__all__ = ("atomic_number", "element", "reflect_about", "latexify",
+    "readable_dict", "overlap")
 
 import collections
 import logging
@@ -16,6 +17,9 @@ from scipy.special import wofz
 
 logger = logging.getLogger("oracle")
 
+
+def overlap(start_a, end_a, start_b, end_b):
+    return end_b >= start_b and end_b >= start_a
 
 def unpack_atomic_transition(transition, **defaults):
 
