@@ -194,13 +194,11 @@ class EqualibriaModel(Model):
                 "microturbulence")]
 
         # Optimisation
-        state_kwargs = kwargs.copy()
-        state_kwargs.update({
-            "initial_theta": initial_theta,
+        kwds = kwargs.copy()
+        kwds.update({
             "full_output": False
         })
-        state_function = lambda x: self.equalibrium_state(data, *x,
-            **state_kwargs)
+        state_function = lambda x: self.equalibrium_state(data, *x, **kwds)
 
         # Optional parameters
         xtol = kwargs.pop("xtol", 1e-10)
@@ -215,22 +213,61 @@ class EqualibriaModel(Model):
 
         raise NotImplementedError
 
-
-    def equalibrium_state(self, data, effective_temperature,
-        surface_gravity, metallicity, microturbulence, initial_theta=None,
-        full_output=False, **kwargs):
+    def equalibrium_state(self, data, effective_temperature, surface_gravity,
+        metallicity, microturbulence, full_output=False, **kwargs):
         """
-        Return the excitation and ionisation state. This information includes:
+        Return the equilibrium state information for a given set of stellar
+        parameters. The equilibrium state information includes the:
 
-        # slope of mean line abundance vs excitation excitation_potential
-        # mean difference between neutral and ionised lines
-        # slope of mean line abundance vs reduced equivalent width
-        # mean difference between input metallicty and mean output metallicity
+        (1) slope of line abundance with the excitation potential
+        (2) the mean difference between neutral and ionised lines
+        (4) the difference of the input metallicty and mean output metallicity
+        (3) slope of line abundance with reduced equivalent width
+        
+        :param data:
+            The observed spectra.
 
+        :type data:
+            list of :class:`oracle.specutils.Spectrum1D` objects
+
+        :param effective_temperature:
+            The effective temperature to calculate the equilibrium state.
+
+        :type effective_temperature:
+            float
+
+        :param surface_gravity:
+            The surface gravity to calculate the equilibrium state.
+
+        :type surface_gravity:
+            float
+
+        :param metallicity:
+            The overall scaled-solar metallicity to calculate the equilibrium
+            state.
+
+        :type metallicity:
+            float
+
+        :param microturbulence:
+            The photospheric microturbulence to calculate the equilibrium state.
+
+        :type microturbulence:
+            float
+
+        :param full_output: [optional]
+            Return all optional parameters.
+
+        :type full_output:
+            bool
         """
 
-        if initial_theta is None:
-            initial_theta = self.initial_theta(data)
+        logger.warn("--------------------------------------------------")
+        logger.warn("effective temperature = {0:.0f}".format(effective_temperature))
+        logger.warn("surface_gravity = {0:.2f}".format(surface_gravity))
+        logger.warn("metallicity = {0:.2f}".format(metallicity))
+        logger.warn("microturbulence = {0:.2f}".format(microturbulence))
+        logger.warn("--------------------------------------------------")
 
         interpolator = kwargs.pop("interpolator", None)
         if interpolator is None:
@@ -243,8 +280,6 @@ class EqualibriaModel(Model):
         photospheric_structure = interpolator(effective_temperature,
             surface_gravity, metallicity, **interpolator_kwargs)        
 
-        atomic_transitions = self.config["model"]["atomic_transitions"]
-
         # We want to save the profile information and the details of the
         # measured atomic transitions
         profile_initial_theta = kwargs.pop("profile_initial_theta", {})
@@ -253,156 +288,257 @@ class EqualibriaModel(Model):
             "surface_gravity": surface_gravity,
             "metallicity": metallicity,
             "microturbulence": microturbulence,
-            "fwhm": 0.20
         })
 
-        # Allow for profile keyword arguments on a per-transition basis.
-        profile_kwargs_list = kwargs.pop("profile_kwargs", None)
-        if profile_kwargs_list is None:
-            profile_kwargs_list = [{"full_output": True}] * len(atomic_transitions)
-        else:
-            [each.update({"full_output": True}) for each in profile_kwargs_list]
+        # TODO: remove this
+        profile_initial_theta.setdefault("fwhm", 0.2)
+
+        # Initialise all the atomic transitions
+        atomic_transitions = [transitions.AtomicTransition(**each) \
+            for each in self.config["model"]["atomic_transitions"]]
 
         profiles = []
-        default_fwhm = 0.10
-        measured_atomic_transitions = []
-        for i, atomic_transition in enumerate(atomic_transitions):
+        for atomic_transition in atomic_transitions:
 
-            atomic_transition = transitions.AtomicTransition(**atomic_transition)
+            # Find which channel the wavelength is in
+            ci = minimum_pixel_sampling(data, atomic_transition.wavelength)[1][0]
 
-            ps, ci = minimum_pixel_sampling(data, atomic_transition.wavelength)
-            ci = ci[0]
+            # Get the continuum order
+            co = self._continuum_order(ci)
+            continuum_order = None if 0 > co else min([1, co])
 
-            continuum_order = self._continuum_order(ci)
-            continuum_order = None if 0 > continuum_order else min([1, continuum_order])
+            fit_profile_kwargs = atomic_transition._init_kwargs.get(
+                "_fit_profile_kwargs", {})
+            fit_profile_kwargs.update({"full_output": True})
+            fit_profile_kwargs.setdefault("continuum_order", continuum_order)
 
-            profile_initial_theta_ = profile_initial_theta.copy()
-            constrain_parameters = {
-                "wavelength": [
-                    atomic_transition.wavelength - 0.05,
-                    atomic_transition.wavelength + 0.05
-                    ],
-                "fwhm": [0, 0.5],
-                "blending_fwhm": [0, 0.5]
-            }
-            while True:
-                try:
-                    result = atomic_transition.fit_profile(data[ci],
-                        initial_theta=profile_initial_theta_,
-                        constrain_parameters=constrain_parameters,
-                        continuum_order=continuum_order, **profile_kwargs_list[i])
+            try:
+                result = atomic_transition.fit_profile(data[ci],
+                    initial_theta=profile_initial_theta, **fit_profile_kwargs)
 
-                except ValueError:
-                    if "fwhm" in profile_initial_theta_:
-                        raise
-                    profile_initial_theta_["fwhm"] = default_fwhm
-                    continue
+            except ValueError:
+                continue
 
-                else:
-                    break
+            profiles.append(result)
 
             # Save the information
             #(optimal_theta, oc, orc, omf, op_info)
-            profiles.append(result)
-        
-            measured_atomic_transitions.append([
+
+        # Filter out unacceptable measurements
+        filtered = kwargs.pop("filter_transition",
+            lambda x: (200 > x.equivalent_width > 5))
+
+        is_filtered = np.zeros(len(atomic_transitions), dtype=bool)
+        atomic_transitions_arr = np.zeros((len(atomic_transitions), 7))
+        for i, atomic_transition in enumerate(atomic_transitions):
+            is_filtered[i] = filtered(atomic_transition)
+            atomic_transitions_arr[i, :] = [
                 atomic_transition.wavelength,
                 atomic_transition.species,
                 atomic_transition.excitation_potential,
                 atomic_transition.loggf,
-                0, 0,
-                atomic_transition.equivalent_width])
+                atomic_transition.van_der_waals_broadening,
+                0,
+                atomic_transition.equivalent_width
+            ]
 
-        # Calculate abundances from the integrated equalivent widths
-        # [TODO] Use the pre-interpolated photospheric structure?
-        measured_atomic_transitions = np.array(measured_atomic_transitions)
-
-        # Only use positive lines
-        minimum_equivalent_width = np.clip(
-            kwargs.pop("minimum_equivalent_width", 5), 0, np.inf)
-        filter_lines = (measured_atomic_transitions[:, 6] > minimum_equivalent_width)
-
-        abundances = synthesis.abundances(effective_temperature,
+        returned_abundances = synthesis.abundances(effective_temperature,
             surface_gravity, metallicity, microturbulence,
-            transitions=measured_atomic_transitions[filter_lines])
+            transitions=atomic_transitions_arr[is_filtered])
 
-        # Add them to the measured atomic lines table and turn it into a recarray
-        acceptable_atomic_transitions = np.core.records.fromarrays(
-            np.vstack([np.array(measured_atomic_transitions[filter_lines]).T,
-                abundances]),
-            names=("wavelength", "species", "excitation_potential", "loggf",
-                "van_der_waals_broadening", "damp2", "equivalent_width", "abundance"))
+        # Create a filler array so that filtered transitions will have an
+        # abundance of 'nan'
+        all_abundances = np.array([np.nan] * len(atomic_transitions_arr))
+        all_abundances[is_filtered] = returned_abundances
+
+        is_outlier = np.zeros(len(all_abundances), dtype=bool) # Assume none
+        atomic_transitions_rec = np.core.records.fromarrays(
+            np.vstack([np.array(atomic_transitions_arr).T,
+                all_abundances, is_filtered, is_outlier]),
+            names=(
+                "wavelength", "species", "excitation_potential", "loggf",
+                "van_der_waals_broadening", "damp2", "equivalent_width",
+                "abundance", "is_filtered", "is_outlier"))
 
         # Calculate the excitation and ionisation state
         logger.warn("Assuming only one kind of atomic species")
-        neutral_lines = (acceptable_atomic_transitions["species"] % 1) == 0
+        neutral_lines = (atomic_transitions_rec["species"] % 1) == 0
         ionised_lines = ~neutral_lines
 
         outliers_removed = False
         while True:
 
+            # Apply filters
+            use_lines = atomic_transitions_rec["is_filtered"].astype(bool) * \
+                ~atomic_transitions_rec["is_outlier"].astype(bool)
+            neutral_lines *= use_lines
+            ionised_lines *= use_lines
+
             # Excitation slope 
             excitation_slope = stats.linregress(
-                x=acceptable_atomic_transitions["excitation_potential"][neutral_lines],
-                y=acceptable_atomic_transitions["abundance"][neutral_lines])[0]
-
-            # Slope with reduced equivalent width and line abundance
-            reduced_equivalent_width = np.log(
-                acceptable_atomic_transitions["equivalent_width"]\
-                    /acceptable_atomic_transitions["wavelength"])
-            line_strength_slope = stats.linregress(
-                x=reduced_equivalent_width[neutral_lines],
-                y=acceptable_atomic_transitions["abundance"][neutral_lines])[0]
+                x=atomic_transitions_rec["excitation_potential"][neutral_lines],
+                y=atomic_transitions_rec["abundance"][neutral_lines])
 
             # Calculate the ionisation state
             ionisation_state = \
-                acceptable_atomic_transitions["abundance"][neutral_lines].mean() \
-                    - acceptable_atomic_transitions["abundance"][ionised_lines].mean()
+                atomic_transitions_rec["abundance"][neutral_lines].mean() \
+                    - atomic_transitions_rec["abundance"][ionised_lines].mean()
 
             # Calculate the abundance state
-            abundance_state = (acceptable_atomic_transitions["abundance"] \
-                - (atmospheres.solar_abundances(acceptable_atomic_transitions["species"])
+            abundance_state = (atomic_transitions_rec["abundance"][use_lines] \
+                - (atmospheres.solar_abundances(atomic_transitions_rec["species"][use_lines])
                     + metallicity)).mean()
 
+            # Slope with reduced equivalent width and line abundance
+            reduced_equivalent_width = np.log(
+                atomic_transitions_rec["equivalent_width"]\
+                    /atomic_transitions_rec["wavelength"])
+            line_strength_slope = stats.linregress(
+                x=reduced_equivalent_width[neutral_lines],
+                y=atomic_transitions_rec["abundance"][neutral_lines])
+
+            # Calculate the state
+            state = np.array([
+                excitation_slope[0],
+                ionisation_state,
+                abundance_state,
+                line_strength_slope[0]
+            ])
+
             if outliers_removed:
-                # Re-fit the state
+                final_state = (excitation_slope, ionisation_state,
+                    abundance_state, line_strength_slope)
                 break
 
             else:
-                # Remove the outliers
-                outliers_removed = True
+                # Remove the outliers?
+                initial_state = (excitation_slope, ionisation_state,
+                    abundance_state, line_strength_slope)
 
-        # Collate the state information together (temperature, surface gravity,
-        # metallicity, microturbulence)
-        state = np.array([
-            excitation_slope,
-            ionisation_state,
-            abundance_state,
-            line_strength_slope
-        ])
+                outlier_limit = kwargs.pop("outlier_sigma_clip", 1.5)
+                if outlier_limit is None or not np.isfinite(outlier_limit) \
+                or 0 >= outlier_limit:
+                    # Don't remove any outliers
+                    outliers_removed, final_state = False, initial_state
+                    break
+
+                # We don't want to remove stars that are simply on the edge of
+                # distributions because if our initial guess was very wrong, we
+                # could just be removing the weakest or strongest lines.
+
+                # Instead we will remove lines that are discrepant from the line
+                # fits.
+
+                # Outliers in excitation potential vs abundance:
+                x = atomic_transitions_rec["excitation_potential"][use_lines]
+                y = atomic_transitions_rec["abundance"][use_lines]
+                line = excitation_slope[0] * x + excitation_slope[1]
+
+                differences = np.abs(line - y)
+                excitation_sigma = differences/np.std(differences)
+
+                # Outliers in reduced equivalent width vs abundance:
+                x = reduced_equivalent_width[use_lines]
+                y = atomic_transitions_rec["abundance"][use_lines]
+                line = line_strength_slope[0] * x + line_strength_slope[1]
+
+                differences = np.abs(line - y)
+                line_strength_sigma = differences/np.std(differences)
+
+                # Update the is_outliers mask
+                atomic_transitions_rec["is_outlier"][use_lines] = \
+                    (excitation_sigma > outlier_limit) | \
+                    (line_strength_sigma > outlier_limit)
+
+                outliers_removed = True
+                continue # to re-fit the lines
 
         import matplotlib.pyplot as plt
-        for i, (profile, use) in enumerate(zip(profiles, filter_lines)):
-            #if not use: continue
-            if isinstance(profile[3], specutils.Spectrum1D):
-                fig, ax = plt.subplots()
-                ax.plot(profile[4]["data"].disp, profile[4]["data"].flux, 'k')
-                #ax.plot(profile["initial_profile"].disp, profile["initial_profile"].flux, 'r')
-                ax.plot(profile[3].disp, profile[3].flux, 'g')
-                ax.set_title(str(use))
-                ax.set_xlim(profile[4]["data"].disp[0], profile[4]["data"].disp[-1])
-                ax.set_xticklabels(["{0:.2f}".format(e) for e in ax.get_xticks()])
 
-                filename = "fig-{0:.2f}.png".format(atomic_transitions[i]["wavelength"])
-                fig.savefig(filename)
-                
-                plt.close("all")
-                print("created {0}".format(filename))
+        # Show which was used and which wasn't
+        for profile, atomic_transition in zip(profiles, atomic_transitions_rec):
+            if profile[3] is None: continue
+
+            # Find this in the atomic_transitions
+
+            # Show  whether is an outlier/filtered.
+
+            fig, ax = plt.subplots()
+            used = atomic_transition["is_filtered"].astype(bool) \
+                * ~atomic_transition["is_outlier"].astype(bool)
+        
+            profile_spectra = profile[3]
+            ax.plot(profile_spectra["data_spectrum"].disp, profile_spectra["data_spectrum"].flux, "k")
+
+            # fitted_spectrum, data_spectrum, continuum_spectrum, blending_spectrum_unsmoothed, blending_spectrum_smoothed
+            ax.plot(profile_spectra["continuum_spectrum"].disp,
+                profile_spectra["continuum_spectrum"].flux, c="#666666")
+            if profile_spectra["blending_spectrum_unsmoothed"] is not None:
+                ax.plot(profile_spectra["blending_spectrum_unsmoothed"].disp,
+                    profile_spectra["blending_spectrum_unsmoothed"].flux, 'b:')
+
+            if profile_spectra["blending_spectrum_smoothed"] is not None:
+                ax.plot(profile_spectra["blending_spectrum_smoothed"].disp,
+                    profile_spectra["blending_spectrum_smoothed"].flux, 'b')
+
+            ax.plot(profile_spectra["fitted_spectrum"].disp, profile_spectra["fitted_spectrum"].flux, "rg"[used])
+
+            ax.axvline(profile[0].get("wavelength", atomic_transition.wavelength), "--", c="#666666")
+            ax.set_xlim(profile_spectra["data_spectrum"].disp[0], profile_spectra["data_spectrum"].disp[-1])
+            ax.set_xticklabels(["{0:.2f}".format(e) for e in ax.get_xticks()])
+
+            ax.set_title("EW {0:.1f} mA, filtered: {1}, outlier: {2}, used: {3}"
+                .format(atomic_transition["equivalent_width"], atomic_transition["is_filtered"],
+                    atomic_transition["is_outlier"], ["No", "Yes"][used]))
+
+            filename = "fig-{0:.1f}.png".format(atomic_transition["wavelength"])
+            fig.savefig(filename)
+
+            plt.close("all")
+            print("created {0}".format(filename))
+
+
+        fig, ax = plt.subplots(2)
+
+        # Show the data
+        outlier = atomic_transitions_rec["is_outlier"].astype(bool)
+        ax[0].scatter(atomic_transitions_rec["excitation_potential"][~outlier],
+            atomic_transitions_rec["abundance"][~outlier], facecolor="k")
+        ax[1].scatter(reduced_equivalent_width[~outlier],
+            atomic_transitions_rec["abundance"][~outlier], facecolor="k")
+
+        ax[0].scatter(atomic_transitions_rec["excitation_potential"][outlier],
+            atomic_transitions_rec["abundance"][outlier], facecolor="r")
+        ax[1].scatter(reduced_equivalent_width[outlier],
+            atomic_transitions_rec["abundance"][outlier], facecolor="r")
+
+        # Show the initial state before outliers were removed
+        if outliers_removed:
+            x = np.array(ax[0].get_xlim())
+            m, b = initial_state[0][:2]
+            ax[0].plot(x, x * m + b, 'r')
+
+            x = np.array(ax[1].get_xlim())
+            m, b = initial_state[3][:2]
+            ax[1].plot(x, x * m + b, 'r')
+
+        # Show the final state
+        x = np.array(ax[0].get_xlim())
+        m, b = final_state[0][:2]
+        ax[0].plot(x, x * m + b, 'k')
+
+        x = np.array(ax[1].get_xlim())
+        m, b = final_state[3][:2]
+        ax[1].plot(x, x * m + b, 'k')
+
+
+        fig.savefig("state.png")
 
         raise a
+        plt.close("all")
 
         if full_output:
-            return (state, acceptable_atomic_transitions, profiles)
+            return (state, atomic_transitions_arr, profiles)
         return state
 
 

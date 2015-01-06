@@ -21,7 +21,6 @@ from oracle.utils import (atomic_number as parse_atomic_number,
 
 logger = logging.getLogger("oracle")
 
-
 class AtomicTransition(object):
 
     def __init__(self, wavelength, species=None, excitation_potential=None,
@@ -34,17 +33,14 @@ class AtomicTransition(object):
         self.wavelength = float(wavelength)
 
         float_if_not_none = lambda x: float(x) if x is not None else x
-        self.blending_transitions = blending_transitions
-        if blending_transitions is not None:
-            self.blending_transitions = np.atleast_2d(blending_transitions)
+        self.blending_transitions = np.atleast_2d(blending_transitions) \
+            if blending_transitions is not None else None
         self.excitation_potential = float_if_not_none(excitation_potential)
         self.loggf = float_if_not_none(loggf)
         self.mask = mask
-        if continuum_regions is None:
-            self.continuum_regions = np.array([])
-
-        else:
-            self.continuum_regions = np.atleast_2d(continuum_regions)
+        self.van_der_waals_broadening = kwargs.get("van_der_waals_broadening", 0)
+        self.continuum_regions = np.atleast_2d(continuum_regions) \
+            if continuum_regions is not None else np.array([])
 
         # Species can be 'Fe I', '26.0', 26.1, 'Fe' (assumed neutral)
         self.element, self.atomic_number, self.ionisation_level, self.species \
@@ -72,6 +68,22 @@ class AtomicTransition(object):
             "Angstrom at {location}>".format(module=self.__module__,
                 species_repr=species_repr, wavelength=self.wavelength,
                 location=hex(id(self)))
+
+    @property
+    def reduced_equivalent_width(self):
+        """
+        Return the reduced equivalent width of the line, if the equivalent width
+        has been measured.
+
+        The reduced equivalent width is defined by:
+
+        >> REW = log(equivalent width/wavelength)
+
+        :raise AttributeError:
+            If no equivalent width has been measured for this line.
+        """
+
+        return np.log(self.equivalent_width/self.wavelength)
 
 
     def fit_profile(self, data, initial_theta=None, kind="gaussian", 
@@ -448,6 +460,7 @@ class AtomicTransition(object):
         assert len(set(parameters).difference(theta)) == 0, "Missing parameter!"
 
         invalid_return = np.nan
+        invalid_full_output_return = (np.nan, np.nan, None)
         fixed_continuum = np.polyval(coefficients, data.disp)
         def chi_sq(x, full_output=False, return_scalar=True):
 
@@ -457,14 +470,14 @@ class AtomicTransition(object):
             if 0 > xd["fwhm"] or not (1 > xd["line_depth"] > 0) \
             or 0 > xd.get("blending_fwhm", 1):
                 return invalid_return \
-                    if not full_output else 3 * (invalid_return, )
+                    if not full_output else invalid_full_output_return
 
             # Constraints provided by the user
             for parameter, (lower, upper) in constrain_parameters.iteritems():
                 if (lower is not None and lower > xd[parameter]) \
                 or (upper is not None and upper < xd[parameter]):
                     return invalid_return \
-                        if not full_output else 3 * (invalid_return, )
+                        if not full_output else invalid_full_output_return
 
             # Smooth the blending spectrum
             if blending_spectrum is not None:
@@ -503,7 +516,22 @@ class AtomicTransition(object):
 
             if full_output:
                 r_chi_sq = chi_sq / (finite.sum() - len(xd) - 1)
-                return (chi_sq, r_chi_sq, Spectrum1D(data.disp, model))
+                # Send back some spectra for plotting purposes
+                blending_spectrum_continuum = np.polyval(
+                    coefficients if "continuum.0" not in xd \
+                    else [xd["continuum.{}".format(i)] for i in range(continuum_order + 1)],
+                    blending_spectrum.disp)
+
+                return_spectra = {
+                    "data_spectrum": data,
+                    "continuum_spectrum": Spectrum1D(data.disp, continuum),
+                    "blending_spectrum_unsmoothed": Spectrum1D(blending_spectrum.disp,
+                        blending_spectrum_continuum * blending_spectrum.flux),
+                    "blending_spectrum_smoothed": Spectrum1D(data.disp,
+                        continuum * blending_spectrum_flux),
+                    "fitted_spectrum": Spectrum1D(data.disp, model),
+                }
+                return (chi_sq, r_chi_sq, return_spectra)
             return chi_sq
 
         minimisation_function = chi_sq
@@ -538,15 +566,33 @@ class AtomicTransition(object):
         
         p1, fopt, num_iter, num_funcalls, warnflag = op.fmin(
             minimisation_function, p0, **op_kwargs)
-        oc, orc, omf = minimisation_function(p1, full_output=True)
+
+        # Get all our information together
+        optimal_theta = dict(zip(parameters, p1))
+        oc, orc, op_spectra = minimisation_function(p1, full_output=True)
+        profile_integrals = {
+            # Other profile functions will probably need additional information
+            # other than just 'x' (the optimal dictionary)
+            # For those playing at home: pi^2/2.355 == 0.752634331594699
+            "gaussian": lambda x: x["line_depth"] * abs(x["fwhm"]) * 0.752634332
+        }
+        # Calculate the equivalent width (in milli Angstroms)
+        # [TODO] use astropy.units to provide some relative measure
+        self.equivalent_width = 1000 * profile_integrals[kind](optimal_theta)
+
         op_info.update({
+            "chi_sq": oc,
+            "r_chi_sq": orc,
             "fopt": fopt,
             "num_iter": num_iter,
             "num_funcalls": num_funcalls,
             "warnflag": warnflag,
-            "data": data
+            "profile_kind": kind,
+            "equivalent_width": self.equivalent_width
         })
-        optimal_theta = dict(zip(parameters, p1))
+        op_info.update(op_spectra)
+        
+        self._profile = (optimal_theta, op_info)
 
         # Any sanity checks?
         if "blending_fwhm" in optimal_theta:
@@ -558,20 +604,10 @@ class AtomicTransition(object):
                         optimal_theta["blending_fwhm"]))
 
         # What information should we save to the class?
-        self._fit_profile_result = (optimal_theta, oc, orc, omf, op_info)
-
-        profile_integrals = {
-            # Other profile functions will probably need additional information
-            # other than just 'x' (the optimal dictionary)
-            # For those playing at home: pi^2/2.355 == 0.752634331594699
-            "gaussian": lambda x: x["line_depth"] * abs(x["fwhm"]) * 0.752634332
-        }
-        # Calculate the equivalent width (in milli Angstroms)
-        # [TODO] use astropy.units to provide some relative measure
-        self.equivalent_width = 1000 * profile_integrals[kind](optimal_theta)
+        self._profile = (optimal_theta, op_info)
 
         if full_output:
-            return (optimal_theta, oc, orc, omf, op_info)
+            return (optimal_theta, oc, orc, op_info)
 
         # I could not sleep for 65 days because I worried about whether I should
         # be returning a list of values or a dictionary by default. In the end I
