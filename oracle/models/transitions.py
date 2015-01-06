@@ -88,7 +88,7 @@ class AtomicTransition(object):
 
     def fit_profile(self, data, initial_theta=None, kind="gaussian", 
         continuum_order=None, continuum_regions=None, surrounding=2,
-        detect_nearby_lines=False, constrain_parameters=None, synthesise_kwargs=None,
+        detect_nearby_lines=True, constrain_parameters=None, synthesise_kwargs=None,
         optimise_kwargs=None, full_output=False, **kwargs):
         """
         Model and fit the atomic transition with an absorption profile. This
@@ -503,6 +503,7 @@ class AtomicTransition(object):
 
                 # Find groups of pixels. Eliminate the top Nth% percent, until
                 # the mean sigmas comes in to some tolerance.
+                outlier_group_detection_threshold = 1.
                 is_outlier = np.abs(sigmas) > outlier_group_detection_threshold
                 is_outlier_range_edge = np.where(np.diff(is_outlier))[0]
 
