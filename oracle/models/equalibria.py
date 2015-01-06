@@ -415,7 +415,7 @@ class EqualibriaModel(Model):
                 initial_state = (excitation_slope, ionisation_state,
                     abundance_state, line_strength_slope)
 
-                outlier_limit = kwargs.pop("outlier_sigma_clip", 1.5)
+                outlier_limit = kwargs.pop("outlier_sigma_clip", 2.5)
                 if outlier_limit is None or not np.isfinite(outlier_limit) \
                 or 0 >= outlier_limit:
                     # Don't remove any outliers
@@ -483,7 +483,7 @@ class EqualibriaModel(Model):
 
             ax.plot(profile_spectra["fitted_spectrum"].disp, profile_spectra["fitted_spectrum"].flux, "rg"[used])
 
-            ax.axvline(profile[0].get("wavelength", atomic_transition.wavelength), "--", c="#666666")
+            ax.axvline(profile[0].get("wavelength", atomic_transition.wavelength), linestyle="-", c="#666666")
             ax.set_xlim(profile_spectra["data_spectrum"].disp[0], profile_spectra["data_spectrum"].disp[-1])
             ax.set_xticklabels(["{0:.2f}".format(e) for e in ax.get_xticks()])
 
@@ -531,7 +531,7 @@ class EqualibriaModel(Model):
         m, b = final_state[3][:2]
         ax[1].plot(x, x * m + b, 'k')
 
-
+        print("state is ", state)
         fig.savefig("state.png")
 
         raise a

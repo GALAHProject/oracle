@@ -88,7 +88,7 @@ class AtomicTransition(object):
 
     def fit_profile(self, data, initial_theta=None, kind="gaussian", 
         continuum_order=None, continuum_regions=None, surrounding=2,
-        outlier_pixels=None, constrain_parameters=None, synthesise_kwargs=None,
+        detect_nearby_lines=False, constrain_parameters=None, synthesise_kwargs=None,
         optimise_kwargs=None, full_output=False, **kwargs):
         """
         Model and fit the atomic transition with an absorption profile. This
@@ -171,10 +171,11 @@ class AtomicTransition(object):
         :type surrounding:
             float
 
-        :param outlier_pixels: [optional]
-            Decide how to model the outlier pixels. Currently: nothing.
+        :param detect_nearby_lines: [optional]
+            Method for treating any outlier pixels. By default no treatment is
+            applied. Available options include "fit_nearby".
 
-        :type outlier_pixels:
+        :type detect_nearby_lines:
             str
 
         :param constrain_parameters: [optional]
@@ -254,8 +255,6 @@ class AtomicTransition(object):
             raise TypeError("surrounding region must be a float")
         if surrounding < 0:
             raise ValueError("surrounding region must be a positive float")
-
-        # [TODO] outlier_pixels
 
         if constrain_parameters is None:
             constrain_parameters = {}
@@ -342,120 +341,186 @@ class AtomicTransition(object):
         else:
             blending_spectrum = None
 
+
+
+
+        # Here we might have to iterate a little bit on excluding unmodelled
+        # lines.
+
         # Continuum treatment.
-        if continuum_order is None:
-            # No continuum treatment
-            coefficients = [1]
+        iterate_on_continuum = False
+        continuum_mask = np.zeros(data.disp.size, dtype=bool)
+        for kk in range(3):
 
-        else:
-            # Do we have continuum_regions?
-            # If so then we can explicitly set the continuum from the
-            # blending_spectrum/or the data.
-
-            # If we don't have continuum_regions then we will need to estimate
-            # continuum parameters from blending_spectrum/or the data
-
-            # Do we need to fit for continuum coefficients?
-            # We don't if continuum_regions is None and if all the continuum
-            # parameters are specified in theta
-            if 2 > self.continuum_regions.size and \
-            not any([p.startswith("continuum.") for p in missing_parameters]):
-                # Get the input coefficients from initial_theta
-                coefficients = [initial_theta["continuum.{}".format(i)] \
-                    for i in range(continuum_order + 1)]
-
-                # And update theta with these coefficients.
-                theta.update(dict(zip(["continuum.{}".format(i) \
-                    for i in range(continuum_order + 1)], coefficients)))
+            print(kk, continuum_mask.sum())
+            if continuum_order is None:
+                # No continuum treatment
+                coefficients = [1]
 
             else:
-                # We need to fit.
-                # Prepare a mask for finite pixels and continuum regions where
-                # appropriate
-                if self.continuum_regions.size >= 2:
-                    continuum_mask = np.zeros(data.disp.size, dtype=bool)
-                    for start, end in self.continuum_regions:
-                        indices = data.disp.searchsorted([start, end])
-                        continuum_mask[indices[0]:indices[1]] = True
-                    continuum_mask *= finite
+                # Do we have continuum_regions?
+                # If so then we can explicitly set the continuum from the
+                # blending_spectrum/or the data.
 
-                else:
-                    continuum_mask = finite
+                # If we don't have continuum_regions then we will need to estimate
+                # continuum parameters from blending_spectrum/or the data
 
-                if blending_spectrum is None:
-                    # No blending spectrum, just use the data
-                    coefficients = np.polyfit(data.disp[continuum_mask],
-                        data.flux[continuum_mask], continuum_order)
+                # Do we need to fit for continuum coefficients?
+                # We don't if continuum_regions is None and if all the continuum
+                # parameters are specified in theta
+                if 2 > self.continuum_regions.size and \
+                not any([p.startswith("continuum.") for p in missing_parameters]):
+                    # Get the input coefficients from initial_theta
+                    coefficients = [initial_theta["continuum.{}".format(i)] \
+                        for i in range(continuum_order + 1)]
 
-                else:
-                    # Divide with the blending spectrum
-                    disp_matrix = np.ones((continuum_order+1, continuum_mask.sum()))
-                    for i in range(continuum_order + 1):
-                        disp_matrix[i] *= data.disp[continuum_mask]**i
-
-                    # Ensure blending spectrum is on the same pixel scale (e.g.,
-                    # there has been no rebinning)
-                    rbs = np.interp(data.disp[continuum_mask],
-                        blending_spectrum.disp, blending_spectrum.flux)
-                    A = (data.flux[continuum_mask]/rbs).T
-                    coefficients = np.linalg.lstsq(disp_matrix.T, A)[0][::-1]
-
-
-                # Are the coefficients free parameters, or explicitly set?
-                if "continuum.0" in parameters:
-                    # Update theta with the coefficients we have estimated
+                    # And update theta with these coefficients.
                     theta.update(dict(zip(["continuum.{}".format(i) \
                         for i in range(continuum_order + 1)], coefficients)))
 
-        # Do we need to estimate the line depth?
-        if "line_depth" in missing_parameters:
-            continuum_at_wavelength = np.polyval(coefficients, self.wavelength)
-            index = data.disp.searchsorted(self.wavelength)
-            line_depth = 1 - data.flux[index]/continuum_at_wavelength
-            
-            # Ensure the initial value is limited within a sensible range
-            tolerance = kwargs.pop("initial_line_depth_tolerance", 1e-3)
-            theta["line_depth"] = np.clip(line_depth, tolerance, 1 - tolerance)
+                else:
+                    # We need to fit.
+                    # Prepare a mask for finite pixels and continuum regions where
+                    # appropriate
+                    if self.continuum_regions.size >= 2:
+                        for start, end in self.continuum_regions:
+                            indices = data.disp.searchsorted([start, end])
+                            continuum_mask[indices[0]:indices[1]] = True
+                        continuum_mask *= finite
 
-        # Do we need to estimate any of the profile parameters?
-        # [TODO] here we just do Gaussian because simplicity. Expand on that
-        if "fwhm" in missing_parameters:
-            mid_flux = continuum_at_wavelength * (1 - 0.5 * theta["line_depth"])
+                    else:
+                        continuum_mask = finite
 
-            # Find the wavelengths from the central wavelength where this value
-            # exists
-            pos_mid_point, neg_mid_point = np.nan, np.nan
-            index = data.disp.searchsorted(self.wavelength)
-            pos_indices = data.flux[index:] > mid_flux
-            if pos_indices.any():
-                pos_mid_point = data.disp[index:][pos_indices][0]
+                    if blending_spectrum is None:
+                        # No blending spectrum, just use the data
+                        coefficients = np.polyfit(data.disp[continuum_mask],
+                            data.flux[continuum_mask], continuum_order)
 
-            neg_indices = data.flux[:index] > mid_flux
-            if neg_indices.any():
-                neg_mid_point = data.disp[:index][neg_indices][-1]
+                        if detect_nearby_lines:
+                            iterate_on_continuum = True
 
-            # If both positive and negative mid points are nans, then we cannot
-            # estimate the FWHM with this method
-            if not np.isfinite([pos_mid_point, neg_mid_point]).any():
-                raise ValueError("cannot estimate initial fwhm")
+                    else:
+                        rbs = np.interp(data.disp[continuum_mask],
+                            blending_spectrum.disp, blending_spectrum.flux)
 
-            # If either mid point is a nan, take the initial fwhm from one side
-            # of the profile
-            initial_fwhm = pos_mid_point - neg_mid_point
-            if not np.isfinite(initial_fwhm):
-                initial_fwhm = np.array([
-                    2 * (pos_mid_point - self.wavelength),
-                    2 * (self.wavelength - neg_mid_point)
-                ])
-                finite = np.isfinite(initial_fwhm)
-                initial_fwhm = initial_fwhm[finite][0]
+                        # Divide with the blending spectrum
+                        coefficients = np.polyfit(data.disp[continuum_mask],
+                            data.flux[continuum_mask]/rbs, continuum_order)
 
-            theta["fwhm"] = initial_fwhm
+                        if detect_nearby_lines:
+                            iterate_on_continuum = True
 
-        # Do we need to estimate the blending FWHM? If so we will just take it
-        # from the initial profile FWHM
-        if "blending_fwhm" in missing_parameters:
-            theta["blending_fwhm"] = theta["fwhm"]
+                    # Are the coefficients free parameters, or explicitly set?
+                    if "continuum.0" in parameters:
+                        # Update theta with the coefficients we have estimated
+                        theta.update(dict(zip(["continuum.{}".format(i) \
+                            for i in range(continuum_order + 1)], coefficients)))
+
+
+            # Do we need to estimate the line depth?
+            if "line_depth" in missing_parameters:
+                continuum_at_wavelength = np.polyval(coefficients,
+                    self.wavelength)
+                index = data.disp.searchsorted(self.wavelength)
+                line_depth = 1 - data.flux[index]/continuum_at_wavelength
+                
+                # Ensure the initial value is limited within a sensible range
+                tolerance = kwargs.pop("initial_line_depth_tolerance", 1e-3)
+                theta["line_depth"] = np.clip(line_depth, tolerance,
+                    1 - tolerance)
+
+            # Do we need to estimate any of the profile parameters?
+            # [TODO] here we just do Gaussian because simplicity. Expand on that
+            if "fwhm" in missing_parameters:
+                mid_flux = continuum_at_wavelength * (1 - 0.5 * theta["line_depth"])
+
+                # Find the wavelengths from the central wavelength where this value
+                # exists
+                pos_mid_point, neg_mid_point = np.nan, np.nan
+                index = data.disp.searchsorted(self.wavelength)
+                pos_indices = data.flux[index:] > mid_flux
+                if pos_indices.any():
+                    pos_mid_point = data.disp[index:][pos_indices][0]
+
+                neg_indices = data.flux[:index] > mid_flux
+                if neg_indices.any():
+                    neg_mid_point = data.disp[:index][neg_indices][-1]
+
+                # If both positive and negative mid points are nans, then we cannot
+                # estimate the FWHM with this method
+                if not np.isfinite([pos_mid_point, neg_mid_point]).any():
+                    raise ValueError("cannot estimate initial fwhm")
+
+                # If either mid point is a nan, take the initial fwhm from one side
+                # of the profile
+                initial_fwhm = pos_mid_point - neg_mid_point
+                if not np.isfinite(initial_fwhm):
+                    initial_fwhm = np.array([
+                        2 * (pos_mid_point - self.wavelength),
+                        2 * (self.wavelength - neg_mid_point)
+                    ])
+                    finite = np.isfinite(initial_fwhm)
+                    initial_fwhm = initial_fwhm[finite][0]
+
+                theta["fwhm"] = initial_fwhm
+
+                # Do we need to estimate the blending FWHM? If so we will just take it
+            # from the initial profile FWHM
+            if "blending_fwhm" in missing_parameters:
+                theta["blending_fwhm"] = theta["fwhm"]
+
+            # Do we need to update the guess of the continuum?
+            if iterate_on_continuum:
+
+                # Create the model given the current initial parameters
+
+                # Smooth the blending spectrum
+                if blending_spectrum is not None:
+                    fwhm = theta["fwhm"]/np.diff(blending_spectrum.disp).min()
+                    blending_spectrum_flux = ndimage.gaussian_filter(
+                        blending_spectrum.flux, fwhm/2.355)
+
+                    # Resample to the data dispersion points
+                    blending_spectrum_flux = np.interp(data.disp,
+                        blending_spectrum.disp, blending_spectrum_flux)
+                else:
+                    blending_spectrum_flux = np.ones(data.disp.size)
+
+                # Form the absorption profile
+                absorption_profile = \
+                    1 - theta["line_depth"] * profiles.gaussian(
+                        theta.get("wavelength", self.wavelength),
+                        theta["fwhm"]/2.355,
+                        data.disp)
+                continuum = np.polyval(coefficients, data.disp)
+
+                # Put everything together 
+                model = blending_spectrum_flux * absorption_profile * continuum
+
+                differences = (model - data.flux)
+                differences[~continuum_mask] = 0.
+                sigmas = differences/np.std(differences[continuum_mask])
+
+                # Find groups of pixels. Eliminate the top Nth% percent, until
+                # the mean sigmas comes in to some tolerance.
+                is_outlier = np.abs(sigmas) > outlier_group_detection_threshold
+                is_outlier_range_edge = np.where(np.diff(is_outlier))[0]
+
+                # Is the first edge mean we're moving into an outlier range or
+                # out of an outlier range
+                starts_on_even = abs(sigmas[is_outlier_range_edge[0] + 1]) > \
+                    outlier_group_detection_threshold
+
+                for i, index in enumerate(is_outlier_range_edge):
+                    # even or odd index?
+                    if (i % 2 == 0 and starts_on_even) \
+                    or (i % 2 > 0 and not starts_on_even):
+                        # Start of section
+                        start_index = index
+                        end_index = is_outlier_range_edge[i + 1] \
+                            if len(is_outlier_range_edge) > i + 1 else None
+                        continuum_mask[start_index:end_index] = False
+
 
         assert len(set(parameters).difference(theta)) == 0, "Missing parameter!"
 
@@ -497,10 +562,10 @@ class AtomicTransition(object):
                     xd.get("wavelength", self.wavelength), xd["fwhm"]/2.355,
                     data.disp)
 
-            # Scale by the continuum (if applicable)
             continuum = fixed_continuum if "continuum.0" not in xd \
                 else np.polyval([xd["continuum.{}".format(i)] \
-                    for i in range(continuum_order + 1)], data.disp)
+                    for i in range(continuum_order + 1)],
+                    data.disp)
 
             # Put everything together 
             model = blending_spectrum_flux * absorption_profile * continuum
