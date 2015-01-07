@@ -33,8 +33,8 @@
 #                ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -111,8 +111,8 @@
                 "loggf": -4.750,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -189,8 +189,8 @@
                 "loggf": -3.360,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -270,8 +270,8 @@
                 "loggf": -2.717,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -362,8 +362,8 @@
                 "loggf": -4.600,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -441,8 +441,8 @@
                 "loggf": -3.515,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -528,8 +528,8 @@
                 "loggf": -3.040,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -594,8 +594,8 @@
                 "loggf": -4.694,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -679,8 +679,8 @@
                 "loggf": -2.493,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -750,8 +750,8 @@
                 "loggf": -3.078,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -832,8 +832,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -918,8 +918,8 @@
                 "loggf": -3.530,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -983,8 +983,8 @@
                 "loggf": -4.050,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1048,8 +1048,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1115,8 +1115,8 @@
                 "loggf": -4.250,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1194,8 +1194,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1269,8 +1269,8 @@
                 "loggf": -3.973,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1339,8 +1339,8 @@
                 "loggf": -4.230,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1415,8 +1415,8 @@
                 "loggf": -6.822,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1491,8 +1491,8 @@
                 "loggf": -5.506,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1548,8 +1548,8 @@
                 "loggf": -4.780,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1633,8 +1633,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1713,8 +1713,8 @@
                 "loggf": -2.340,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1786,8 +1786,8 @@
                 "loggf": -3.060,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1849,8 +1849,8 @@
                 "loggf": -4.202,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -1936,8 +1936,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2015,8 +2015,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2100,8 +2100,8 @@
                 "loggf": -2.000,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2156,8 +2156,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2200,8 +2200,8 @@
                 "loggf": -3.539,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2249,8 +2249,8 @@
                 "loggf": -0.920,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2296,8 +2296,8 @@
                 "loggf": -2.580,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2344,8 +2344,8 @@
                 "loggf": -1.954,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2385,8 +2385,8 @@
                 "loggf": -3.514,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2434,8 +2434,8 @@
                 "loggf": -1.990,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2496,8 +2496,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2558,8 +2558,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2613,8 +2613,8 @@
                 "loggf": -2.263,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2670,8 +2670,8 @@
                 "loggf": -4.303,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2727,8 +2727,8 @@
                 "loggf": -2.306,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2785,8 +2785,8 @@
                 "loggf": -2.640,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2834,8 +2834,8 @@
                 "loggf": -1.300,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2878,8 +2878,8 @@
                 "loggf": -1.560,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2923,8 +2923,8 @@
                 "loggf": -2.678,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -2992,8 +2992,8 @@
                 "loggf": -1.730,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3058,8 +3058,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3121,8 +3121,8 @@
                 "loggf": -2.907,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3171,8 +3171,8 @@
                 "loggf": -1.298,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3236,8 +3236,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3286,8 +3286,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3359,8 +3359,8 @@
                 "loggf": -1.840,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3407,8 +3407,8 @@
                 "loggf": -5.460,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3454,8 +3454,8 @@
                 "loggf": -1.992,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3512,8 +3512,8 @@
                 "loggf": -3.768,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3567,8 +3567,8 @@
                 "loggf": -3.372,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3618,8 +3618,8 @@
                 "loggf": -1.010,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3665,8 +3665,8 @@
                 "loggf": -4.710,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3709,8 +3709,8 @@
                 "loggf": -5.280,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3755,8 +3755,8 @@
                 "loggf": -1.760,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3803,8 +3803,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3857,8 +3857,8 @@
                 "loggf": -0.386,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3916,8 +3916,8 @@
                 "loggf": -2.450,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -3970,8 +3970,8 @@
                 "loggf": -0.051,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4020,8 +4020,8 @@
                 "loggf": -1.736,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4074,8 +4074,8 @@
                 "loggf": -2.984,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4127,8 +4127,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4177,8 +4177,8 @@
                 "loggf": -3.450,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4219,8 +4219,8 @@
                 "loggf": -2.750,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4267,8 +4267,8 @@
                 "loggf": -1.650,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4302,8 +4302,8 @@
                 "loggf": -1.600,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4348,8 +4348,8 @@
                 "loggf": -2.422,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4391,8 +4391,8 @@
                 "loggf": -2.913,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4433,8 +4433,8 @@
                 "loggf": -3.599,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4468,8 +4468,8 @@
                 "loggf": -2.762,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4512,8 +4512,8 @@
                 "loggf": -2.692,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4548,8 +4548,8 @@
                 "loggf": -5.002,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4584,8 +4584,8 @@
                 "loggf": -1.680,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4625,8 +4625,8 @@
                 "loggf": -3.990,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4671,8 +4671,8 @@
                 "loggf": -3.825,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4715,8 +4715,8 @@
                 "loggf": -2.520,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4754,8 +4754,8 @@
                 "loggf": -3.654,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4805,8 +4805,8 @@
                 "loggf": -2.190,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4847,8 +4847,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4892,8 +4892,8 @@
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
                         "wavelength": [6705.001, 6705.201],
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4937,8 +4937,8 @@
                 "loggf": -4.880,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -4977,8 +4977,8 @@
                 ],
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5021,8 +5021,8 @@
                 "loggf": -3.270,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5065,8 +5065,8 @@
                 "loggf": -2.300,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5104,8 +5104,8 @@
                 "loggf": -0.952,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5147,8 +5147,8 @@
                 "loggf": -1.457,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5184,8 +5184,8 @@
                 "loggf": -1.580,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5223,8 +5223,8 @@
                 "loggf": -1.113,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5271,8 +5271,8 @@
                 "loggf": -2.543,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5314,8 +5314,8 @@
                 "loggf": -2.998,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5353,8 +5353,8 @@
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
                         "wavelength": [7748.169, 7748.369],
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5389,8 +5389,8 @@
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
                         "wavelength": [7751.009, 7751.209],
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5426,8 +5426,8 @@
                 "loggf": -3.784,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5461,8 +5461,8 @@
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
                         "wavelength": [7802.373, 7802.573],
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5496,8 +5496,8 @@
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
                         "wavelength": [7807.809, 7808.009],
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5532,8 +5532,8 @@
                 "loggf": -2.336,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5572,8 +5572,8 @@
                 "loggf": -3.638,
                 "_fit_profile_kwargs": {
                     "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
                     }
                 },
                 "blending_transitions": [
@@ -5595,37 +5595,6 @@
                     [7853.515, 23.0, 3.270, -4.537],
                     [7853.601, 20.0, 6.009, -5.711],
                     [7853.639, 26.0, 5.082, -3.720]
-                ]
-            },
-            {
-                "wavelength": 7879.757,
-                "species": 26.0,
-                "excitation_potential": 5.029,
-                "loggf": -1.650,
-                "_fit_profile_kwargs": {
-                    "constrain_parameters": {
-                        "fwhm": [0, 0.3],
-                        "blending_fwhm": [0, 0.3]
-                    }
-                },
-                "blending_transitions": [
-                    [7878.333, 23.0, 3.869, -4.519],
-                    [7878.462, 26.0, 4.073, -4.274],
-                    [7878.486, 24.0, 5.267, -3.001],
-                    [7878.960, 23.0, 2.503, -4.984],
-                    [7879.089, 26.0, 3.412, -8.392],
-                    [7879.146, 20.0, 6.007, -8.347],
-                    [7879.351, 25.0, 6.203, -2.652],
-                    [7879.377, 20.0, 6.017, -5.085],
-                    [7879.381, 68.0, 2.040, -0.924],
-                    [7879.593, 21.0, 5.324, -1.793],
-                    [7879.961, 28.0, 5.610, -2.174],
-                    [7879.978, 62.1, 1.382, -2.297],
-                    [7880.326, 74.0, 1.855, -3.010],
-                    [7880.658, 24.0, 5.613, -3.783],
-                    [7881.084, 20.0, 6.024, -8.295],
-                    [7881.084, 59.0, 0.945, -0.813],
-                    [7881.168, 26.1, 7.533, -2.444]
                 ]
             }
         ]
