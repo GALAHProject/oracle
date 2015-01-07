@@ -158,7 +158,8 @@ class EqualibriaModel(Model):
         return theta
 
 
-    def estimate_stellar_parameters(self, data, initial_theta=None, **kwargs):
+    def estimate_stellar_parameters(self, data, initial_theta=None,
+        fitting_frequency=0, **kwargs):
         """
         Return point estimates for the stellar parameters (effective temperature,
         surface gravity, metallicity, microturbulence) using an excitation and
@@ -177,6 +178,14 @@ class EqualibriaModel(Model):
         :type initial_theta:
             dict
 
+        :param fitting_frequency: [optional]
+            This parameter specifies how frequently the profiles be re-fit
+            and/or synthesised. If set to zero (default), then fitting is only
+            performed once with the initial theta parameters.
+
+        :type fitting_frequency:
+            int
+
         :returns:
             Point estimates of the effective temperature, surface gravity,
             metallicity, and microturbulence.
@@ -188,33 +197,118 @@ class EqualibriaModel(Model):
         else:
             logger.warn("assert that all parameters are provided by initial theta")
 
+        if fitting_frequency != 0:
+            raise NotImplementedError("sorry")
+            # [TODO]
+
         # Get the initial stellar parameters
         initial_stellar_parameters = [initial_theta[label] for label in \
             ("effective_temperature", "surface_gravity", "[M/H]", 
                 "microturbulence")]
 
-        # Optimisation
         kwds = kwargs.copy()
         kwds.update({
-            "full_output": False
+            "full_output": False,
+            "initial_theta": initial_theta
         })
-        state_function = lambda x: self.equalibrium_state(data, *x, **kwds)
 
-        # Optional parameters
-        xtol = kwargs.pop("xtol", 1e-10)
-        maxfev = kwargs.pop("maxfev", 50)
+        # Get the initial state
+        initial_state, transitions_table, atomic_transitions = \
+            self.equalibrium_state(data, *initial_stellar_parameters,
+                initial_theta=initial_theta, full_output=True)
+
+        # Get usable_transitions
+        use = transitions_table["is_filtered"].astype(bool) \
+            * ~transitions_table["is_outlier"].astype(bool)
+        neutral = (transitions_table["species"][use] % 1) == 0
+        ionised = (transitions_table["species"][use] % 1) > 0
+        reduced_equivalent_width = np.log(transitions_table["equivalent_width"]\
+            /transitions_table["wavelength"])
+        transitions = transitions_table[use].view(float).reshape(use.sum(), -1)[:, :7]
+
+        def state_function(x):
+            print("STATE IN", x)
+
+            # Calculate abundances given the stellar parameters
+            try:
+                abundances = synthesis.abundances(*x, transitions=transitions)
+
+            except ValueError:
+                return np.array([np.nan, np.nan, np.nan, np.nan])
+
+            # Calculate the state
+            excitation_slope = stats.linregress(
+                x=transitions_table["excitation_potential"][use][neutral],
+                y=abundances[neutral])
+
+            # Calculate the ionisation state
+            ionisation_state = abundances[neutral].mean() \
+                - abundances[ionised].mean()
+
+            # Calculate the abundance state
+            #metallicity = x[2]
+            metallicity = mh
+            abundance_state = (abundances \
+                - (atmospheres.solar_abundances(transitions_table["species"][use])
+                    + metallicity)).mean()
+
+            # Slope with reduced equivalent width and line abundance
+            line_strength_slope = stats.linregress(
+                x=reduced_equivalent_width[use][neutral], y=abundances[neutral])
+
+            # Calculate the state
+            #state = np.array([
+            #    excitation_slope[0],
+            #    ionisation_state,
+            #    abundance_state,
+            #    line_strength_slope[0]
+            #])
+
+
+            # Re-arrange the state
+            #teff, vt, logg, feh = stellar_parameters[:4]
+            state = np.array([
+                excitation_slope[0],
+                ionisation_state,
+                0.1 * abundance_state,
+                line_strength_slope[0],
+            ])
+            
+            if np.any(~np.isfinite(state)):
+                raise WTFError()
+            print("STATE OUT", x, state, (state**2).sum())
+            return state
+
+        # Re-arrange the initial stellar parameters
+        initial_stellar_parameters = [initial_theta[label] for label in \
+            ("effective_temperature",
+                 "surface_gravity", "[M/H]","microturbulence", )]
+
+        """
+        # This is for a fitting_frequency == 1
+        state_function = lambda x: self.equalibrium_state(data, *x, **kwds)
 
         # Optimise the state function
         result = op.fsolve(state_function, initial_stellar_parameters,
             fprime=stellar_parameter_jacobian_approximation, col_deriv=True,
             epsfcn=0, xtol=xtol, maxfev=maxfev, full_output=True)
+        """
 
+        # Optimisation
+        xtol = kwargs.pop("xtol", 1e-10)
+        maxfev = kwargs.pop("maxfev", 100)
+
+        result = op.fsolve(state_function, initial_stellar_parameters,
+            fprime=stellar_parameter_jacobian_approximation, col_deriv=1,
+            epsfcn=0, xtol=xtol, maxfev=maxfev, full_output=True)
+
+        raise a
 
 
         raise NotImplementedError
 
     def equalibrium_state(self, data, effective_temperature, surface_gravity,
-        metallicity, microturbulence, full_output=False, **kwargs):
+        metallicity, microturbulence, initial_theta=None, full_output=False, **kwargs):
         """
         Return the equilibrium state information for a given set of stellar
         parameters. The equilibrium state information includes the:
@@ -262,12 +356,15 @@ class EqualibriaModel(Model):
             bool
         """
 
-        logger.warn("--------------------------------------------------")
-        logger.warn("effective temperature = {0:.0f}".format(effective_temperature))
-        logger.warn("surface_gravity = {0:.2f}".format(surface_gravity))
-        logger.warn("metallicity = {0:.2f}".format(metallicity))
-        logger.warn("microturbulence = {0:.2f}".format(microturbulence))
-        logger.warn("--------------------------------------------------")
+        logger.debug("--------------------------------------------------")
+        logger.debug("effective temperature = {0:.0f}".format(effective_temperature))
+        logger.debug("surface_gravity = {0:.2f}".format(surface_gravity))
+        logger.debug("metallicity = {0:.2f}".format(metallicity))
+        logger.debug("microturbulence = {0:.2f}".format(microturbulence))
+        logger.debug("--------------------------------------------------")
+
+        if initial_theta is None:
+            initial_theta = {}
 
         interpolator = kwargs.pop("interpolator", None)
         if interpolator is None:
@@ -290,36 +387,39 @@ class EqualibriaModel(Model):
             "microturbulence": microturbulence,
         })
 
-        # TODO: remove this
-        profile_initial_theta.setdefault("fwhm", 0.2)
-
         # Initialise all the atomic transitions
         atomic_transitions = [transitions.AtomicTransition(**each) \
-            for each in self.config["model"]["atomic_transitions"]]
+            for each in self.config["model"]["atomic_transitions"] if int(each["species"]) == 26]
+        logger.warn("ONLY USING FE FOR THE MOMENT #TODO #YOLO")
 
-        profiles = []
         for atomic_transition in atomic_transitions:
 
             # Find which channel the wavelength is in
             ci = minimum_pixel_sampling(data, atomic_transition.wavelength)[1][0]
 
-            # Get the continuum order
+            # Get the continuum order and limit the continuum order in this
+            # region to 2, otherwise we will be overfitting
             co = self._continuum_order(ci)
-            continuum_order = None if 0 > co else min([1, co])
+            co = co if co >= 0 else None
+            _profile_initial_theta = profile_initial_theta.copy()
+            if co > -1:
+
+                for i in range(co + 1):
+                    k = "continuum.{0}.{1}".format(ci, i)
+                    if k in initial_theta:
+                        _profile_initial_theta["continuum.{}".format(i)] = initial_theta[k]
 
             fit_profile_kwargs = atomic_transition._init_kwargs.get(
                 "_fit_profile_kwargs", {})
             fit_profile_kwargs.update({"full_output": True})
-            fit_profile_kwargs.setdefault("continuum_order", continuum_order)
+            fit_profile_kwargs.setdefault("continuum_order", co)
 
             try:
                 result = atomic_transition.fit_profile(data[ci],
-                    initial_theta=profile_initial_theta, **fit_profile_kwargs)
+                    initial_theta=_profile_initial_theta, **fit_profile_kwargs)
 
             except ValueError:
                 continue
-
-            profiles.append(result)
 
             # Save the information
             #(optimal_theta, oc, orc, omf, op_info)
@@ -415,7 +515,7 @@ class EqualibriaModel(Model):
                 initial_state = (excitation_slope, ionisation_state,
                     abundance_state, line_strength_slope)
 
-                outlier_limit = kwargs.pop("outlier_sigma_clip", 2.5)
+                outlier_limit = kwargs.pop("outlier_sigma_clip", 3)
                 if outlier_limit is None or not np.isfinite(outlier_limit) \
                 or 0 >= outlier_limit:
                     # Don't remove any outliers
@@ -453,6 +553,7 @@ class EqualibriaModel(Model):
                 outliers_removed = True
                 continue # to re-fit the lines
 
+        """
         import matplotlib.pyplot as plt
 
         # Show which was used and which wasn't
@@ -534,11 +635,15 @@ class EqualibriaModel(Model):
         print("state is ", state)
         fig.savefig("state.png")
 
-        raise a
+        print("Outliers are")
+        for each in atomic_transitions_rec[outlier]:
+            print(each["wavelength"], each["species"])
+
         plt.close("all")
+        """
 
         if full_output:
-            return (state, atomic_transitions_arr, profiles)
+            return (state, atomic_transitions_rec, atomic_transitions)
         return state
 
 

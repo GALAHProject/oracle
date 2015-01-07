@@ -115,7 +115,7 @@ class Model(object):
         
         # If not provided, assume no continuum modelling.
         continuum = self.config["model"].get("continuum", -1)
-        if continuum == -1:
+        if continuum == -1 or continuum is False:
             return -1
 
         # A single value means apply to all observed channels
@@ -356,7 +356,7 @@ class Model(object):
                     A)[0]
 
                 # Save the continuum coefficients (we will use them later)
-                continuum_coefficients[i] = coefficients
+                continuum_coefficients[i] = coefficients[::-1]
                 continuum = np.dot(coefficients.T, disp_matrix)
         
                 # Calculate the expected flux and chi-sq values at each point
