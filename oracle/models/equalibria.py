@@ -246,8 +246,8 @@ class EqualibriaModel(Model):
                 - abundances[ionised].mean()
 
             # Calculate the abundance state
-            #metallicity = x[2]
-            metallicity = mh
+            metallicity = x[2]
+            #metallicity = mh
             abundance_state = (abundances \
                 - (atmospheres.solar_abundances(transitions_table["species"][use])
                     + metallicity)).mean()
@@ -389,8 +389,8 @@ class EqualibriaModel(Model):
 
         # Initialise all the atomic transitions
         atomic_transitions = [transitions.AtomicTransition(**each) \
-            for each in self.config["model"]["atomic_transitions"] if int(each["species"]) == 26]
-        logger.warn("ONLY USING FE FOR THE MOMENT #TODO #YOLO")
+            for each in self.config["model"]["atomic_transitions"]]
+        #logger.warn("ONLY USING FE FOR THE MOMENT #TODO #YOLO")
 
         for atomic_transition in atomic_transitions:
 
