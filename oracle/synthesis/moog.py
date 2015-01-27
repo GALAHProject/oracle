@@ -50,6 +50,7 @@ def _format_abundances(abundances=None):
 
     if abundances is None or len(abundances) == 0:
         formatted_abundances = np.asfortranarray(np.array([])).reshape(-1, 2)
+        
     else:
         formatted_abundances = np.asfortranarray(np.atleast_2d(
             photospheric_abundances))
@@ -133,6 +134,12 @@ def synthesise(effective_temperature, surface_gravity, metallicity,
 def abundances(effective_temperature, surface_gravity, metallicity,
     microturbulence, transitions, photospheric_abundances=None,
     atmosphere_kwargs=None, debug=False):
+
+    if 0 >= effective_temperature:
+        raise ValueError("effective temperature must be a positive quantity")
+
+    if 0 > microturbulence:
+        raise ValueError("microturbulence must be a positive quantity")
 
     # Transitions should be an array of minimum size, or a record array to
     # indicate what is what

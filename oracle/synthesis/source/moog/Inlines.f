@@ -130,6 +130,7 @@ c         Check the charge
      .      + 0.0001))
           if (scharge(j) .gt. 3.) then
              print *, "strong line charge greater than 3"
+             print *, "A", wave1(j), iatom, charge(j), gf(j)
              print *, "stahp"
              stop
           endif
@@ -151,6 +152,7 @@ c         Check the charge
      .       +0.0001))
            if (charge(j) .gt. 3.) then
               print *, "line charge greater than 3"
+              print *, "B", wave1(j), iatom, charge(j), gf(j)
               print *, "stahp"
               stop
            endif

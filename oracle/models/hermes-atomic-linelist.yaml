@@ -13,7 +13,7 @@
     "model": {
         "redshift": True,
         "instrumental_resolution": True,
-        "continuum": 3,
+        "continuum": 2,
         "cross_correlation_mask": [
             # Don't use the blue edge of the infrared channel at all
             [7500, 7730]
@@ -28,6 +28,15 @@
                 "species": 26.0,
                 "excitation_potential": 4.831,
                 "loggf": -3.957,
+#                "continuum_regions": [
+#                    [4720.0, 4720.6]
+#                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4718.259, 22.0, 2.479, -3.213],
                     [4718.304, 26.0, 2.690, -5.299],
@@ -100,6 +109,12 @@
                 "species": 26.1,
                 "excitation_potential": 3.195,
                 "loggf": -4.750,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4718.653, 62.0, 0.387, -1.064],
                     [4718.692, 68.0, 2.126, 0.380],
@@ -172,6 +187,12 @@
                 "species": 26.1,
                 "excitation_potential": 2.889,
                 "loggf": -3.360,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4730.029, 12.0, 4.343, -2.523],
                     [4730.101, 58.1, 0.892, -0.976],
@@ -247,6 +268,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.368,
                 "loggf": -2.717,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4741.070, 26.0, 3.329, -2.768],
                     [4741.087, 21.1, 7.974, -1.629],
@@ -333,6 +360,12 @@
                 "species": 26.1,
                 "excitation_potential": 6.802,
                 "loggf": -4.600,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4756.721, 27.0, 3.927, -0.010],
                     [4756.750, 25.1, 6.489, -3.991],
@@ -406,6 +439,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.831,
                 "loggf": -3.515,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4758.197, 74.0, 2.965, -0.730],
                     [4758.262, 27.0, 4.146, -3.559],
@@ -487,6 +526,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.151,
                 "loggf": -3.040,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4762.744, 23.0, 0.275, -4.577],
                     [4762.746, 21.0, 2.318, -1.722],
@@ -547,6 +592,12 @@
                 "species": 26.1,
                 "excitation_potential": 7.533,
                 "loggf": -4.694,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4775.635, 22.1, 1.242, -4.462],
                     [4775.663, 42.0, 2.621, -1.035],
@@ -626,6 +677,12 @@
                 "species": 26.1,
                 "excitation_potential": 7.923,
                 "loggf": -2.493,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4778.683, 27.0, 4.061, -3.722],
                     [4778.939, 23.0, 2.614, -2.028],
@@ -691,6 +748,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.571,
                 "loggf": -3.078,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4780.246, 58.1, 1.480, -0.864],
                     [4780.287, 24.0, 3.319, -4.551],
@@ -759,6 +822,20 @@
                 "species": 26.0,
                 "excitation_potential": 3.234,
                 "loggf": -1.810,
+                "continuum_regions": [
+                    [4787.2, 4787.5],
+                    [4789.9, 4790.3]
+                ],
+                "mask": [
+                    [4785, 4787.2],
+                    [4790.5, 4795]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4787.278, 20.0, 6.041, -3.654],
                     [4787.301, 25.0, 4.824, -1.977],
@@ -839,6 +916,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.045,
                 "loggf": -3.530,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4792.483, 22.0, 2.332, -0.090],
                     [4792.492, 27.0, 4.069, -2.359],
@@ -898,6 +981,12 @@
                 "species": 26.0,
                 "excitation_potential": 2.422,
                 "loggf": -4.050,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4792.896, 24.0, 3.432, -2.658],
                     [4792.924, 21.0, 3.055, -1.308],
@@ -953,6 +1042,16 @@
                 "species": 26.0,
                 "excitation_potential": 4.183,
                 "loggf": -3.748,
+                "continuum_regions": [
+                    [4797.25, 4797.75],
+                    [4799.0, 4799.25]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4796.207, 22.0, 2.331, -0.665],
                     [4796.353, 22.0, 1.878, -2.656],
@@ -1014,6 +1113,12 @@
                 "species": 26.0,
                 "excitation_potential": 1.607,
                 "loggf": -4.250,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4797.281, 20.0, 5.667, -3.574],
                     [4797.434, 23.1, 6.852, -2.167],
@@ -1087,6 +1192,12 @@
                     [4801.5, 4802.25],
                     [4803.25, 4804.25]
                 ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4801.499, 23.0, 2.357, -1.667],
                     [4801.619, 26.0, 4.281, -2.650],
@@ -1156,6 +1267,12 @@
                 "species": 26.1,
                 "excitation_potential": 7.934,
                 "loggf": -3.973,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4803.947, 25.0, 4.682, -3.410],
                     [4803.956, 90.1, 1.669, -1.810],
@@ -1220,6 +1337,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.299,
                 "loggf": -4.230,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4806.615, 60.0, 0.140, -0.496],
                     [4806.654, 40.0, 1.581, -1.020],
@@ -1290,6 +1413,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.632,
                 "loggf": -6.822,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4818.969, 60.1, 0.471, -1.740],
                     [4819.004, 24.0, 3.446, -2.747],
@@ -1360,6 +1489,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.045,
                 "loggf": -5.506,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4823.389, 23.0, 1.050, -4.446],
                     [4823.428, 23.0, 1.711, -5.409],
@@ -1411,6 +1546,12 @@
                 "species": 26.1,
                 "excitation_potential": 2.655,
                 "loggf": -4.780,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4831.716, 20.0, 5.685, -4.104],
                     [4831.739, 24.0, 5.176, -3.413],
@@ -1486,6 +1627,16 @@
                 "species": 26.0,
                 "excitation_potential": 2.277,
                 "loggf": -3.400,
+                "continuum_regions": [
+                    [4847.9, 4847.2],
+                    [4850.0, 4850.8]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4847.419, 28.0, 4.415, -1.090],
                     [4847.555, 26.1, 7.982, -3.373],
@@ -1560,6 +1711,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.926,
                 "loggf": -2.340,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4868.547, 24.0, 4.183, -1.139],
                     [4868.609, 23.0, 3.732, -3.419],
@@ -1627,6 +1784,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.298,
                 "loggf": -3.060,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4872.275, 22.0, 2.675, -1.380],
                     [4872.283, 69.1, 2.732, -0.856],
@@ -1684,6 +1847,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.299,
                 "loggf": -4.202,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4883.529, 23.1, 3.750, -3.316],
                     [4883.543, 26.0, 4.909, -1.727],
@@ -1761,6 +1930,16 @@
                 "species": 26.0,
                 "excitation_potential": 2.873,
                 "loggf": -0.430,
+                "mask": [
+                    [4888, 4889.4],
+                    [4889.4, 4889.5]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4889.318, 25.0, 4.791, -2.905],
                     [4889.585, 58.0, 0.159, -0.691],
@@ -1830,6 +2009,16 @@
                 "species": 26.0,
                 "excitation_potential": 2.849,
                 "loggf": -0.140,
+                "continuum_regions": [
+                    [4893.25, 4893.5],
+                    [4888.5, 4890.0]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [4889.994, 22.0, 3.145, -2.057],
                     [4890.057, 23.1, 3.796, -1.892],
@@ -1909,6 +2098,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.470,
                 "loggf": -2.000,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5649.987, 26.0, 5.096, -0.920],
                     [5650.104, 25.0, 4.657, -2.849],
@@ -1956,9 +2151,15 @@
                 "excitation_potential": 4.257,
                 "loggf": -1.950,
                 "mask": [
-                    [5600, 5650.8],
-                    [5653.8, 5700]
+                    [5600, 5651.2],
+                    [5652.9, 5700]
                 ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5651.106, 63.0, 2.194, -0.610],
                     [5651.119, 23.1, 3.970, -4.415],
@@ -1997,6 +2198,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.188,
                 "loggf": -3.539,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5659.793, 58.0, 0.159, -1.453],
                     [5659.817, 24.0, 5.829, -1.863],
@@ -2040,6 +2247,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.648,
                 "loggf": -0.920,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5677.558, 24.1, 3.734, -9.555],
                     [5677.650, 24.0, 5.851, -0.324],
@@ -2081,6 +2294,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.183,
                 "loggf": -2.580,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5679.024, 26.0, 4.648, -0.920],
                     [5679.034, 58.1, 1.676, -1.257],
@@ -2123,6 +2342,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.909,
                 "loggf": -1.954,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5681.013, 23.0, 3.252, -2.717],
                     [5681.021, 24.0, 5.524, -3.881],
@@ -2158,6 +2383,12 @@
                 "species": 26.0,
                 "excitation_potential": 5.006,
                 "loggf": -3.514,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5688.597, 23.0, 2.377, -4.116],
                     [5688.793, 22.0, 2.101, -5.767],
@@ -2201,6 +2432,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.545,
                 "loggf": -1.990,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5694.711, 20.0, 5.296, -3.352],
                     [5694.740, 24.0, 3.854, -0.310],
@@ -2249,6 +2486,20 @@
                 "species": 26.0,
                 "excitation_potential": 5.029,
                 "loggf": -1.056,
+                "continuum_regions": [
+                    [5703.0, 5703.25],
+                    [5706.4, 5706.5]
+                ],
+                "mask": [
+                    [5703.5, 5704],
+                    [5706.5, 5800]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5703.311, 57.1, 0.708, -1.910],
                     [5703.477, 28.0, 5.490, -0.531],
@@ -2297,6 +2548,20 @@
                 "species": 26.0,
                 "excitation_potential": 4.298,
                 "loggf": -1.600,
+                "continuum_regions": [
+                    [5703.0, 5703.25],
+                    [5706.4, 5706.5]
+                ],
+                "mask": [
+                    [5703.5, 5704],
+                    [5706.5, 5800]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5704.135, 24.0, 3.102, -3.378],
                     [5704.154, 27.0, 4.172, -1.937],
@@ -2346,6 +2611,12 @@
                 "species": 26.1,
                 "excitation_potential": 7.767,
                 "loggf": -2.263,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5715.091, 26.0, 4.280, -2.141],
                     [5715.102, 26.0, 4.188, -2.922],
@@ -2397,6 +2668,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.962,
                 "loggf": -4.303,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5718.972, 26.0, 4.952, -2.263],
                     [5719.036, 58.0, 0.719, 0.431],
@@ -2448,6 +2725,12 @@
                 "species": 26.0,
                 "excitation_potential": 5.008,
                 "loggf": -2.306,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5719.535, 58.0, 0.159, -1.549],
                     [5719.553, 68.0, 1.068, -0.569],
@@ -2500,6 +2783,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.281,
                 "loggf": -2.640,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5723.031, 26.0, 4.952, -3.681],
                     [5723.042, 74.0, 3.219, -1.190],
@@ -2543,6 +2832,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.253,
                 "loggf": -1.300,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5730.469, 27.0, 3.565, -2.897],
                     [5730.474, 22.0, 2.736, -3.469],
@@ -2581,6 +2876,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.987,
                 "loggf": -1.560,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5730.833, 63.0, 1.667, -0.540],
                     [5730.854, 26.0, 4.909, -1.808],
@@ -2620,6 +2921,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.188,
                 "loggf": -2.678,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5738.297, 23.0, 3.054, -2.688],
                     [5738.363, 25.1, 5.988, -5.189],
@@ -2683,6 +2990,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.253,
                 "loggf": -1.730,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5740.432, 24.0, 5.607, -0.965],
                     [5740.611, 68.0, 0.624, -1.312],
@@ -2740,6 +3053,15 @@
                 "species": 26.0,
                 "excitation_potential": 4.545,
                 "loggf": -0.864,
+                "continuum_regions": [
+                    [5750.0, 5751.5],
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5750.555, 92.0, 1.097, -1.057],
                     [5750.649, 23.0, 1.954, -1.187],
@@ -2797,6 +3119,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.952,
                 "loggf": -2.907,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5764.769, 58.0, 0.294, -1.014],
                     [5764.885, 20.0, 5.581, -4.782],
@@ -2841,6 +3169,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.217,
                 "loggf": -1.298,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5773.592, 58.0, 0.000, -1.306],
                     [5773.748, 26.1, 5.566, -3.124],
@@ -2897,6 +3231,15 @@
                 "species": 26.0,
                 "excitation_potential": 2.586,
                 "loggf": -3.590,
+                "mask": [
+                    [5779.0, 5782]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5776.971, 25.0, 3.761, -6.684],
                     [5777.000, 22.0, 3.212, -2.023],
@@ -2938,6 +3281,15 @@
                 "species": 26.0,
                 "excitation_potential": 4.604,
                 "loggf": -1.050,
+                "mask": [
+                    [5804, 5806.4]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5805.326, 20.0, 5.224, -5.647],
                     [5805.442, 20.0, 5.225, -5.758],
@@ -3005,6 +3357,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.881,
                 "loggf": -1.840,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5807.736, 24.0, 3.102, -3.517],
                     [5807.750, 14.0, 7.737, -4.970],
@@ -3047,6 +3405,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.571,
                 "loggf": -5.460,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5808.698, 24.0, 4.443, -4.202],
                     [5808.958, 23.0, 2.606, -3.035],
@@ -3088,6 +3452,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.984,
                 "loggf": -1.992,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5820.504, 23.0, 4.593, -3.577],
                     [5820.613, 41.0, 2.085, -1.250],
@@ -3140,6 +3510,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.962,
                 "loggf": -3.768,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5822.152, 22.0, 1.429, -5.754],
                     [5822.226, 20.0, 5.923, -3.885],
@@ -3189,6 +3565,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.263,
                 "loggf": -3.372,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5846.568, 27.0, 3.565, -1.652],
                     [5846.596, 26.0, 5.337, -3.777],
@@ -3234,6 +3616,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.604,
                 "loggf": -1.010,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5846.748, 22.0, 3.901, -3.898],
                     [5846.986, 28.0, 1.675, -3.210],
@@ -3275,6 +3663,12 @@
                 "species": 26.0,
                 "excitation_potential": 3.632,
                 "loggf": -4.710,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5848.316, 24.0, 3.886, -3.190],
                     [5848.320, 58.0, 0.925, -0.219],
@@ -3313,6 +3707,12 @@
                 "species": 26.0,
                 "excitation_potential": 1.484,
                 "loggf": -5.280,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5852.003, 92.0, 0.552, -1.891],
                     [5852.083, 24.0, 0.982, -4.837],
@@ -3353,6 +3753,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.604,
                 "loggf": -1.760,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5853.603, 25.0, 5.083, -3.456],
                     [5853.668, 56.1, 0.604, -1.000],
@@ -3391,6 +3797,16 @@
                 "species": 26.0,
                 "excitation_potential": 4.555,
                 "loggf": -2.812,
+                "mask": [
+                    [5855, 5858],
+                    [5860.8, 5862]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5857.404, 14.0, 7.755, -4.570],
                     [5857.451, 20.0, 2.930, 0.230],
@@ -3439,6 +3855,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.545,
                 "loggf": -0.386,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5858.139, 58.0, 0.398, -0.924],
                     [5858.186, 24.0, 4.093, -2.328],
@@ -3492,6 +3914,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.280,
                 "loggf": -2.450,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5859.638, 22.0, 3.196, -1.235],
                     [5859.669, 90.1, 1.712, -1.817],
@@ -3540,6 +3968,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.545,
                 "loggf": -0.051,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5860.875, 22.1, 1.571, -4.795],
                     [5860.901, 20.0, 5.296, -2.589],
@@ -3584,6 +4018,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.581,
                 "loggf": -1.736,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [5864.803, 26.0, 5.006, -3.190],
                     [5864.831, 42.0, 4.313, -1.448],
@@ -3632,6 +4072,12 @@
                 "species": 26.0,
                 "excitation_potential": 2.277,
                 "loggf": -2.984,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6480.582, 23.1, 2.375, -5.558],
                     [6480.624, 23.0, 3.313, -0.551],
@@ -3672,6 +4118,19 @@
                 "species": 26.0,
                 "excitation_potential": 0.957,
                 "loggf": -4.699,
+                "mask": [
+                    [6497, 6498]
+                ],
+                "continuum_regions": [
+                    [6498, 6498.6],
+                    [6500.5, 6500.7]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6497.603, 23.0, 2.706, -5.776],
                     [6497.684, 22.0, 1.442, -3.085],
@@ -3716,6 +4175,12 @@
                 "species": 26.1,
                 "excitation_potential": 2.889,
                 "loggf": -3.450,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6514.709, 23.0, 4.255, -3.034],
                     [6514.789, 14.0, 5.609, -3.540],
@@ -3752,6 +4217,12 @@
                 "species": 26.0,
                 "excitation_potential": 2.829,
                 "loggf": -2.750,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6516.909, 27.0, 4.912, -2.854],
                     [6516.923, 24.0, 3.842, -3.369],
@@ -3794,6 +4265,12 @@
                 "species": 26.0,
                 "excitation_potential": 2.756,
                 "loggf": -1.650,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6544.749, 22.0, 3.548, -0.306],
                     [6544.790, 27.0, 5.377, -3.377],
@@ -3823,6 +4300,12 @@
                 "species": 26.0,
                 "excitation_potential": 2.725,
                 "loggf": -1.600,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6591.430, 60.1, 0.204, -2.510],
                     [6591.485, 90.0, 0.000, -2.873],
@@ -3863,6 +4346,12 @@
                 "species": 26.0,
                 "excitation_potential": 2.431,
                 "loggf": -2.422,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6592.504, 28.0, 4.232, -1.245],
                     [6592.532, 75.0, 3.579, -0.350],
@@ -3900,6 +4389,12 @@
                 "species": 26.1,
                 "excitation_potential": 7.964,
                 "loggf": -2.913,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6595.994, 21.0, 3.862, -2.557],
                     [6596.375, 26.1, 7.489, -4.609],
@@ -3936,6 +4431,12 @@
                 "species": 26.0,
                 "excitation_potential": 5.382,
                 "loggf": -3.599,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6597.637, 20.0, 5.792, -4.520],
                     [6597.814, 23.0, 1.194, -4.087],
@@ -3965,6 +4466,12 @@
                 "species": 26.0,
                 "excitation_potential": 5.508,
                 "loggf": -2.762,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6605.344, 58.0, 0.274, -1.644],
                     [6605.416, 90.1, 0.510, -2.936],
@@ -4003,6 +4510,12 @@
                 "species": 26.0,
                 "excitation_potential": 2.557,
                 "loggf": -2.692,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6607.652, 24.0, 5.788, -3.784],
                     [6607.675, 24.0, 3.365, -4.181],
@@ -4033,6 +4546,12 @@
                 "species": 26.0,
                 "excitation_potential": 0.989,
                 "loggf": -5.002,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6608.198, 57.0, 1.234, -0.780],
                     [6608.434, 23.0, 4.305, -2.866],
@@ -4063,6 +4582,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.545,
                 "loggf": -1.680,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6626.108, 14.0, 5.611, -3.760],
                     [6626.237, 24.0, 4.443, -2.064],
@@ -4098,6 +4623,12 @@
                 "species": 26.0,
                 "excitation_potential": 2.607,
                 "loggf": -3.990,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6645.436, 20.0, 5.736, -3.803],
                     [6645.564, 24.0, 5.901, -3.072],
@@ -4138,6 +4669,12 @@
                 "species": 26.0,
                 "excitation_potential": 5.472,
                 "loggf": -3.825,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6646.541, 90.1, 1.547, -2.391],
                     [6646.593, 24.0, 5.461, -3.445],
@@ -4176,6 +4713,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.151,
                 "loggf": -2.520,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6652.382, 75.0, 1.713, -2.850],
                     [6652.739, 58.1, 1.527, -1.213],
@@ -4209,6 +4752,12 @@
                 "species": 26.0,
                 "excitation_potential": 2.557,
                 "loggf": -3.654,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6676.733, 25.0, 5.905, -4.079],
                     [6676.866, 26.0, 4.555, -2.991],
@@ -4254,6 +4803,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.590,
                 "loggf": -2.190,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6697.871, 20.0, 5.881, -5.892],
                     [6697.926, 22.0, 3.332, -3.800],
@@ -4287,6 +4842,15 @@
                 "species": 26.0,
                 "excitation_potential": 2.756,
                 "loggf": -3.160,
+                "mask": [
+                    [6704.6, 6706]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6702.093, 64.1, 2.309, -1.195],
                     [6702.096, 26.1, 7.798, -4.671],
@@ -4322,6 +4886,16 @@
                 "species": 26.0,
                 "excitation_potential": 4.603,
                 "loggf": -1.470,
+                "mask": [
+                    [6703, 6704.7]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "wavelength": [6705.001, 6705.201],
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6703.609, 62.0, 2.187, 0.089],
                     [6703.704, 25.0, 5.871, -3.359],
@@ -4361,6 +4935,12 @@
                 "species": 26.0,
                 "excitation_potential": 1.484,
                 "loggf": -4.880,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6709.042, 24.0, 4.102, -4.095],
                     [6709.057, 21.0, 4.058, -2.021],
@@ -4391,6 +4971,16 @@
                 "species": 26.0,
                 "excitation_potential": 4.792,
                 "loggf": -1.600,
+                "mask": [
+                    [6712, 6713.3],
+                    [6715, 6716]
+                ],
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6712.270, 60.0, 1.820, 0.140],
                     [6712.440, 26.0, 4.984, -2.160],
@@ -4429,6 +5019,12 @@
                 "species": 26.0,
                 "excitation_potential": 5.454,
                 "loggf": -3.270,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6715.344, 26.0, 5.368, -4.220],
                     [6715.382, 26.0, 4.604, -1.640],
@@ -4467,6 +5063,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.100,
                 "loggf": -2.300,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6723.931, 22.0, 3.321, -3.000],
                     [6724.092, 26.0, 4.792, -1.552],
@@ -4500,6 +5102,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.603,
                 "loggf": -0.952,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6725.343, 20.0, 5.881, -6.129],
                     [6725.356, 26.0, 4.100, -2.300],
@@ -4537,6 +5145,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.909,
                 "loggf": -1.457,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6728.854, 24.0, 4.096, -2.585],
                     [6729.219, 24.0, 5.924, -1.388],
@@ -4568,6 +5182,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.635,
                 "loggf": -1.580,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [6731.813, 62.1, 1.165, -1.372],
                     [6731.899, 20.0, 5.877, -3.232],
@@ -4601,6 +5221,12 @@
                 "species": 26.0,
                 "excitation_potential": 4.217,
                 "loggf": -1.113,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [7708.930, 21.0, 4.043, -2.022],
                     [7709.049, 14.0, 6.094, -2.440],
@@ -4643,6 +5269,12 @@
                 "species": 26.1,
                 "excitation_potential": 3.900,
                 "loggf": -2.543,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [7710.269, 90.0, 1.005, -2.422],
                     [7710.363, 26.0, 4.217, -1.113],
@@ -4680,6 +5312,12 @@
                 "species": 26.0,
                 "excitation_potential": 5.840,
                 "loggf": -2.998,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [7718.768, 21.0, 3.804, -3.001],
                     [7718.917, 22.0, 4.222, -2.719],
@@ -4712,6 +5350,13 @@
                 "species": 26.0,
                 "excitation_potential": 2.947,
                 "loggf": -1.760,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "wavelength": [7748.169, 7748.369],
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [7746.809, 25.1, 6.663, -4.576],
                     [7746.817, 22.0, 2.504, -3.075],
@@ -4741,6 +5386,13 @@
                 "species": 26.0,
                 "excitation_potential": 4.987,
                 "loggf": -0.829,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "wavelength": [7751.009, 7751.209],
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [7749.797, 26.0, 5.847, -4.092],
                     [7749.876, 24.0, 6.142, -2.678],
@@ -4772,6 +5424,12 @@
                 "species": 26.0,
                 "excitation_potential": 5.678,
                 "loggf": -3.784,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [7779.069, 19.0, 2.668, -3.190],
                     [7779.113, 20.0, 5.987, -7.112],
@@ -4800,6 +5458,13 @@
                 "species": 26.0,
                 "excitation_potential": 5.082,
                 "loggf": -1.571,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "wavelength": [7802.373, 7802.573],
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [7801.041, 12.0, 5.927, -2.400],
                     [7801.044, 22.1, 6.499, -2.014],
@@ -4828,6 +5493,13 @@
                 "species": 26.0,
                 "excitation_potential": 4.987,
                 "loggf": -0.644,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "wavelength": [7807.809, 7808.009],
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [7806.673, 25.0, 5.221, -3.286],
                     [7806.798, 58.0, 0.398, -1.832],
@@ -4858,6 +5530,12 @@
                 "species": 26.0,
                 "excitation_potential": 5.750,
                 "loggf": -2.336,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [7843.071, 23.0, 3.645, -0.439],
                     [7843.289, 26.1, 7.488, -3.625],
@@ -4892,6 +5570,12 @@
                 "species": 26.0,
                 "excitation_potential": 5.643,
                 "loggf": -3.638,
+                "_fit_profile_kwargs": {
+                    "constrain_parameters": {
+                        "fwhm": [0, 0.5],
+                        "blending_fwhm": [0, 0.5]
+                    }
+                },
                 "blending_transitions": [
                     [7850.953, 26.0, 3.692, -7.237],
                     [7851.117, 20.0, 4.440, -2.562],
@@ -4911,31 +5595,6 @@
                     [7853.515, 23.0, 3.270, -4.537],
                     [7853.601, 20.0, 6.009, -5.711],
                     [7853.639, 26.0, 5.082, -3.720]
-                ]
-            },
-            {
-                "wavelength": 7879.757,
-                "species": 26.0,
-                "excitation_potential": 5.029,
-                "loggf": -1.650,
-                "blending_transitions": [
-                    [7878.333, 23.0, 3.869, -4.519],
-                    [7878.462, 26.0, 4.073, -4.274],
-                    [7878.486, 24.0, 5.267, -3.001],
-                    [7878.960, 23.0, 2.503, -4.984],
-                    [7879.089, 26.0, 3.412, -8.392],
-                    [7879.146, 20.0, 6.007, -8.347],
-                    [7879.351, 25.0, 6.203, -2.652],
-                    [7879.377, 20.0, 6.017, -5.085],
-                    [7879.381, 68.0, 2.040, -0.924],
-                    [7879.593, 21.0, 5.324, -1.793],
-                    [7879.961, 28.0, 5.610, -2.174],
-                    [7879.978, 62.1, 1.382, -2.297],
-                    [7880.326, 74.0, 1.855, -3.010],
-                    [7880.658, 24.0, 5.613, -3.783],
-                    [7881.084, 20.0, 6.024, -8.295],
-                    [7881.084, 59.0, 0.945, -0.813],
-                    [7881.168, 26.1, 7.533, -2.444]
                 ]
             }
         ]

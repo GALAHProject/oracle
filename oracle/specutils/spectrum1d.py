@@ -226,6 +226,30 @@ class Spectrum1D(object):
             except:
                 disp, flux = np.loadtxt(filename, **loadtxt_kwargs)
             
+        # Clean the edges?
+        clean_edges = kwargs.pop("clean_edges", True)
+        if clean_edges:
+            # Look for really sharp changes at the edges of the spectrum
+            y = np.abs(np.diff(flux))
+            stds = (y - np.median(y))/np.std(y)
+
+            lhs = np.any(stds[:50] > 10)
+            if lhs:
+                lhs_index = np.argmax(stds[:50]) + 1
+            else:
+                lhs_index = 0
+
+            rhs = np.any(stds[-50:] > 10)
+            if rhs:
+                rhs_index = flux.size - np.argmax(stds[-50::][::-1]) - 1
+            else:
+                rhs_index = None
+
+            disp = disp[lhs_index:rhs_index]
+            flux = flux[lhs_index:rhs_index]
+            if variance is not None:
+                variance = variance[lhs_index:rhs_index]
+
         return cls(disp, flux, variance=variance, headers=headers)
 
 
