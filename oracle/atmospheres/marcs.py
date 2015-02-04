@@ -25,11 +25,7 @@ def parse_photospheric_structure(filename, ndepth=56, line=25):
     """
 
     opener = gzip.open if filename[-3:].lower() == ".gz" else open
-
     with opener(filename, "r") as fp:
         contents = fp.readlines()
-
-    structure = np.array(map(float, 
+    return np.array(map(float, 
         "".join(contents[line:line+ndepth]).split())).reshape(ndepth, -1)
-
-    return structure

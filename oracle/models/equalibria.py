@@ -2,7 +2,7 @@
 
 from __future__ import absolute_import, print_function
 
-""" Equialibria (excitation & ionisation balance) model for stellar spectra """
+""" Equialibria (excitation & ionisation balance) model for stellar spectra. """
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
@@ -308,7 +308,8 @@ class EqualibriaModel(Model):
         raise NotImplementedError
 
     def equalibrium_state(self, data, effective_temperature, surface_gravity,
-        metallicity, microturbulence, initial_theta=None, full_output=False, **kwargs):
+        metallicity, microturbulence, initial_theta=None, full_output=False,
+        **kwargs):
         """
         Return the equilibrium state information for a given set of stellar
         parameters. The equilibrium state information includes the:
