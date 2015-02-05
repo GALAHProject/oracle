@@ -1,14 +1,15 @@
-# coding: utf-8
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 """ General utilities for parsing Castelli-Kurucz model atmospheres. """
 
 from __future__ import division, absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
-__all__ = ["parse_filename", "parse_photospheric_structure"]
 
 import gzip
 import numpy as np
+
 
 def parse_filename(filename, full_output=False):
     """

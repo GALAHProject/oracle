@@ -1,14 +1,19 @@
-# coding: utf-8
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 """ Interpolate model atmospheres (MARCS only, at this stage) """
 
 from __future__ import division, absolute_import, print_function
 
+__author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+
+# Standard library.
 import cPickle as pickle
-import numpy as np
-import scipy.interpolate
 from pkg_resources import resource_stream
 
+# Third-party.
+import numpy as np
+import scipy.interpolate
 
 
 class Interpolator(object):

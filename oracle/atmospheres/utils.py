@@ -1,11 +1,11 @@
-# coding: utf-8
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 """ Atmosphere utilities """
 
 from __future__ import division, absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
-__all__ = ["estimate_microturbulence"]
 
 
 def estimate_microturbulence(effective_temperature, surface_gravity):
