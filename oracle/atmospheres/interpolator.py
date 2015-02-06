@@ -8,42 +8,62 @@ from __future__ import division, absolute_import, print_function
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 # Standard library.
+import os
+import logging
 import cPickle as pickle
 from pkg_resources import resource_stream
 
 # Third-party.
+import astropy.table
 import numpy as np
 import scipy.interpolate
 
+# Create logger.
+logger = logging.getLogger(__name__)
 
+# Ignore divide by warnings.
+np.seterr(divide="ignore", invalid="ignore")
+
+# These are just basenames; the path is found from the resource stream, or can
+# be provided by the user.
+_built_in_atmospheres = {
+    "MARCS": "marcs-2011-standard.pickle",
+    "Castelli/Kurucz": "castelli-kurucz-2004.pickle"
+}
 class Interpolator(object):
-    """
-    A MARCS model interpolator class. This interpolation routine finds the
-    nearest opposing neighbours in all dimensions, rescales all photospheric
-    quantities onto a common opacity scale (tau(5000)) using a spline function,
-    then interpolates the photospheric quantities using the scaling constants
-    calculated by Thomas Masseron (Masseron, 2006).
-    """
-
-    _coefficients = {
-        "T": [0.15, 0.3, "1-(teff/4000)**2"],
-        "logPe": [0.15, 0.06, "1-(teff/3500)**2.5"],
-        "logPg": [-0.4, 0.06, "1-(teff/4100)**4"],
-    }
-
-    def __init__(self, pickled_atmospheres=None):
+    
+    def __init__(self, atmospheres="Castelli/Kurucz"):
         """
-        Loads the pickled atmospheres.
+        Create a class to interpolate photospheric quantities.
+
+        :param atmospheres: [optional]
+            The kind of atmospheres to interpolate. By default MARCS (2011)
+            spherical and plane-parallel models are used. The available models
+            are: %s
+
+            However, you can also provide a filename as `atmospheres` which 
+            should include a properly-pickled set of model atmospheres.
+
+        :type atmospheres:
+            str
         """
 
-        if pickled_atmospheres is None:
-            with resource_stream(__name__, "marcs-2011-standard.pickle") as fp:
-                stellar_parameters, photospheres, photosphere_cols, comment \
-                    = pickle.load(fp)
+        if atmospheres not in _built_in_atmospheres \
+        and not os.path.exists(atmospheres):
+            raise ValueError("'{0}' atmospheres were not recognised and it does"
+                " not point to a valid file path. Built-in atmospheres availabl"
+                "e are: {1}"\
+                .format(atmospheres, ", ".join(_built_in_atmospheres)))
+
+        if atmospheres in _built_in_atmospheres:
+            basename = _built_in_atmospheres[atmospheres]
+            with resource_stream(__name__, basename) as fp:
+                _ = pickle.load(fp)
         else:
-            with open(pickled_atmospheres, "rb") as fp:
-                stellar_parameters, photospheres, photosphere_cols, comment \
-                    = pickle.load(fp)
+            with open(atmospheres, "rb") as fp:
+                _ = pickle.load(fp)
+
+        stellar_parameters, photospheres, photospheric_quantities, meta = _
 
         # Look for duplicate stellar parameter rows
         array_view = stellar_parameters.view(float).reshape(
@@ -58,25 +78,44 @@ class Interpolator(object):
 
         self.stellar_parameters = stellar_parameters
         self.photospheres = photospheres
-        self.photosphere_cols = photosphere_cols
-        self.comment = comment
+        self.photospheric_quantities = photospheric_quantities
+        self.meta = meta
+
+        # Set the common opacity scale to interpolate on.
+        self.opacity_scale = self.photospheric_quantities[0]
+        self.logarithmic_photosphere_quantities = ("Pe", "Pg")
+        
+        self._scaling_relations = {
+            "T": [0.15, 0.3, "1-(teff/4000)**2"],
+            "logPe": [0.15, 0.06, "1-(teff/3500)**2.5"],
+            "logPg": [-0.4, 0.06, "1-(teff/4100)**4"],
+        }
+        # TODO
+        self._scaling_relations = None
 
         # Create unique copies of stellar parameters for faster access
         names = stellar_parameters.dtype.names
         self._stellar_parameters = dict(zip(names,
             [np.unique(stellar_parameters[name]) for name in names]))
 
+    # Update the docstring for __init__
+    __init__.__doc__ %= _built_in_atmospheres
 
-    def neighbours(self, effective_temperature, surface_gravity, metallicity):
-        """
-        Return the indices of the neighbouring model points.
-        """
 
-        names = ("effective_temperature", "surface_gravity", "metallicity")
-        values = (effective_temperature, surface_gravity, metallicity)
+    def neighbours(self, *point):
+        """ Return the indices of the neighbouring model points. """
+
+        names = self.stellar_parameters.dtype.names
+        if len(names) > 3:
+            # TODO this is hacky and not finished.
+            # fourth dimension is alpha.
+            if point[-1] not in self.stellar_parameters[names[-1]]:
+                raise ValueError("alpha value not allowed, sorry")
+            names = names[:3]
+
         nearest_upper_index = np.array([
-            self._stellar_parameters[name].searchsorted(value) \
-            for name, value in zip(names, values)])
+            self._stellar_parameters[name].searchsorted(p) \
+            for name, p in zip(names, point)])
         nearest_lower_index = np.array(nearest_upper_index) - 1
 
         nearest_upper_point = [self._stellar_parameters[name][i] \
@@ -90,14 +129,15 @@ class Interpolator(object):
             indices *= (self.stellar_parameters[name] >= lower) \
                 * (self.stellar_parameters[name] <= upper)
 
-        num = indices.sum()
-        if 8 > num:
-            raise ValueError("not enough neighbouring points (8 > {}) to "
-                "perform interpolation".format(num))
+        need, have = 2**len(names), indices.sum()
+        if have > need:
+            # Just select based on exact alpha
+            indices *= self.stellar_parameters["alpha_enhancement"] == point[-1]
 
-        elif num > 8:
-            raise IndexError("too many neighbouring points ({} > 8) found"
-                .format(num))
+        have = indices.sum()
+        if need > have:
+            raise ValueError("not enough neighbouring points ({0} > {1}) to do "
+                "the interpolation".format(need, have))
 
         return indices
 
@@ -107,48 +147,55 @@ class Interpolator(object):
         return self.interpolate(*args, **kwargs)
 
 
-    def interpolate(self, effective_temperature, surface_gravity, metallicity,
-        opacity_scale="logTau5000"):
-        """
+    def interpolate(self, *point):
+        """ 
         Return the interpolated photospheric quantities on a common opacity
         scale.
         """
 
-        opacity_index = self.photosphere_cols.index(opacity_scale)
+        # Check the point value.
+        if len(point) == 3 and self.meta.get("kind", None) == "castelli/kurucz":
+            logger.debug("Assuming [alpha/Fe] = 0 for model interpolation.")
+            point = [] + list(point) + [0]
 
+        opacity_index = self.photospheric_quantities.index(self.opacity_scale)
         try:
-            indices = self.neighbours(effective_temperature, surface_gravity,
-                metallicity)
-
+            indices = self.neighbours(*point)
         except (ValueError, IndexError):
-            raise ValueError("cannot interpolate model atmosphere because grid"
-                " is mal-formed")
+            raise
+            raise ValueError("cannot interpolate model photosphere because the "
+                "grid is mal-formed")
 
-        # Resample the opacities to a common scale on tau_5000 Angstroms
+        # Resample the opacities to a common opacity scale
         photospheres = self.photospheres[indices].copy()
         opacities = common_opacity_scale(photospheres, opacity_index)
 
         # Put the stellar parameters on a unit cube scale
-        stellar_parameters = self.stellar_parameters[indices]\
-            .view(float).reshape(-1, 3)
+        if len(point) != len(self.stellar_parameters.dtype.names):
+            raise ValueError("missing parameters: expected {0} got {1}".format(
+                len(self.stellar_parameters.dtype.names), len(point)))
+
+        stellar_parameters = \
+            self.stellar_parameters[indices].view(float).reshape(-1, len(point))
 
         normed_subgrid = stellar_parameters - np.min(stellar_parameters, axis=0)
-        p = np.array([effective_temperature, surface_gravity, metallicity]) \
-            - np.min(stellar_parameters, axis=0)
+        p = np.array(point) - np.min(stellar_parameters, axis=0)
         p /= np.max(normed_subgrid, axis=0)
         normed_subgrid /= np.max(normed_subgrid, axis=0)
 
-        # Re-scale Pe and Pg to be logarithmic quantities?
-        columns = [] + list(self.photosphere_cols)
+        # Remove nans
+        p_columns = np.all(np.isfinite(normed_subgrid), axis=0)
+        p = p[p_columns]
+        normed_subgrid = normed_subgrid[:, p_columns]
+
+        # Re-scale any logarithmic quantities?
+        columns = [] + list(self.photospheric_quantities)
         unlog_quantities = []
-        logarithmic_quantities = ("Pe", "Pg")
-        for quantity in logarithmic_quantities:
+        for quantity in self.logarithmic_photosphere_quantities:
             try:
                 index = columns.index(quantity)
-
             except ValueError:
                 continue
-
             else:
                 photospheres[:, :,  index] = np.log10(photospheres[:, :, index])
                 columns[index] = "log{}".format(quantity)
@@ -157,7 +204,7 @@ class Interpolator(object):
         # Scale the radius?
         # [TODO]
 
-        # Re-sample the photospheres onto a common opacity scale
+        # Re-sample the photospheres onto the common opacity scale
         resampled_photospheres = np.zeros(photospheres.shape)
         for i, photosphere in enumerate(photospheres):
             resampled_photospheres[i] = \
@@ -168,35 +215,45 @@ class Interpolator(object):
         interpolated_photosphere = np.zeros(self.photospheres.shape[1:])
         interpolated_photosphere[:, opacity_index] = opacities
 
-        for j, quantity in enumerate(self.photosphere_cols):
+        for j, quantity in enumerate(self.photospheric_quantities):
             if j == opacity_index: continue
 
             # Scale using Masseron coefficients (where applicable)
-            coefficients = _eval(self._coefficients.get(quantity, np.zeros(3)),
-                {
-                    "teff": effective_temperature,
-                    "logg": surface_gravity,
-                    "z": metallicity
-                })
-            scaled_range = np.abs(np.max(stellar_parameters, axis=0) \
-                - np.min(stellar_parameters, axis=0)) / np.array([3200, 5, 4])
-            scales = 1 - coefficients * scaled_range
-            point = p.copy()**scales
+            if self._scaling_relations is not None:
+                raise NotImplementedError
+                coefficients = \
+                    _eval(self._scaling_relations.get(quantity, 
+                        np.zeros(len(point))), {
+                        "teff": effective_temperature,
+                        "logg": surface_gravity,
+                        "z": metallicity
+                    })
+                scaled_range = np.abs(np.max(stellar_parameters, axis=0) \
+                    - np.min(stellar_parameters, axis=0)) \
+                    / np.array([3200, 5, 4])
+                scales = 1 - coefficients * scaled_range
+                p_scaled = p.copy()**scales
+
+            p_scaled = p.copy()
 
             # Interpolate the quantities
             interpolated_photosphere[:, j] = scipy.interpolate.griddata(
                 normed_subgrid, resampled_photospheres[:, :, j],
-                point.reshape(1, 3)).flatten()
+                p_scaled.reshape(1, len(p_scaled))).flatten()
 
         # Rescale any logarithmic quantities
         for quantity, index in unlog_quantities:
             interpolated_photosphere[:, index] = \
                 10**interpolated_photosphere[:, index]
 
-        return np.core.records.fromarrays(interpolated_photosphere.T,
-            names=self.photosphere_cols)
-
-
+        # Create a table including useful metadata (e.g., atmosphere kind, and
+        # what depth the atmospheres were scaled on)
+        meta = self.meta.copy()
+        meta["common_optical_depth"] = self.opacity_scale
+        meta["stellar_parameters"] = \
+            dict(zip(self.stellar_parameters.dtype.names, point))
+        return astropy.table.Table(data=interpolated_photosphere,
+            names=self.photospheric_quantities, meta=meta)
 
 
 def resample_photosphere(opacities, photosphere, opacity_index):
@@ -206,7 +263,7 @@ def resample_photosphere(opacities, photosphere, opacity_index):
     n_quantities = photosphere.shape[1]
     for i in range(n_quantities):
         if i == opacity_index: continue
-        # Create spline function
+        # Create spline function.
         tck = scipy.interpolate.splrep(photosphere[:, opacity_index],
             photosphere[:, i])
 
@@ -216,7 +273,6 @@ def resample_photosphere(opacities, photosphere, opacity_index):
     # Update photosphere with new opacities
     resampled_photosphere[:, opacity_index] = opacities
     return resampled_photosphere
-
 
 
 def common_opacity_scale(photospheres, opacity_index):
@@ -250,7 +306,6 @@ def _eval_single(scale, env):
 
 def _eval(scales, env):
     return np.array([_eval_single(scale, env) for scale in scales])
-
 
 
 if __name__ == "__main__":

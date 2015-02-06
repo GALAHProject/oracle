@@ -1,8 +1,8 @@
 
       function abundances(mh_, vturb_,
      .   photospheric_structure_, photospheric_abundances,
-     .   transitions_, debug_, output, ntau_, ncols_, natoms_,
-     .   nlines_)
+     .   transitions_, modtype_, debug_, output, ntau_, 
+     .   ncols_, natoms_, nlines_)
 
       implicit real*8 (a-h,o-z)
       real*8, intent(in) :: mh_, vturb_
@@ -11,6 +11,7 @@
       real*8, dimension(natoms_, 2), intent(in) ::
      .   photospheric_abundances
       real*8, dimension(nlines_, 7), intent(in) :: transitions_
+      character*10, intent(in) :: modtype_
       integer, optional :: debug_
 
       real*8, dimension(nlines_), intent(out) :: output
@@ -33,6 +34,9 @@ c      real*8, dimension(1, 7) :: strong_transitions_
       include 'Linex.com'
       include 'Mol.com'
       include 'Pstuff.com'
+
+      modtype = modtype_
+
 
 c      print *, "teff_ etc", teff_, logg_, mh_, vturb_
 c      print *, "photospheric_struct", photospheric_structure_
@@ -72,7 +76,6 @@ c      print *, "input vturb", vturb_, vturb_absolute
 
 c     These should not change...
       ntau = ntau_
-      modtype = 'WEBMARCS'
       moditle = 'atmosphere comment'
       natoms = natoms_
       abscale = mh_

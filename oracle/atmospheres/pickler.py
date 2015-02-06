@@ -19,14 +19,18 @@ import marcs
 import castelli_kurucz
 
 
-def pickle_atmospheres(atmosphere_filenames, kind, comment=None):
+def pickle_atmospheres(atmosphere_filenames, kind, meta=None):
     """
     Load all model atmospheres, parse the points and photospheric structures.
     """
 
-    if comment is None:
-        comment = "Atmospheres from folder {}".format(
-            os.path.dirname(atmosphere_filenames[0]))
+    if meta is None:
+        meta = {
+            "kind": kind,
+            "source_directory": os.path.dirname(atmosphere_filenames[0])
+        }
+    elif not isinstance(meta, dict):
+        raise TypeError("meta must be a dictionary or None")
 
     # Get the names from the first filename
     parsers = {
@@ -45,6 +49,16 @@ def pickle_atmospheres(atmosphere_filenames, kind, comment=None):
     parameters = np.core.records.fromrecords(
         map(parser.parse_filename, atmosphere_filenames), names=parameter_names)
 
+    # Verify there are no duplicates.
+    array_view = parameters.view(float).reshape(parameters.size, -1)
+    _ = np.ascontiguousarray(array_view).view(np.dtype((np.void,
+        array_view.dtype.itemsize * array_view.shape[1])))
+    _, idx = np.unique(_, return_index=True)
+    
+    if idx.size != parameters.size:
+        raise ValueError("{} duplicate stellar parameters found".format(
+            parameters.size - idx.size))
+
     # Now sort the array by the left most columns. Keep track of the indices
     # because we will load the photospheres in this order.
     i = np.argsort(parameters, order=parameter_names)
@@ -55,7 +69,7 @@ def pickle_atmospheres(atmosphere_filenames, kind, comment=None):
     d = np.array([parser.parse_photospheric_structure(atmosphere_filenames[_]) \
         for _ in i])
 
-    return (parameters, d, photosphere_columns, comment)
+    return (parameters, d, photosphere_columns, meta)
 
 
 

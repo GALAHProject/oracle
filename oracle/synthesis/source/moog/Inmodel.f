@@ -46,15 +46,27 @@ c      endif
       wavref = 5000.0
 
 c      print *, "WERRRRRRR"
-      do i=1,ntau
-c         k = photospheric_structure(i, 1)
-c         dummy1(i) = photospheric_structure(i, 2)
-         tauref(i) = photospheric_structure(i, 1)
-         dummy2(i) = photospheric_structure(i, 2)
-         t(i) = photospheric_structure(i, 3)
-         ne(i) = photospheric_structure(i, 4)
-         pgas(i) = photospheric_structure(i, 5)
-      enddo
+      if (modtype .eq. 'WEBMARCS') then
+
+         do i=1,ntau
+            tauref(i) = photospheric_structure(i, 1)
+            t(i) = photospheric_structure(i, 2)
+            ne(i) = photospheric_structure(i, 3)
+            pgas(i) = photospheric_structure(i, 4)
+         enddo
+
+      elseif (modtype .eq. 'KURUCZ') then
+
+         do i=1,ntau
+            rhox(i) = photospheric_structure(i, 1)
+            t(i) = photospheric_structure(i, 2)
+            pgas(i) = photospheric_structure(i, 3)
+            ne(i) = photospheric_structure(i, 4)
+            kaprefmass(i) = photospheric_structure(i, 5)
+         enddo
+      endif
+c            rhox(i),t(i),pgas(i),ne(i),kaprefmass(i)
+
 
 c      print *, "t(:ntau)", t(:ntau)
 c         do i=1,ntau

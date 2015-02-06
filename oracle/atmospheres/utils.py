@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Atmosphere utilities """
+""" Atmosphere utilities. """
 
 from __future__ import division, absolute_import, print_function
 

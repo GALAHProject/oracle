@@ -63,7 +63,7 @@ setup(name="oracle",
     #scripts=["oracle/"],
     include_package_data=True,
     package_data={
-        "oracle.atmospheres": ["marcs-2011-standard.pickle"],
+        "oracle.atmospheres": ["marcs-2011-standard.pickle", "castelli-kurucz-2004.pickle"],
         "oracle.models": ["galah-ambre-grid.pickle"]
     }
     #package_data={"": [""]}
