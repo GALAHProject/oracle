@@ -4,7 +4,7 @@
 
 from __future__ import absolute_import, print_function
 
-__all__ = ["abundances", "synthesise", "_synthesise"]
+__all__ = ["atomic_abundances", "synthesise"]
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import numpy as np
@@ -62,129 +62,142 @@ def _format_abundances(abundances=None):
     return formatted_abundances
 
 
-def _format_photosphere(photosphere):
+def _format_photosphere(photosphere_information, photosphere_kwargs,
+    interpolator=None):
+    """
+    Prepare the input photospheric information for MOOG.
+    """
 
-    # Translate the human-readable model photosphere into MOOG-speak.
-    moog_modtype = {
+    #photosphere_information can be a photosphere or a set of stellar parameters
+    if not isinstance(photosphere_information, (Table, tuple, list, np.ndarray))\
+    or (isinstance(photosphere_information, (tuple, list, np.ndarray)) \
+        and len(photosphere_information) != 3):
+        raise TypeError("photosphere_information must be an interpolated "
+            "photosphere in astropy.table.Table format, or a 3-length list "
+            "containing the effective temperature, surface gravity, and "
+            "metallicity")
+
+        # We need to interpolate a photosphere.
+        if interpolator is not None:
+            if photosphere_kwargs is None:
+                photosphere_kwargs = {}
+            interpolator = oracle.atmospheres.Interpolator(**photosphere_kwargs)
+        photosphere = interpolator.interpolate(photosphere_information)
+
+    else:
+        photosphere = photosphere_information
+
+    metallicity = photosphere.meta["stellar_parameters"]["metallicity"]
+    modtype = {
         "marcs": "WEBMARCS",
         "castelli/kurucz": "KURUCZ"
     }[photosphere.meta["kind"]]
 
     d = photosphere if hasattr(photosphere, "view") else photosphere._data
-    photosphere_as_arr = np.asfortranarray(d.view(float).reshape(d.size, -1))
-    return (moog_modtype, photosphere_as_arr)
+    photosphere_arr = np.asfortranarray(d.view(float).reshape(d.size, -1))
+
+    return (modtype, photosphere_arr, metallicity)
 
 
-def _synthesise(photospheric_structure, metallicity, microturbulence,
-    transitions, wavelength_start, wavelength_end, wavelength_step=0.01,
-    opacity_contributes=1.0, photospheric_abundances=None, oversample=1,
-    debug=False):
+def synthesise(transitions, photosphere_information, wavelength_region,
+    wavelength_step=0.01, microturbulence=None, opacity_contribution=1.0,
+    photospheric_abundances=None, photosphere_kwargs=None, **kwargs):
     """
-    Synthesise a spectrum given some photospheric structure, metallicity,
-    microturbulence, and array of transitions.
+    Calculate a synthetic spectrum using the given transitions and photosphere.
+
+    :param transitions:
+        A table containing atomic and molecular data for all transitions.
+
+    :type transitions:
+        :class:`astropy.table.Table`
+
+    :param photosphere_information:
+        This can be a model photosphere or a set of stellar parameters. If a set
+        of stellar parameters (Teff, logg, [M/H]) is provided, then a model
+        photosphere will be created and supplementary atmosphere information can
+        be provided with the `photosphere_kwargs` argument.
+
+    :type photosphere_information:
+        :class:`astropy.table.Table` (model photosphere) or list of float
+
+    :param wavelength_region:
+        The start and end wavelength to perform the synthesis in. These values
+        are expected to be in Angstroms.
+
+    :type wavelength_region:
+        2-length tuple of floats
+
+    :microturbulence: [optional, sometimes]
+        The microturbulence for the model atmosphere, in km/s. Microturbulence
+        is a required parameter for 1D models, but is not required for <3D>
+        models.
+
+    :type microturbulence:
+        float
+
+    :param wavelength_step: [optional]
+        The spacing between synthesis points in Angstroms. Defaults to 0.01 A.
+
+    :type wavelength_step:
+        float
+
+    :param opacity_contribution: [optional]
+        The maximum distance (in Angstroms) to where each transition contributes
+        to the opacity. This defaults to 1 Angstroms.
+
+    :type opacity_contribution:
+        float
+
+    :param photospheric_abundances: [optional]
+        Abundances of chemical elements in the photosphere.
+
+    :type photospheric_abundances:
+        :class:`np.array` (TODO update to astropy table)
+
+    :param photosphere_kwargs: [optional]
+        Arguments to supply to the :class:`oracle.atmospheres.Interpolator`
+        class, if the `photosphere_information` is a 3-length list of stellar
+        parameters. This is ignored if the `photosphere_information` is a
+        pre-interpolated model photosphere.
+
+    :type photosphere_kwargs:
+        dict
     """
 
-    # If no transitions are provided, just return a normalised continuum
-    if transitions is None or len(transitions) == 0:
-        wls = np.arange(wavelength_start, wavelength_end + wavelength_step,
-            wavelength_step)
-        return (wls, np.ones(wls.size))
+    debug = kwargs.pop("debug", False)
+    modtype, photosphere_arr, metallicity = _format_photosphere(
+        photosphere_information, photosphere_kwargs,
+        interpolator=kwargs.pop("_interpolator", None))
 
-    oversample = int(oversample)
-    if 1 > oversample:
-        raise ValueError("oversampling rate must be greater than 1")
+    # <3D> models do not require microturbulence.
+    if modtype == "STAGGER":
+        if microturbulence is not None:
+            logger.debug("Ignoring microturbulence ({0:.2f}) for {1} models"\
+                .format(microturbulence, modtype))
+            microturbulence = 0.
+    elif microturbulence is None:
+        raise ValueError("microturbulence is required for 1D models")
 
-    # Format the arrays as necessary
-    photospheric_structure = np.asfortranarray(photospheric_structure
-        .view(float).reshape(photospheric_structure.size, -1))
-    photospheric_abundances = _format_abundances(photospheric_abundances)
     transitions = _format_transitions(transitions)
 
-    # Prepare synthesis limits
-    delta = wavelength_step/oversample
-    syn_limits = np.asfortranarray([wavelength_start, wavelength_end, delta])
-    npoints = (wavelength_end - wavelength_start)/delta + 1
-
-    code, wavelengths, fluxes = moog.synthesise(
-        metallicity, microturbulence, photospheric_structure,
-        photospheric_abundances, transitions, syn_limits, opacity_contributes,
-        npoints_=npoints, debug_=debug)
-
-    return (wavelengths, fluxes)
-
-
-def synthesise(effective_temperature, surface_gravity, metallicity,
-    microturbulence, transitions, wavelength_start, wavelength_end,
-    wavelength_step=0.01, opacity_contributes=1.0, photospheric_abundances=None,
-    oversample=1, atmosphere_kwargs=None, debug=False):
-
-    if atmosphere_kwargs is None:
-        atmosphere_kwargs = {}
-
-    oversample = int(oversample)
-    if 1 > oversample:
-        raise ValueError("oversampling rate must be greater than 1")
-
-    # Interpolate the photospheric structure
-    interpolator = oracle.atmospheres.Interpolator(**atmosphere_kwargs)
-    photospheric_structure = interpolator.interpolate(effective_temperature,
-        surface_gravity, metallicity)
-
-    # Format the arrays as necessary
-    photospheric_structure = np.asfortranarray(photospheric_structure
-        .view(float).reshape(photospheric_structure.size, -1))
+    # Prepare the abundance information
     photospheric_abundances = _format_abundances(photospheric_abundances)
-    transitions = _format_transitions(transitions)
 
-    # Prepare synthesis limits
-    delta = wavelength_step/oversample
-    syn_limits = np.asfortranarray([wavelength_start, wavelength_end, delta])
-    npoints = (wavelength_end - wavelength_start)/delta + 1
+    if 0 > wavelength_step:
+        raise ValueError("wavelength step must be a positive value")
 
+    synthesis_region = np.asfortranarray(
+        [] + list(sorted(wavelength_region)) + [wavelength_step])
+
+    pixels = (synthesis_region[1] - synthesis_region[0])/synthesis_region[2] + 1
     code, wavelengths, fluxes = moog.synthesise(metallicity, microturbulence,
-        photospheric_structure, photospheric_abundances, transitions, syn_limits,
-        opacity_contributes, npoints_=npoints, debug_=debug)
-
+        photosphere_arr, photospheric_abundances, transitions, synthesis_region,
+        opacity_contribution, npoints_=pixels, modtype_=modtype, debug_=debug)
     return (wavelengths, fluxes)
-
-
-def abundances(effective_temperature, surface_gravity, metallicity,
-    microturbulence, transitions, photospheric_abundances=None,
-    atmosphere_kwargs=None, debug=False):
-
-    if 0 >= effective_temperature:
-        raise ValueError("effective temperature must be a positive quantity")
-
-    if 0 > microturbulence:
-        raise ValueError("microturbulence must be a positive quantity")
-
-    # Transitions should be an array of minimum size, or a record array to
-    # indicate what is what
-
-    if atmosphere_kwargs is None:
-        atmosphere_kwargs = {}
-
-    # Interpolate the photospheric structure
-    interpolator = oracle.atmospheres.Interpolator(**atmosphere_kwargs)
-    photospheric_structure = interpolator.interpolate(effective_temperature,
-        surface_gravity, metallicity)
-
-    # Format the arrays as necessary
-    photospheric_structure = np.asfortranarray(photospheric_structure
-        .view(float).reshape(photospheric_structure.size, -1))
-    photospheric_abundances = _format_abundances(photospheric_abundances)
-    transitions = _format_transitions(transitions)
-
-    code, output = moog.abundances(metallicity, microturbulence,
-        photospheric_structure, photospheric_abundances, transitions,
-        debug_=debug)
-
-    return output
-
 
 
 def atomic_abundances(transitions, photosphere_information, microturbulence=None,
-    photospheric_abundances=None, atmosphere_kwargs=None, **kwargs):
+    photospheric_abundances=None, photosphere_kwargs=None, **kwargs):
     """
     Calculate atomic abundances from measured equivalent widths.
 
@@ -198,7 +211,7 @@ def atomic_abundances(transitions, photosphere_information, microturbulence=None
         This can be a model photosphere or a set of stellar parameters. If a set
         of stellar parameters (Teff, logg, [M/H]) is provided, then a model
         photosphere will be created and supplementary atmosphere information can
-        be provided with the `atmosphere_kwargs` argument.
+        be provided with the `photosphere_kwargs` argument.
 
     :type photosphere_information:
         :class:`astropy.table.Table` (model photosphere) or list of float
@@ -217,41 +230,20 @@ def atomic_abundances(transitions, photosphere_information, microturbulence=None
     :type photospheric_abundances:
         :class:`np.array` (TODO update to astropy table)
 
-    :param atmosphere_kwargs: [optional]
+    :param photosphere_kwargs: [optional]
         Arguments to supply to the :class:`oracle.atmospheres.Interpolator`
         class, if the `photosphere_information` is a 3-length list of stellar
         parameters. This is ignored if the `photosphere_information` is a
         pre-interpolated model photosphere.
 
-    :type atmosphere_kwargs:
+    :type photosphere_kwargs:
         dict
     """
 
     debug = kwargs.pop("debug", False)
-
-    # photosphere_information can be a photosphere or a set of stellar parameters
-    if not isinstance(photosphere_information, (Table, tuple, list, np.ndarray))\
-    or (isinstance(photosphere_information, (tuple, list, np.ndarray)) \
-        and len(photosphere_information) != 3):
-        raise TypeError("photosphere_information must be an interpolated "
-            "photosphere in astropy.table.Table format, or a 3-length list "
-            "containing the effective temperature, surface gravity, and "
-            "metallicity")
-
-        # We need to interpolate a photosphere.
-        if atmosphere_kwargs is None:
-            atmosphere_kwargs = {}
-
-        # Pro-Tip: You can provide your own atmosphere interpolator with the
-        #          _interpolator keyword argument.
-        interpolator = kwargs.pop("_interpolator",
-            oracle.atmospheres.Interpolator(**atmosphere_kwargs))
-        photosphere = interpolator.interpolate(photosphere_information)
-        
-    else:
-        photosphere = photosphere_information
-
-    modtype, photosphere_arr = _format_photosphere(photosphere)
+    modtype, photosphere_arr, metallicity = _format_photosphere(
+        photosphere_information, photosphere_kwargs,
+        interpolator=kwargs.pop("_interpolator", None))
 
     # <3D> models do not require microturbulence.
     if modtype == "STAGGER":
@@ -267,7 +259,6 @@ def atomic_abundances(transitions, photosphere_information, microturbulence=None
     
     # Prepare the abundance information
     photospheric_abundances = _format_abundances(photospheric_abundances)
-    metallicity = photosphere.meta["stellar_parameters"]["metallicity"]
 
     # Calculate abundances.
     code, output = moog.abundances(metallicity, microturbulence, photosphere_arr,
