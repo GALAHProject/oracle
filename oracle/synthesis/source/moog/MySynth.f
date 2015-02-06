@@ -2,7 +2,8 @@
       function synthesise(mh_, vturb_,
      .   photospheric_structure_, photospheric_abundances,
      .   transitions_, synlimits_, opacity_contribute_, 
-     .   npoints_, debug_, ntau_, ncols_, natoms_,
+     .   npoints_, modtype_,
+     .   debug_, ntau_, ncols_, natoms_,
      .   nlines_, wavelengths, fluxes)
 
       implicit real*8 (a-h,o-z)
@@ -14,6 +15,7 @@
       real*8, dimension(natoms_, 2), intent(in) ::
      .   photospheric_abundances
       real*8, dimension(nlines_, 7), intent(in) :: transitions_
+      integer :: modtype_
       integer :: npoints_
       integer, optional :: debug_
       real*8, dimension(npoints_), intent(out) :: wavelengths
@@ -35,6 +37,16 @@ c******************************************************************************
 cc      i = nint((synlimits_(2) - synlimits_(1))/synlimits_(3) + 1)
 c      print *, "SETTING AS ",i
 c      allocate (output(2001))
+
+      if (modtype_ .eq. 0) then
+c        MARCS      
+         modtype = "WEBMARCS  "
+      elseif (modtype_ .eq. 1) then
+c        WEBMARCS      
+         modtype = "KURUCZ    "
+      else
+         print *, "ERR WTF ARE YOU DOING"
+      endif
 
       if (opacity_contribute_ .lt. 1.0) then
          delta = 1.0
@@ -83,7 +95,6 @@ c      print *, "input vturb", vturb_, vturb_absolute
 
 c     These should not change...
       ntau = ntau_
-      modtype = 'WEBMARCS'
       moditle = 'atmosphere comment'
       natoms = natoms_
       abscale = mh_
