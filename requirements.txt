@@ -1,6 +1,9 @@
 numpy>=1.8
 scipy
 matplotlib>=1.0.1
-pyfits
+astropy
 pyyaml
 emcee>=1.1.0
+
+# These will be deprecated soon:
+pyfits
