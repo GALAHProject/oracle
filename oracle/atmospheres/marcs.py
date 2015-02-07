@@ -1,14 +1,41 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" General utilities for parsing MARCS model atmospheres. """
+""" Functions for dealing with MARCS model atmospheres. """
 
 from __future__ import division, absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
+# Standard library.
 import gzip
+import logging
+
+# Third party.
 import numpy as np
+
+# Module-specific.
+from .interpolator import Interpolator
+
+# Create logger.
+logger = logging.getLogger(__name__)
+
+class MARCSInterpolator(Interpolator):
+
+    def __init__(self):
+        return super(self.__class__, self).__init__("marcs-2011-standard.pkl")
+
+    def neighbours(self, *point):
+        """
+        Return the indices of the neighbouring model points.
+
+        This function will switch between spherical and plane-parallel
+        photospheres depending on which photospheres are more available, given
+        the stellar parameters required.
+        """
+
+        raise NotImplementedError
+
 
 def parse_filename(filename, full_output=False):
     """

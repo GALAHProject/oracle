@@ -1,14 +1,52 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" General utilities for parsing Castelli-Kurucz model atmospheres. """
+""" Functions for dealing with Castelli-Kurucz model atmospheres. """
 
 from __future__ import division, absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
+# Standard library.
 import gzip
+import logging
+
+# Third party.
 import numpy as np
+
+# Module-specific.
+from .interpolator import Interpolator
+
+# Create logger.
+logger = logging.getLogger(__name__)
+
+class CastelliKuruczInterpolator(Interpolator):
+
+    def __init__(self):
+        return super(self.__class__, self).__init__("castelli-kurucz-2004.pkl")
+
+
+    def interpolate(self, *point):
+        """ 
+        Return the interpolated photospheric quantities on a common opacity
+        scale.
+        """
+
+        # Assume zero alpha enhancement if not given.
+        if len(point) == 3:
+            point = [] + list(point) + [0]
+            logger.debug("Assuming [alpha/Fe] = 0 for model interpolation.")
+        return super(self.__class__, self).interpolate(*point)
+
+
+    def neighbours(self, *point):
+        assert len(point) == 4, "Insufficient parameters."
+        if point[3] not in self.stellar_parameters["alpha_enhancement"]:
+            raise ValueError("alpha value not allowed, sorry")
+
+        indices = super(self.__class__, self).neighbours(*point[:3]) \
+            * (self.stellar_parameters["alpha_enhancement"] == point[3])
+        return indices
 
 
 def parse_filename(filename, full_output=False):
@@ -50,3 +88,6 @@ def parse_photospheric_structure(filename, ndepth=None, line=23,
             "VCONV", "VELSND")
         return (data, names)
     return data
+
+
+

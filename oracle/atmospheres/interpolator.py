@@ -24,44 +24,29 @@ logger = logging.getLogger(__name__)
 # Ignore divide by warnings.
 np.seterr(divide="ignore", invalid="ignore")
 
-# These are just basenames; the path is found from the resource stream, or can
-# be provided by the user.
-_built_in_atmospheres = {
-    "MARCS": "marcs-2011-standard.pickle",
-    "Castelli/Kurucz": "castelli-kurucz-2004.pickle"
-}
 class Interpolator(object):
     
-    def __init__(self, atmospheres="Castelli/Kurucz"):
+    def __init__(self, pickled_atmospheres):
         """
         Create a class to interpolate photospheric quantities.
 
-        :param atmospheres: [optional]
-            The kind of atmospheres to interpolate. By default MARCS (2011)
-            spherical and plane-parallel models are used. The available models
-            are: %s
+        :param pickled_atmospheres: [optional]
+            The kind of atmospheres to interpolate. 
 
-            However, you can also provide a filename as `atmospheres` which 
-            should include a properly-pickled set of model atmospheres.
-
-        :type atmospheres:
+        :type pickled_atmospheres:
             str
         """
 
-        if atmospheres not in _built_in_atmospheres \
-        and not os.path.exists(atmospheres):
-            raise ValueError("'{0}' atmospheres were not recognised and it does"
-                " not point to a valid file path. Built-in atmospheres availabl"
-                "e are: {1}"\
-                .format(atmospheres, ", ".join(_built_in_atmospheres)))
+        if not os.path.exists(pickled_atmospheres):
+            try:
+                with resource_stream(__name__, pickled_atmospheres) as fp:
+                    _ = pickle.load(fp)
+            except:
+                raise ValueError("atmosphere filename '{}' does not exist"\
+                    .format(pickled_atmospheres))
 
-        if atmospheres in _built_in_atmospheres:
-            basename = _built_in_atmospheres[atmospheres]
-            with resource_stream(__name__, basename) as fp:
-                _ = pickle.load(fp)
-        else:
-            with open(atmospheres, "rb") as fp:
-                _ = pickle.load(fp)
+        with open(pickled_atmospheres, "rb") as fp:
+            _ = pickle.load(fp)
 
         stellar_parameters, photospheres, photospheric_quantities, meta = _
 
@@ -98,21 +83,11 @@ class Interpolator(object):
         self._stellar_parameters = dict(zip(names,
             [np.unique(stellar_parameters[name]) for name in names]))
 
-    # Update the docstring for __init__
-    __init__.__doc__ %= _built_in_atmospheres
-
 
     def neighbours(self, *point):
         """ Return the indices of the neighbouring model points. """
 
         names = self.stellar_parameters.dtype.names
-        if len(names) > 3:
-            # TODO this is hacky and not finished.
-            # fourth dimension is alpha.
-            if point[-1] not in self.stellar_parameters[names[-1]]:
-                raise ValueError("alpha value not allowed, sorry")
-            names = names[:3]
-
         nearest_upper_index = np.array([
             self._stellar_parameters[name].searchsorted(p) \
             for name, p in zip(names, point)])
@@ -129,16 +104,10 @@ class Interpolator(object):
             indices *= (self.stellar_parameters[name] >= lower) \
                 * (self.stellar_parameters[name] <= upper)
 
-        need, have = 2**len(names), indices.sum()
-        if have > need:
-            # Just select based on exact alpha
-            indices *= self.stellar_parameters["alpha_enhancement"] == point[-1]
-
-        have = indices.sum()
+        need, have = 2**len(point), indices.sum()
         if need > have:
             raise ValueError("not enough neighbouring points ({0} > {1}) to do "
                 "the interpolation".format(need, have))
-
         return indices
 
 
@@ -152,11 +121,6 @@ class Interpolator(object):
         Return the interpolated photospheric quantities on a common opacity
         scale.
         """
-
-        # Check the point value.
-        if len(point) == 3 and self.meta.get("kind", None) == "castelli/kurucz":
-            logger.debug("Assuming [alpha/Fe] = 0 for model interpolation.")
-            point = [] + list(point) + [0]
 
         opacity_index = self.photospheric_quantities.index(self.opacity_scale)
         try:
@@ -308,6 +272,7 @@ def _eval(scales, env):
     return np.array([_eval_single(scale, env) for scale in scales])
 
 
+"""
 if __name__ == "__main__":
 
 
@@ -346,7 +311,6 @@ if __name__ == "__main__":
 
     plt.show()
     
-
-
+"""
 
 
