@@ -24,29 +24,30 @@ logger = logging.getLogger(__name__)
 # Ignore divide by warnings.
 np.seterr(divide="ignore", invalid="ignore")
 
-class Interpolator(object):
+class BaseInterpolator(object):
     
     def __init__(self, pickled_atmospheres):
         """
         Create a class to interpolate photospheric quantities.
 
-        :param pickled_atmospheres: [optional]
+        :param pickled_atmospheres:
             The kind of atmospheres to interpolate. 
 
         :type pickled_atmospheres:
             str
         """
 
-        if not os.path.exists(pickled_atmospheres):
+        if os.path.exists(pickled_atmospheres):
+            with open(pickled_atmospheres, "rb") as fp:
+                _ = pickle.load(fp)
+
+        else:
             try:
                 with resource_stream(__name__, pickled_atmospheres) as fp:
                     _ = pickle.load(fp)
             except:
                 raise ValueError("atmosphere filename '{}' does not exist"\
                     .format(pickled_atmospheres))
-
-        with open(pickled_atmospheres, "rb") as fp:
-            _ = pickle.load(fp)
 
         stellar_parameters, photospheres, photospheric_quantities, meta = _
 

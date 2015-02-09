@@ -15,12 +15,12 @@ import logging
 import numpy as np
 
 # Module-specific.
-from .interpolator import Interpolator
+from oracle.atmospheres.interpolator import BaseInterpolator
 
 # Create logger.
 logger = logging.getLogger(__name__)
 
-class CastelliKuruczInterpolator(Interpolator):
+class Interpolator(BaseInterpolator):
 
     def __init__(self):
         return super(self.__class__, self).__init__("castelli-kurucz-2004.pkl")
@@ -69,7 +69,7 @@ def parse_filename(filename, full_output=False):
 
 
 def parse_photospheric_structure(filename, ndepth=None, line=23,
-    full_output=False):
+    columns=("RHOX", "T", "P", "XNE", "ABROSS"), full_output=False):
     """
     Parse the photospheric structure (optical depths, temperatures, electron
     and gas pressures) from the filename provided.
@@ -81,12 +81,16 @@ def parse_photospheric_structure(filename, ndepth=None, line=23,
     if ndepth is None: # Read it from file if it was not given
         ndepth = int(contents[22].split()[2])
 
+    all_columns = ("RHOX", "T", "P", "XNE", "ABROSS", "ACCRAD", "VTURB",
+        "FLXCNV", "VCONV", "VELSND")
     data = np.array(map(float, 
         "".join(contents[line:line+ndepth]).split())).reshape(ndepth, -1)
+    indices = np.array([all_columns.index(c) for c in columns])
+
+    data = data[:, indices]
+
     if full_output:
-        names = ("RHOX", "T", "P", "XNE", "ABROSS", "ACCRAD", "VTURB", "FLXCNV",
-            "VCONV", "VELSND")
-        return (data, names)
+        return (data, columns)
     return data
 
 
