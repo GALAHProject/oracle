@@ -4,13 +4,18 @@
 
 from __future__ import division, absolute_import, print_function
 
+__author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+
+# Standard library.
 import os
 import re
 import subprocess
 import sys
 from glob import glob
-from numpy.distutils.core import Extension, setup
+from urllib import urlretrieve
 
+# Third-party.
+from numpy.distutils.core import Command, Extension, setup
 
 #try:
 #    from setuptools import setup
@@ -33,7 +38,7 @@ contents = readfile(os.path.join(
 
 version = version_regex.findall(contents)[0]
 
-# Extensions
+# Extensions.
 moog = Extension(name = "oracle.synthesis._mini_moog",
     sources = ["oracle/synthesis/source/moog/{}".format(each) for each in [
         'MyAbfind.f', 'Partfn.f', 'Sunder.f', 'Eqlib.f', 'Nearly.f','Discov.f',
@@ -45,7 +50,26 @@ moog = Extension(name = "oracle.synthesis._mini_moog",
         'Lineabund.f', 'Molquery.f', 'Oneline.f', 
         'Inmodel.f', 'Inlines.f', 'Batom.f', 'Bmolec.f', 'MySynth.f']])
 
-setup(name="oracle",
+# External data.
+if "--with-atmospheres" in map(str.lower, sys.argv):
+    atmosphere_paths = [
+        ("https://zenodo.org/record/14964/files/castelli-kurucz-2004.pkl",
+            "oracle/atmospheres/castelli-kurucz-2004.pkl"),
+        ("https://zenodo.org/record/14964/files/marcs-2011-standard.pkl",
+            "oracle/atmospheres/marcs-2011-standard.pkl")
+    ]
+    for url, filename in atmosphere_paths:
+        print("Downloading {0} to {1}".format(url, filename))
+        try:
+            urlretrieve(url, filename)
+        except IOError:
+            raise("Error downloading file {} -- consider trying without the "
+                "--with-atmospheres flag".format(url))
+    sys.argv.remove("--with-atmospheres")
+
+
+setup(
+    name="oracle",
     version=version,
     author="Andrew R. Casey",
     author_email="arc@ast.cam.ac.uk",
@@ -66,5 +90,4 @@ setup(name="oracle",
         "oracle.atmospheres": ["marcs-2011-standard.pkl", "castelli-kurucz-2004.pkl"],
         "oracle.models": ["galah-ambre-grid.pickle"]
     }
-    #package_data={"": [""]}
 )

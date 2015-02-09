@@ -21,7 +21,7 @@ before_install:
 
 install:
  - pip install -r requirements.txt --use-mirrors
- - python setup.py build_ext --inplace
+ - python setup.py build_ext --inplace --with-atmospheres
 
 script:
  - nosetests --with-coverage --cover-package=oracle
