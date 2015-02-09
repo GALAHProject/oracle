@@ -56,9 +56,10 @@ class Interpolator(BaseInterpolator):
         sph_or_pp = self.stellar_parameters["is_spherical?"][indices]
         if len(np.unique(sph_or_pp)) > 1:
             # Take whichever has more points.
-            counts = Counter(sph_or_pp)
-            most_common = max(set(counts), key=counts.count)
-            indices *= (self.stellar_parameters["is_spherical?"] == most_common)
+            is_spherical = Counter(sph_or_pp).most_common()[0][0]
+            logger.debug("Selecting {0} models".format(
+                ["plane-parallel", "spherical"][int(is_spherical)]))
+            indices *= (self.stellar_parameters["is_spherical?"] == is_spherical)
 
         if 2**len(point) > indices.sum():
             raise ValueError("nope")

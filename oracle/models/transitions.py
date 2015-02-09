@@ -43,6 +43,12 @@ class AtomicTransition(object):
         self.blending_transitions = np.atleast_2d(blending_transitions) \
             if blending_transitions is not None else None
 
+        if self.blending_transitions is not None:
+            assert self.blending_transitions.shape[1] < 5
+            self.blending_transitions = np.core.records.fromarrays(
+                self.blending_transitions.T, names=("wavelength", "species",
+                    "excitation_potential", "loggf"))
+
         self.excitation_potential = float_if_not_none(excitation_potential)
         self.loggf = float_if_not_none(loggf)
         self.mask = mask
@@ -384,9 +390,10 @@ class AtomicTransition(object):
             synthesise_kwargs.setdefault("wavelength_step", pixel_size)
 
             blending_spectrum = Spectrum1D(*synthesis.synthesise(
-                effective_temperature, surface_gravity, metallicity,
-                microturbulence, self.blending_transitions, region[0],
-                region[1], **synthesise_kwargs))
+                self.blending_transitions,
+                [effective_temperature, surface_gravity, metallicity],
+                wavelength_region=region, microturbulence=microturbulence,
+                **synthesise_kwargs))
         else:
             blending_spectrum = None
 

@@ -224,14 +224,15 @@ class EqualibriaModel(Model):
         ionised = (transitions_table["species"][use] % 1) > 0
         reduced_equivalent_width = np.log(transitions_table["equivalent_width"]\
             /transitions_table["wavelength"])
-        transitions = transitions_table[use].view(float).reshape(use.sum(), -1)[:, :7]
+        #transitions = transitions_table[use].view(float).reshape(use.sum(), -1)[:, :7]
 
         def state_function(x):
             print("STATE IN", x)
 
             # Calculate abundances given the stellar parameters
             try:
-                abundances = synthesis.abundances(*x, transitions=transitions)
+                abundances = synthesis.atomic_abundances(transitions_table[use],
+                    x[:3], microturbulence=x[3])
 
             except ValueError:
                 return np.array([np.nan, np.nan, np.nan, np.nan])
@@ -249,7 +250,7 @@ class EqualibriaModel(Model):
             metallicity = x[2]
             #metallicity = mh
             abundance_state = (abundances \
-                - (atmospheres.solar_abundances(transitions_table["species"][use])
+                - (atmospheres.solar_abundance(transitions_table["species"][use])
                     + metallicity)).mean()
 
             # Slope with reduced equivalent width and line abundance
@@ -367,7 +368,7 @@ class EqualibriaModel(Model):
         if initial_theta is None:
             initial_theta = {}
 
-        interpolator = kwargs.pop("interpolator", None)
+        interpolator = kwargs.pop("_interpolator", None)
         if interpolator is None:
             # Interpolate a model atmospheres
             atmosphere_kwargs = kwargs.pop("atmosphere_kwargs", {})
@@ -443,9 +444,15 @@ class EqualibriaModel(Model):
                 atomic_transition.equivalent_width
             ]
 
-        returned_abundances = synthesis.abundances(effective_temperature,
-            surface_gravity, metallicity, microturbulence,
-            transitions=atomic_transitions_arr[is_filtered])
+        fuck = np.core.records.fromarrays(atomic_transitions_arr.T,
+            names=("wavelength", "species", "excitation_potential", "loggf",
+                "van_der_waals_broadening", "damp2", "equivalent_width"))
+
+
+        returned_abundances = synthesis.atomic_abundances(fuck[is_filtered],
+            [effective_temperature, surface_gravity, metallicity],
+            microturbulence=microturbulence)
+        
 
         # Create a filler array so that filtered transitions will have an
         # abundance of 'nan'
@@ -487,7 +494,7 @@ class EqualibriaModel(Model):
 
             # Calculate the abundance state
             abundance_state = (atomic_transitions_rec["abundance"][use_lines] \
-                - (atmospheres.solar_abundances(atomic_transitions_rec["species"][use_lines])
+                - (atmospheres.solar_abundance(atomic_transitions_rec["species"][use_lines])
                     + metallicity)).mean()
 
             # Slope with reduced equivalent width and line abundance

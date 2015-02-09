@@ -58,11 +58,12 @@ c*****sum up all the opacities
      .                  aSi2(i) + aFe1(i)
          kaplamsca(i) = sigH(i) + sigH2(i) + sigHe(i) + sigel(i)
          kaplam(i)    = kaplamabs(i) + kaplamsca(i)
-c         print *, "OPACIT SUM", aH1(1), aHminus(1), aHeminus(1), 
-c     .      aC1(1), aMg1(1), aMg2(1), aAl1(1), aSi1(1), aSi2(1),
-c     .      aFe1(1), sigH(1), sigH2(1), sigHe(1), sigel(1)
 c         stop   
       enddo
+c      print *, "OPACIT SUM", aH1(1), aHminus(1), aHeminus(1), 
+c     .      aC1(1), aMg1(1), aMg2(1), aAl1(1), aSi1(1), aSi2(1),
+c     .      aFe1(1), sigH(1), sigH2(1), sigHe(1), sigel(1)
+c      print *, "MODEOP", modeop
 
       
 

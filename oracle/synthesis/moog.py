@@ -77,12 +77,13 @@ def _format_photosphere(photosphere_information, photosphere_kwargs,
             "containing the effective temperature, surface gravity, and "
             "metallicity")
 
+    if isinstance(photosphere_information, (tuple, list, np.ndarray)):
         # We need to interpolate a photosphere.
-        if interpolator is not None:
+        if interpolator is None:
             if photosphere_kwargs is None:
                 photosphere_kwargs = {}
             interpolator = oracle.atmospheres.Interpolator(**photosphere_kwargs)
-        photosphere = interpolator.interpolate(photosphere_information)
+        photosphere = interpolator.interpolate(*photosphere_information)
 
     else:
         photosphere = photosphere_information

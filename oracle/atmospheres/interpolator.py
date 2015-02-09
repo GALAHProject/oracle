@@ -127,7 +127,6 @@ class BaseInterpolator(object):
         try:
             indices = self.neighbours(*point)
         except (ValueError, IndexError):
-            raise
             raise ValueError("cannot interpolate model photosphere because the "
                 "grid is mal-formed")
 
