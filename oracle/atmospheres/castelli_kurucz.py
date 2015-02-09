@@ -10,6 +10,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 # Standard library.
 import gzip
 import logging
+import warnings
 
 # Third party.
 import numpy as np
@@ -19,6 +20,12 @@ from oracle.atmospheres.interpolator import BaseInterpolator
 
 # Create logger.
 logger = logging.getLogger(__name__)
+
+# Warn about missing variance arrays, but only once.
+class StandardCompositionAssumed(Warning):
+    pass
+warnings.simplefilter("once", StandardCompositionAssumed)
+
 
 class Interpolator(BaseInterpolator):
 
@@ -35,7 +42,9 @@ class Interpolator(BaseInterpolator):
         # Assume zero alpha enhancement if not given.
         if len(point) == 3:
             point = [] + list(point) + [0]
-            logger.debug("Assuming [alpha/Fe] = 0 for model interpolation.")
+            warnings.warn("Assuming standard [alpha/Fe] = 0 composition unless "
+                "otherwise specified.", StandardCompositionAssumed)
+
         return super(self.__class__, self).interpolate(*point)
 
 

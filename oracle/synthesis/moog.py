@@ -92,10 +92,31 @@ def _format_photosphere(photosphere_information, photosphere_kwargs,
         "marcs": "WEBMARCS",
         "castelli/kurucz": "KURUCZ"
     }[photosphere.meta["kind"]]
-
     d = photosphere if hasattr(photosphere, "view") else photosphere._data
     photosphere_arr = np.asfortranarray(d.view(float).reshape(d.size, -1))
 
+    # Based on the kind of model, we should select the correct columns from the
+    # photosphere that MOOG actually needs.
+    if photosphere.meta["kind"] == "marcs":
+        """
+        ayer number (not needed), log{tau(Rosseland)} (not needed),
+        c     log{tau(5000)}, depth, t, pe, pgas, prad (not read in) and
+        c     pturb (not read in)
+        c      elseif (modtype .eq. 'WEBMARCS') then
+        c         read (nfmodel,*) wavref
+        c         do i=1,ntau
+        c            read (nfmodel,*) k, dummy1(k), tauref(i), dummy2(k), t(i),
+        c     .                       ne(i), pgas(i)
+        """
+        indices = np.array([photosphere.dtype.names.index(c) \
+            for c in ("lgTau5", "T", "Pe", "Pg")]) # MOOG calls Pe as Ne
+        
+    elif photosphere.meta["kind"] == "castelli/kurucz":
+        # From Inmodel.f: rhox(i),t(i),pgas(i),ne(i),kaprefmass(i)
+        indices = np.array([photosphere.dtype.names.index(c) \
+            for c in ("RHOX", "T", "P", "XNE", "ABROSS")])
+
+    photosphere_arr = photosphere_arr[:, indices]
     return (modtype, photosphere_arr, metallicity)
 
 
