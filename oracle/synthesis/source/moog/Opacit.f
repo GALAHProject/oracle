@@ -67,7 +67,7 @@ c     .      aC1(1), aMg1(1), aMg2(1), aAl1(1), aSi1(1), aSi2(1),
 c     .      aFe1(1), sigH(1), sigH2(1), sigHe(1), sigel(1)
 c      print *, "MODEOP", modeop
 
-      print *, "kaplam", kaplam(60)
+c      print *, "kaplam", kaplam(60)
       
 
 c*****write out the opacities

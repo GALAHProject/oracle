@@ -7,5 +7,5 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 from .abundances import asplund_2009 as solar_abundance
 # TODO
-from .marcs import Interpolator
+from .castelli_kurucz import Interpolator
 from . import utils

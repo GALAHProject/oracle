@@ -56,7 +56,6 @@ c      print *, "WERRRRRRR"
          rhox(:) = 0.0
 
       elseif (modtype .eq. 'KURUCZ   ') then
-         print *, "READING KURUCZ STUFF"
          do i=1,ntau
             rhox(i) = photospheric_structure(i, 1)
             t(i) = photospheric_structure(i, 2)
@@ -67,7 +66,7 @@ c      print *, "WERRRRRRR"
       endif
 c            rhox(i),t(i),pgas(i),ne(i),kaprefmass(i)
       
-      print *, "kaprefmas", rhox(1)
+c      print *, "kaprefmas", rhox(1)
 
 c      print *, "t(:ntau)", t(:ntau)
 c         do i=1,ntau
@@ -473,7 +472,7 @@ c     xref will contain the log of the tauref
          enddo
       endif
 
-      print *, "xref", xref(1), tauref(1)
+c      print *, "xref", xref(1), tauref(1)
 
 c*****Write information to output files
 c      if (modprintopt .lt. 1) return

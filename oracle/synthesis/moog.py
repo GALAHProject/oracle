@@ -121,7 +121,7 @@ def _format_photosphere(photosphere_information, photosphere_kwargs,
     return (modtype, photosphere_arr, metallicity)
 
 
-def synthesise(transitions, photosphere_information, wavelength_region,
+def synthesise(transitions, photosphere_information, wavelength_region=None,
     wavelength_step=0.01, microturbulence=None, opacity_contribution=1.0,
     photospheric_abundances=None, photosphere_kwargs=None, **kwargs):
     """
@@ -142,9 +142,10 @@ def synthesise(transitions, photosphere_information, wavelength_region,
     :type photosphere_information:
         :class:`astropy.table.Table` (model photosphere) or list of float
 
-    :param wavelength_region:
+    :param wavelength_region: [optional]
         The start and end wavelength to perform the synthesis in. These values
-        are expected to be in Angstroms.
+        are expected to be in Angstroms. If not specified, then the region that
+        is +/- `opacity_contribution` around the line list will be synthesised.
 
     :type wavelength_region:
         2-length tuple of floats
@@ -186,6 +187,9 @@ def synthesise(transitions, photosphere_information, wavelength_region,
         dict
     """
 
+    if 0 >= opacity_contribution:
+        raise ValueError("opacity contribution must be a positive float")
+
     debug = kwargs.pop("debug", False)
     modtype, photosphere_arr, metallicity = _format_photosphere(
         photosphere_information, photosphere_kwargs,
@@ -199,6 +203,12 @@ def synthesise(transitions, photosphere_information, wavelength_region,
             microturbulence = 0.
     elif microturbulence is None:
         raise ValueError("microturbulence is required for 1D models")
+
+    if wavelength_region is None:
+        wavelength_region = [
+            transitions["wavelength"].min() - opacity_contribution,
+            transitions["wavelength"].max() + opacity_contribution
+        ]
 
     transitions = _format_transitions(transitions)
 

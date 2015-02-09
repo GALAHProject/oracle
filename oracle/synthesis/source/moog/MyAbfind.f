@@ -37,6 +37,9 @@ c      real*8, dimension(1, 7) :: strong_transitions_
 
 
 
+      include 'Factor.com' 
+c      include 'Obspars.com'
+c      include 'Multistar.com'
 
 
 
@@ -108,8 +111,8 @@ c     fails after this.
       xatom(:) = 0.0
       patom(:) = 0.0
       amol(:) = 0.0
-      print *, "smallmollist", smallmollist(1), largemollist(1)
-      print *, "const", datmol(1,1), const(1,1)
+c      print *, "smallmollist", smallmollist(1), largemollist(1)
+c      print *, "const", datmol(1,1), const(1,1)
 c      smallmollist(:) = 0.0
 c      largemollist(:) = 0.0
 c      datmol(:,:) = 0.0
@@ -166,24 +169,24 @@ c  INITIALIZE SOME VARIABLES: line limit parameters
       lim2 = 0
 
 c      May need to initialise these later:
-c      numpecatom = 0
-c      numatomsyn = 0
-c      newnumpecatom = 0
-c      newnumatomsyn = 0
-c      ninetynineflag = 0
-c      pec(:) = 0
-c      newpec(:) = 0
-c      abfactor(:) = 0
-c      pecabund(:, :) = 0
-c      newpecabund(:, :) = 0.
-c      numiso = 0
-c      numisosyn = 0
-c      newnumiso = 0
-c      newnumisosyn = 0
-c      isotope(:) = 0.0
-c      newisotope(:) = 0.0
-c      isoabund(:,:) = 0.0
-c      newisoabund(:,:) = 0.0
+      numpecatom = 0
+      numatomsyn = 0
+      newnumpecatom = 0
+      newnumatomsyn = 0
+      ninetynineflag = 0
+      pec(:) = 0
+      newpec(:) = 0
+      abfactor(:) = 0
+      pecabund(:, :) = 0
+      newpecabund(:, :) = 0.
+      numiso = 0
+      numisosyn = 0
+      newnumiso = 0
+      newnumisosyn = 0
+      isotope(:) = 0.0
+      newisotope(:) = 0.0
+      isoabund(:,:) = 0.0
+      newisoabund(:,:) = 0.0
 
 
 
