@@ -24,7 +24,7 @@ install:
  - python setup.py build_ext --inplace --with-atmospheres
 
 script:
- - nosetests --with-coverage --cover-package=oracle
+ - nosetests -v -w tests --with-coverage --cover-package=oracle
 
 after_success:
  - coveralls
