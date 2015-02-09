@@ -42,7 +42,7 @@ moog = Extension(name = "oracle.synthesis._mini_moog",
         'Linlimit.f', 'Taukap.f', 'Jexpint.f', 'Partnew.f', 'Opacscat.f',
         'OpacHelium.f', 'OpacHydrogen.f', 'Opaccouls.f', 'Rinteg.f', 
         'Trudamp.f', 'Ucalc.f', 'Voigt.f', 'Fakeline.f', 'Curve.f',
-        'Lineabund.f', 'Molquery.f', 'Oneline.f', 'Params.f', 'Stats.f',
+        'Lineabund.f', 'Molquery.f', 'Oneline.f', 
         'Inmodel.f', 'Inlines.f', 'Batom.f', 'Bmolec.f', 'MySynth.f']])
 
 setup(name="oracle",

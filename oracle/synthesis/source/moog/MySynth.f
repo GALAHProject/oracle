@@ -91,7 +91,7 @@ c     These should not change...
       abscale = mh_
 
 c*****examine the parameter file
-      call params
+c      call params
 
       
       numpecatom = 0 + natoms_

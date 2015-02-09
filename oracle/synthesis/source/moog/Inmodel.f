@@ -53,6 +53,7 @@ c      print *, "WERRRRRRR"
             ne(i) = photospheric_structure(i, 3)
             pgas(i) = photospheric_structure(i, 4)
          enddo
+         rhox(:) = 0.0
 
       elseif (modtype .eq. 'KURUCZ   ') then
          print *, "READING KURUCZ STUFF"
@@ -65,7 +66,8 @@ c      print *, "WERRRRRRR"
          enddo
       endif
 c            rhox(i),t(i),pgas(i),ne(i),kaprefmass(i)
-
+      
+      print *, "kaprefmas", rhox(1)
 
 c      print *, "t(:ntau)", t(:ntau)
 c         do i=1,ntau
@@ -445,6 +447,9 @@ c     SPECIAL NEEDS: for NEWMARCS models, to convert kaprefs to our units
             kapref(i) = kaprefmass(i)*rho(i)
          enddo
       else
+         first = 0.0
+         tottau = 0.0
+         kaprefmass(:) = 0.0
          call opacit(1, wavref)
       endif
 
@@ -468,6 +473,7 @@ c     xref will contain the log of the tauref
          enddo
       endif
 
+      print *, "xref", xref(1), tauref(1)
 
 c*****Write information to output files
 c      if (modprintopt .lt. 1) return
