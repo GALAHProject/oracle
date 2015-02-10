@@ -29,6 +29,12 @@ warnings.simplefilter("ignore", np.RankWarning)
 
 class Model(object):
 
+    _default_config = {
+        "settings": {
+            "threads": 1
+        }
+    }
+
     def __init__(self, configuration, validate=True):
         """
         A general class to probabilistically model stellar spectra.
@@ -43,12 +49,9 @@ class Model(object):
             str or dict
         """
 
-        if not hasattr(self, "config"):
-            # TODO read defaults from somewhere else
-            self.config = {"settings": {"threads": 1}}
-
         if isinstance(configuration, dict):
-            self.config = utils.update_recursively(self.config, configuration)
+            self.config = utils.update_recursively(self._default_config,
+                configuration)
 
         else:
             if not os.path.exists(configuration):
@@ -66,20 +69,29 @@ class Model(object):
                         raise IOError("configuration file doesn't exist or the"\
                             " YAML string provided does not describe a valid "\
                             "dictionary")
-
-                    self.config = utils.update_recursively(self.config,
-                        supplied_configuration)
             else:
                 with open(configuration, "r") as fp:
                     supplied_configuration = yaml.load(fp)
 
-                self.config = utils.update_recursively(self.config,
-                    supplied_configuration)
+            self.config = utils.update_recursively(self._default_config,
+                supplied_configuration)
 
         if validate:
             validation.validate_configuration(self.config)
         return None
 
+
+    # For pickling.
+    def __getstate__(self):
+        allowed_keys = ("config", "_initial_theta")
+        state = self.__dict__.copy()
+        for key in state.keys():
+            if key not in allowed_keys:
+                del state[key]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__ = state.copy()
 
     def parameters(self, data):
         """
@@ -151,7 +163,7 @@ class Model(object):
         """
 
         if filename is None:
-            with resource_stream(__name__, "galah-ambre-grid.pickle") as fp:
+            with resource_stream(__name__, "galah-ambre-grid.pkl") as fp:
                 grid_points, grid_dispersion, grid_fluxes, px = pickle.load(fp)
 
         else:
@@ -276,8 +288,11 @@ class Model(object):
 
         # This will include the stellar parameters (grid points), dispersion
         # points, and fluxes
-        filename = kwargs.pop("grid_filename", None)
-        grid_points, grid_dispersion, grid_fluxes = self._load_grid(filename)
+        if not hasattr(self, "_loaded_grid"):
+            filename = kwargs.pop("grid_filename", None)
+            self._loaded_grid = self._load_grid(filename)
+
+        grid_points, grid_dispersion, grid_fluxes = self._loaded_grid
 
         theta = {}
         num_pixels = 0
