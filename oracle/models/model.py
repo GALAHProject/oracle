@@ -20,7 +20,7 @@ from scipy import ndimage, stats, optimize as op
 
 logger = logging.getLogger("oracle")
 
-from oracle import atmospheres, utils, specutils
+from oracle import atmospheres, specutils, utils
 from oracle.models import profiles, validation
 
 # Silence 'Polyfit may be poorly conditioned' messages
@@ -93,6 +93,7 @@ class Model(object):
     def __setstate__(self, state):
         self.__dict__ = state.copy()
 
+
     def parameters(self, data):
         """
         Return the model parameters for some data. The model configuration is
@@ -113,8 +114,13 @@ class Model(object):
             tuple
         """
 
-        parameters = ["effective_temperature", "surface_gravity", "[M/H]",
-            "microturbulence"]
+        parameters = ["effective_temperature", "surface_gravity", "metallicity"]
+
+        kind = \
+            self.config["model"].get("atmosphere_kwargs", {}).get("kind", None)
+        if kind != "Stagger":
+            parameters.append("microturbulence")
+        self._stellar_parameters = [] + parameters
 
         # Single radial velocity for all channels
         redshift = self.config["model"].get("redshift", False)
@@ -139,7 +145,7 @@ class Model(object):
                 parameters.extend(["continuum.{0}.{1}".format(i, j) \
                     for j in range(order + 1)])
 
-        return tuple(parameters)
+        return parameters
 
 
     def __str__(self):
@@ -486,7 +492,7 @@ class Model(object):
 
 
         # Update theta with the nearest grid point
-        theta.update(dict(zip(grid_points.dtype.names, closest_grid_point)))
+        theta.update(dict(zip(self._stellar_parameters, closest_grid_point)))
 
         # And the continuum coefficients
         for i, coefficients in continuum_coefficients.iteritems():
@@ -505,6 +511,7 @@ class Model(object):
         logger.debug("Could not estimate initial parameters for {}".format(
             ", ".join(missing_parameters)))
 
+        self._initial_theta = theta
         if full_output:
             return (theta, r_chi_sq, np.hstack(expected_channel_disp),
                 np.hstack([ecf[g_index] for ecf in expected_channel_fluxes]))

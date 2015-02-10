@@ -1,14 +1,17 @@
-# coding: utf-8
-
-from __future__ import absolute_import, print_function
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 """ Equialibria (excitation & ionisation balance) model for stellar spectra. """
+
+from __future__ import absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import logging
 import numpy as np
+import six
 from scipy import stats, optimize as op
+from astropy import (modeling, table, units as u)
 
 from oracle import atmospheres, specutils, synthesis, utils
 from oracle.models.model import Model
@@ -18,15 +21,69 @@ from oracle.models.jacobian \
 
 logger = logging.getLogger("oracle")
 
+
+
+class AbsorptionProfile(object):
+
+    def __init__(self, wavelength, continuum_order=-1, synthesised_spectrum=None,
+        oversample_rate=1):
+
+        self.wavelength = wavelength
+        self.synthesised_spectrum = synthesised_spectrum
+        self._synthesised_pixel_scale = 1.0/np.diff(self.synthesised_spectrum.disp)[0]
+
+        self.param_names = ["wavelength", "stddev"]
+        if continuum_order > -1:
+            self.param_names.extend(["c_{}".format(i) \
+                for i in range(continuum_order+2)])
+
+
+    def __call__(self, x, *theta):
+
+        assert len(theta) == len(self.param_names)
+        
+        wavelength, stddev = theta[:2]
+        if self.synthesised_spectrum is None:
+            y = np.ones(len(x))
+
+        else:
+            # Convolve the synthesised spectrum
+            # TODO, this should actually be some scaling of sigma since the
+            # synthetic spectrum already has some width to it.
+            y = ndimage.gaussian_filter(
+                self.synthesised_spectrum.flux, self._synthesised_pixel_scale \
+                    * 0.5 * stddev)[::self.oversample_rate]
+
+        # Apply the Gaussian
+        y *= 1 - np.exp(-(x - wavelength)**2 / (2*stddev**2))
+
+        # Convolve with any continuum coefficients
+        i, coefficients = 0, []
+        while True:
+            try:
+                index = self.param_names.index("c_{}".format(i))
+            except ValueError:
+                break
+            else:
+                coefficients.append(theta[index])
+                i += 1
+
+        if len(coefficients) > 0:
+            y *= np.polyval(coefficients[::-1], x)
+
+        # Return the model flux
+        return y
+
+
 class EqualibriaModel(Model):
 
     """
-    A class to forward model stellar spectra. This class performs excitation and
-    ionization balances in order to determine stellar parameters.
+    This class performs excitation and ionization balances in order to 
+    provide a point estimate of the stellar parameters.
     """
 
     # Default configuration for a EqualibriaModel class
-    config = {
+    _default_config = {
         "model": {
             "redshift": True,
             "instrumental_resolution": True,
@@ -37,10 +94,8 @@ class EqualibriaModel(Model):
             "threads": 1
         }
     }
-    _line_parameter_format = "A({species:.1f}@{wavelength:.2f})"
 
-
-    def __init__(self, configuration):
+    def __init__(self, configuration, **kwargs):
         """
         Initialise an Equialibria Model class.
         
@@ -55,107 +110,359 @@ class EqualibriaModel(Model):
         """
 
         super(EqualibriaModel, self).__init__(configuration)
+
+        # Initialise the atomic transitions.
+        self.atomic_transitions = self._initialise_atomic_transitions()
+
+        # Initiate an atmosphere interpolator.
+        atmosphere_kwds = self.config["model"].get("atmosphere_kwargs", {})
+        self._interpolator = atmospheres.interpolator(**atmosphere_kwds)
         return None
 
 
-    def parameters(self, data):
+    # For pickling and unpickling the class.
+    def __getstate__(self):
+        allowed_keys = ("config", "atomic_transitions", "_initial_theta")
+        state = self.__dict__.copy()
+        for key in state.keys():
+            if key not in allowed_keys:
+                del state[key]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__ = state.copy()
+
+
+    def _initialise_atomic_transitions(self):
         """
-        Return the model parameters for some data. The model configuration is
-        applicable for a large number of observed channels, so the number of 
-        observed channels is required to determine the exact number of model
-        parameters.
-
-        :param data:
-            The observed data.
-
-        :type num_data_channels:
-            list of :class:`oracle.specutils.Spectrum1D` objects
-
-        :returns:
-            A list of model parameters.
-
-        :rtype:
-            tuple
+        Load the atomic transition information from the configuration.
         """
 
-        parameters = ["effective_temperature", "surface_gravity", "[M/H]",
-            "microturbulence"]
+        # Load atomic transitions.
+        filename = self.config["model"].get("atomic_transitions_filename", None)
+        if filename is not None:
+            format = self.config["model"].get("atomic_transitions_format", None)
+            try:
+                atomic_transitions = \
+                    table.Table.read(filename, format=format)
+            except:
+                raise ValueError("failed to load atomic transitions filename "
+                    "from {} -- try specifying `atomic_transitions_format` in "
+                    "the model configuration".format(filename))
 
-        # Single radial velocity for all channels
-        if self.config["model"]["redshift"] == True:
-            parameters.append("v_rad")
+            # Delete the reference to the filename in the config, because if we
+            # don't then we will run into pickling problems.
+            del self.config["model"]["atomic_transitions_filename"]
 
-        # Different radial velocity for each channel?
-        elif isinstance(self.config["model"]["redshift"], (tuple, list, )):
-            parameters.extend(["v_rad.{}".format(i) for i, channel_v_rad in \
-                zip(range(len(data)), self.config["model"]["redshift"])\
-                if channel_v_rad])
+        else:
+            # Must be giving them individually.
+            transitions = self.config["model"].get("atomic_transitions", None)
+            if transitions is None:
+                raise ValueError("no atomic transitions found")
+            atomic_transitions = table.Table(data=transitions)
 
-        # Instrumental broadening
-        if self.config["model"]["instrumental_resolution"]:
-            parameters.extend(["instrumental_resolution.{}".format(i) \
-                for i in range(len(data))])
+            # Delete the reference to the transitions in the config, because if
+            # we don't then we will run into pickling problems later.
+            del self.config["model"]["atomic_transitions"]
 
-        # Continuum treatment
-        if isinstance(self.config["model"]["continuum"], (tuple, list)):
-            # List contains order for each channel
-            for i, order in \
-                zip(range(len(data)), self.config["model"]["continuum"]):
-                parameters.extend(["continuum.{0}.{1}".format(i, j) \
-                    for j in range(order + 1)])
+        # Verify that we have the minimum columns required.
+        for column in ("wavelength", "species", "excitation_potential", "loggf"):
+            if column not in atomic_transitions.dtype.names:
+                raise ValueError("missing requried column '{}' in the atomic "
+                    "transitions table".format(column))
 
-        # Atomic line abundances
-        num_atomic_transitions = 0
-        wavelength_ranges = [(each.disp[0], each.disp[-1]) for each in data]
+        if "clean" not in atomic_transitions.dtype.names:
+            logger.warn("No 'clean' column found in atomic transitions. All the"
+                "transitions are assumed to have no blending by nearby lines.")
 
-        atomic_transitions = self.config["model"].get("atomic_transitions", None)
-        if atomic_transitions is None:
-            # If not specified, try and load simplistic information from a file
-            atomic_transitions = np.loadtxt(self.config["model"]["atomic_transitions_filename"])
+        # Create a default table with the additional columns we require.
+        N = len(atomic_transitions)
+        columns = [
+            table.Column(np.ones(N) * np.nan,
+                name="equivalent_width", unit="milliAngstrom"),
+            table.Column(np.ones(N, dtype=bool),
+                name="clean", dtype=bool),
+            table.Column(np.ones(N) * np.nan,
+                name="abundance"),
+            table.Column([""] * N,
+                name="custom_mask", dtype="|S32")
+            ]
+        for column in columns:
+            if column.name not in atomic_transitions.columns:
+                atomic_transitions.add_column(column)
+            else:
+                index = atomic_transitions.colnames.index(column.name)
+                old_dtype = atomic_transitions.columns[index].dtype
+                if column.dtype != old_dtype:
+                    new_column = table.Column(
+                        data=atomic_transitions[column.name],
+                        name=column.name, dtype=column.dtype)
 
-        for atomic_transition in atomic_transitions:
+                    atomic_transitions.remove_column(column.name)
+                    atomic_transitions.add_column(new_column)
 
-            if isinstance(atomic_transition, dict):
-                wavelength = atomic_transition["wavelength"]
-                species = atomic_transition["species"]
+        # Add some units.
+        atomic_transitions["wavelength"].unit = u.Angstrom
+        atomic_transitions["excitation_potential"].unit = u.eV
+        atomic_transitions["equivalent_width"].unit = "milliAngstrom"
+
+        # Check for custom masks.
+        for mask in set(atomic_transitions["custom_mask"]).difference({""}):
+            if mask not in self.config["model"].get("custom_mask", {}):
+                raise ValueError("cannot find custom mask '{}' in the model "
+                    "configuration".format(mask))
+
+        return atomic_transitions
+
+
+
+    def fit_atomic_transitions(self, data, effective_temperature=None,
+        surface_gravity=None, metallicity=None, microturbulence=None,
+        wavelength_region=3, outlier_modeling=True, max_outlier_profiles=5,
+        **kwargs):
+        """
+        Fit absorption profiles to the atomic transitions in this model, by
+        (approximately) accounting for the nearby blends.
+
+        """
+
+        # TODO REMOVE ME
+        import matplotlib.pyplot as plt
+
+
+        # If any of the lines are not 'clean', we will need stellar parameters
+        # and an interpolator
+
+        # At each transition:
+        # (1) Look for nearby transitions within N angstroms.
+        # (2) Synthesise the nearby transitions
+        # (3) Create some astropy Model that uses the background synthesis
+        # (4) Fit the data.
+        # (5) Save the resultant equivalent width and profile.
+
+        # This specifies whether the wavelengths can move around or not.
+        # TODO this should really be changed to a limit based on radial velocity.
+        wavelength_tolerance = abs(kwargs.pop("wavelength_tolerance", 0))
+
+        # Allow the user to specify bounds on the data.
+        # (And here we will set some sensible ones.)
+        common_bounds = kwargs.pop("bounds", {
+            "stddev": (0, 0.3),
+            "amplitude": (0, 1)
+        })
+        if "wavelength" in common_bounds or "mean" in common_bounds:
+            raise ValueError("apply bounds on the profile location through the "
+                "wavelength_tolerance keyword argument")
+
+        # Interpolate a photosphere if requested.
+        photosphere = None
+        if None not in (effective_temperature, surface_gravity, metallicity):
+            photosphere = self._interpolator(
+                effective_temperature, surface_gravity, metallicity)
+
+        # Identify the lines actually in the data.
+        # If 'indices' is -1 for a line, it means it was not found in any data.
+        # Otherwise it will refer to the index where that wavelength exists in
+        # the data.
+        fitted_profiles = []
+        indices = wavelengths_in_data(self.atomic_transitions["wavelength"], data)
+        for i, (transition, index) \
+        in enumerate(zip(self.atomic_transitions, indices)):
+            # Is this transition in any of the data (e.g., index > -1)?
+            # And is it a clean transition?
+            if 0 > index or not transition["clean"]: continue
+
+            wavelength = transition["wavelength"]
+
+            # Look for nearby transitions within 2*N A and ignore this line.
+            blending = wavelength_region >= \
+                np.abs(self.atomic_transitions["wavelength"] - wavelength) 
+            blending[i] = False
+
+            # Slice the data +/- some region.
+            spectrum = data[index]
+            disp_indices = spectrum.disp.searchsorted([
+                wavelength - wavelength_region,
+                wavelength + wavelength_region
+                ]) + [0, 1]
+
+            # Prepare the data arrays
+            x = spectrum.disp.__getslice__(*disp_indices)
+            y = spectrum.flux.__getslice__(*disp_indices)
+            y_var = spectrum.variance.__getslice__(*disp_indices)
+            
+            # Calculate an initial stddev value based on the x spacing.
+            initial_stddev = 5 * np.diff(x).mean()
+            
+            # Apply any custom mask.
+            # TODO This should just remove the masked pixels from x and y,
+            #      because setting them to NaN will break the fitter.
+
+            # Synthesise a spectrum.
+            if np.any(blending) and False:
+                if photosphere is None:
+                    raise ValueError("transition at {0:.3f} has blending lines "
+                        "within {1:.0f} (so a synthesis approach is needed) but"
+                        " not all stellar parameters were given".format(
+                            wavelength, wavelength_region))
+
+                # TODO apply oversampling
+                synthesised_spectrum = synthesis.moog.synthesise(
+                    self.atomic_transitions[blending],
+                    photosphere, microturbulence=microturbulence)
+                # Synthesise a spectrum (with oversampling)
+
+                # Needs to:
+                # convolve the synthetic spectrum
+                # sample every Nth point, since the synthetic spectra will be oversampled
+                # multiply by the gaussian profile
+                # convolve by the continuum function
 
             else:
-                # Assume list
-                wavelength, species = atomic_transition[:2]
+                _ = x.searchsorted(wavelength)
+                # TODO the amplitude initial guess will have to be udpated in the 
+                #      presence of continuum.
+                profile_init = modeling.models.GaussianAbsorption1D(
+                    mean=transition["wavelength"],
+                    amplitude=1.0 - y[_],
+                    stddev=initial_stddev)
 
-            # Ensure the wavelength is within the observed region
-            for wavelength_start, wavelength_end in wavelength_ranges:
-                if wavelength_end >= wavelength and wavelength >= wavelength_start:
-                    parameters.append(self._line_parameter_format.format(
-                        wavelength=wavelength, species=species))
-                    num_atomic_transitions += 1
+            # Any continuum?
+            continuum_order = self._continuum_order(index)
+            if continuum_order > -1:
+                # TODO I specify order and astropy uses degree. Switch to degree!
+                profile_init |= modeling.models.Polynomial1D(continuum_order + 1)
 
-        if 2 > num_atomic_transitions:
-            raise ValueError("less than two atomic lines provided for equalibria")
+                # Set initial estimates of continuum.
+                # TODO
+                raise NotImplementedError
 
-        return tuple(parameters)
+            # Apply common bounds.
+            profile_init.bounds.update(common_bounds)
+
+            # Fix the wavelength to within some limits.
+            if wavelength_tolerance == 0:
+                profile_init.fixed["mean"] = True
+            else:
+                profile_init.bounds["mean"] = (
+                    wavelength - wavelength_tolerance,
+                    wavelength + wavelength_tolerance
+                )
+                
+            # Initialise the fitter
+            fitter = modeling.fitting.LevMarLSQFitter()
 
 
-    def initial_theta(self, data, full_output=False, **kwargs):
-        """
-        Return an initial guess of the model parameters theta using no prior
-        information.
+            # Here we jump into a loop because we may have to do some outlier
+            # modeling.
+            j = 1
+            fig, ax = plt.subplots()
+            ax.plot(x,y,c='k')
+            ax.plot(x,profile_init(x), 'r:')
+            while True:
 
-        :param data:
-            The observed data.
+                # Fit the profile.
+                profile = fitter(profile_init, x, y)
+                
+                # Break here if we have no outlier modeling to do, or if we have
+                # reached the maximum number of outlier profiles that can be
+                # added
+                if not outlier_modeling or max_outlier_profiles == j: break
 
-        :type data:
-            list of :class:`oracle.specutils.Spectrum1D` objects
-        """
+                # Limitingly-high stddev values are good indicators of nearby
+                # lines that have not been accounted for.
+                # Note: When no outlier transitions have been added, we can
+                #       expect profile.stddev to exist. But when one has been
+                #       added, profile.stddev will not exist and
+                #       profile.stddev_0 will live in its place.
 
-        # Get initial theta from the base model class, which will estimate the
-        # radial velocities, continuum coefficients, and stellar parameters
-        theta, r_chi_sq, model_dispersion, model_fluxes = super(EqualibriaModel,
-            self).initial_theta(data, full_output=True, **kwargs)
+                # Having a large % difference between the profile and the data
+                # at the transition point is another good indicator of nearby
+                # lines that have not been accounted for.
+                k = x.searchsorted(wavelength)
+                key = ["stddev_0", "stddev"][j == 1]
+                if getattr(profile, key) == profile.bounds[key][1] \
+                or not (1.05 > y[k]/profile(x[k]) > 0.95): #absorption is 5% off
 
-        if full_output:
-            return (theta, r_chi_sq, model_dispersion, model_fluxes)
-        return theta
+                    # OK, let's add another absorption profile to this model at
+                    # the location where a line is most likely to be. We will
+                    # tie the stddev of this line to be the same as the main.
+                    difference = profile(x) - y
+                    
+                    # Ignore those near existing lines so we don't pile up in
+                    # the same place.
+                    if j == 1:
+                        means = [profile.mean]
+                    else:
+                        means = [getattr(profile, "mean_{}".format(_)) \
+                            for _ in range(j)]
+
+                    for mean in means:
+                        _ = np.clip(x.searchsorted([
+                            mean - 3 * initial_stddev,
+                            mean + 3 * initial_stddev
+                        ]) + [0, 1], 0, len(difference) - 1)
+                        difference.__setslice__(_[0], _[1], 0)
+
+                    most_discrepant = difference.argmax()
+                    ax.axvline(x[most_discrepant])
+                    profile_init *= modeling.models.GaussianAbsorption1D(
+                        mean=x[most_discrepant],
+                        amplitude=1.0 - y[most_discrepant],
+                        stddev=initial_stddev)
+
+                    # Set the constraints on the line we care about.
+                    if wavelength_tolerance == 0:
+                        profile_init.fixed["mean_0"] = True
+                    else:
+                        profile_init.bounds["mean_0"] = (
+                            wavelength - wavelength_tolerance,
+                            wavelength + wavelength_tolerance
+                        )
+
+                    # All outlier means should be fixed.
+                    for _ in range(1, 1 + j):
+                        profile_init.fixed["mean_{}".format(_)] = True
+
+                    # Update all of the common bounds.
+                    for _ in range(1 + j):
+                        for k, bound in common_bounds.items():
+                            profile_init.bounds["{0}_{1}".format(k, _)] = bound
+
+                    # Tie the stddevs to the original absorption profile.
+                    # The stddevs between the absorption transition we care
+                    # about and the outlier transition are related by:
+                    # R = lambda_1/delta_lambda_1 = lambda_2/delta_labmda_2
+                    for _ in range(1, 1 + j):
+                        profile_init.tied["stddev_{}".format(_)] = \
+                            lambda _: _.stddev_0 * (x[most_discrepant]/_.mean_0)
+
+                    ax.plot(x, profile(x), c='r', label='j = {}'.format(j))
+                    profile = fitter(profile_init, x, y)
+                    ax.plot(x, profile(x), c='b', label='j = {} after'.format(j))
+
+                    j += 1
+
+                else:
+                    break
+
+            # Once outlier treatment is finished (where applicable), save the
+            # final fit.
+            ax.plot(x, profile(x), c='g', label='breaking')
+
+            fitted_profiles.append(profile)
+
+            # Put something about some statistic on the title.
+            chi_sq = ((profile(x) - y)**2).sum()
+            ax.set_title("chi_sq = {0:.1e}".format(chi_sq))
+
+            ax.legend()
+
+        # At this point we should consider re-fitting lines that are deviant
+        # from the wavelength vs stddev plot
+        
+        
+        raise a
 
 
     def estimate_stellar_parameters(self, data, initial_theta=None,
@@ -309,7 +616,7 @@ class EqualibriaModel(Model):
         raise NotImplementedError
 
     def equalibrium_state(self, data, effective_temperature, surface_gravity,
-        metallicity, microturbulence, initial_theta=None, full_output=False,
+        metallicity, microturbulence=None, initial_theta=None, full_output=False,
         **kwargs):
         """
         Return the equilibrium state information for a given set of stellar
@@ -345,8 +652,9 @@ class EqualibriaModel(Model):
         :type metallicity:
             float
 
-        :param microturbulence:
+        :param microturbulence: [sometimes optional]
             The photospheric microturbulence to calculate the equilibrium state.
+            This parameter is not required for <3D> models.
 
         :type microturbulence:
             float
@@ -358,26 +666,13 @@ class EqualibriaModel(Model):
             bool
         """
 
-        logger.debug("--------------------------------------------------")
-        logger.debug("effective temperature = {0:.0f}".format(effective_temperature))
-        logger.debug("surface_gravity = {0:.2f}".format(surface_gravity))
-        logger.debug("metallicity = {0:.2f}".format(metallicity))
-        logger.debug("microturbulence = {0:.2f}".format(microturbulence))
-        logger.debug("--------------------------------------------------")
 
         if initial_theta is None:
             initial_theta = {}
 
-        interpolator = kwargs.pop("_interpolator", None)
-        if interpolator is None:
-            # Interpolate a model atmospheres
-            atmosphere_kwargs = kwargs.pop("atmosphere_kwargs", {})
-            interpolator = atmospheres.Interpolator(**atmosphere_kwargs)
-
         # Interpolate the photospheric quantities
-        interpolator_kwargs = kwargs.pop("atmosphere_interpolator_kwargs", {})
         photospheric_structure = interpolator(effective_temperature,
-            surface_gravity, metallicity, **interpolator_kwargs)        
+            surface_gravity, metallicity)    
 
         # We want to save the profile information and the details of the
         # measured atomic transitions
@@ -389,10 +684,12 @@ class EqualibriaModel(Model):
             "microturbulence": microturbulence,
         })
 
+        # For each atomic transition:
+        # (1) Find out which channel it is in.
+        # (2) Find out what the continuum order is in that channel.
+        # (3) Synthesise some background spectrum around it if necessary.
+
         # Initialise all the atomic transitions
-        atomic_transitions = [transitions.AtomicTransition(**each) \
-            for each in self.config["model"]["atomic_transitions"]]
-        #logger.warn("ONLY USING FE FOR THE MOMENT #TODO #YOLO")
 
         for atomic_transition in atomic_transitions:
 
@@ -655,6 +952,12 @@ class EqualibriaModel(Model):
         return state
 
 
+def wavelengths_in_data(wavelengths, data):
+    orders = np.ones(len(wavelengths), dtype=int) * -1
+    for i, spectrum in enumerate(data):
+        orders[(spectrum.disp[-1] >= wavelengths) \
+            * (wavelengths >= spectrum.disp[0])] = i
+    return orders
 
 
 def minimum_pixel_sampling(data, wavelength):
