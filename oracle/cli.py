@@ -12,13 +12,16 @@ import argparse
 import logging
 import sys
 
+# Third-party.
+import matplotlib.pyplot as plt
+
+# Module-specific.
 import oracle
 
 logger = logging.getLogger("oracle")
 
 # Usage: oracle estimate model.yaml <filenames>
 #        oracle estimate model.yaml -r <read_from_filename>
-
 
 def estimate(args):
     """ Estimate model parameters by cross-correlation against a grid. """
@@ -63,7 +66,23 @@ def estimate(args):
             print("Initial chi-sq is {0:.2f} for theta: {1}".format(r_chi_sq,
                 initial_theta))
 
+            if args.plotting:
+                fig, axes = plt.subplots(len(data))
+                for j, (ax, data_spectrum) in enumerate(zip(axes, data)):
+                    ax.plot(data_spectrum.disp, data_spectrum.flux, c="k")
+                    ylim = ax.get_ylim()
+                    ax.plot(expected_dispersion, expected_flux, c="b", zorder=-1)
+                    ax.set_xlim(data_spectrum.disp.min(), data_spectrum.disp.max())
+                    ax.set_ylim(ylim)
+                    ax.set_ylabel("Counts")
+
+                ax.set_xlabel("Wavelength")
+                fig.tight_layout()
+                fig.savefig("source-{}.png".format(i+1))
+                plt.close("all")
+
     print("{0} successful, {1} exceptions".format(successful, exceptions))
+    raise a
 
 
 def parser(input_args=None):
@@ -99,6 +118,9 @@ def parser(input_args=None):
     estimate_parser.add_argument(
         "-r", action="store_true", dest="read_from_filename", default=False,
         help="Read input spectra from a single filename")
+    estimate_parser.add_argument(
+        "--no-plots", dest="plotting", action="store_false", default=True,
+        help="Disable plotting")
     estimate_parser.add_argument(
         "spectrum_filenames", nargs="+",
         help="Filenames of (observed) spectroscopic data")
