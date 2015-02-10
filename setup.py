@@ -44,21 +44,25 @@ moog = Extension(name = "oracle.synthesis._mini_moog",
         "Inmodel.f", "Inlines.f", "Batom.f", "Bmolec.f", "MySynth.f"]])
 
 # External data.
-if "--with-atmospheres" in map(str.lower, sys.argv):
-    atmosphere_paths = [
+if "--with-models" in map(str.lower, sys.argv):
+    data_paths = [
+        # Model photospheres (Castelli & Kurucz, MARCS)
         ("https://zenodo.org/record/14964/files/castelli-kurucz-2004.pkl",
             "oracle/atmospheres/castelli-kurucz-2004.pkl"),
         ("https://zenodo.org/record/14964/files/marcs-2011-standard.pkl",
-            "oracle/atmospheres/marcs-2011-standard.pkl")
+            "oracle/atmospheres/marcs-2011-standard.pkl"),
+        # Model spectra (AMBRE grid for GALAH)
+        ("https://zenodo.org/record/14977/files/galah-ambre-grid.pkl",
+            "oracle/models/galah-ambre-grid.pkl")
     ]
-    for url, filename in atmosphere_paths:
+    for url, filename in data_paths:
         print("Downloading {0} to {1}".format(url, filename))
         try:
             urlretrieve(url, filename)
         except IOError:
             raise("Error downloading file {} -- consider trying without the "
-                "--with-atmospheres flag".format(url))
-    sys.argv.remove("--with-atmospheres")
+                "--with-models flag".format(url))
+    sys.argv.remove("--with-models")
 
 # Now the magic.
 setup(
@@ -86,6 +90,6 @@ setup(
             "marcs-2011-standard.pkl",
             "castelli-kurucz-2004.pkl"
         ],
-        "oracle.models": ["galah-ambre-grid.pickle"]
+        "oracle.models": ["galah-ambre-grid.pkl"]
     }
 )

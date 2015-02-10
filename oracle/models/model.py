@@ -43,6 +43,10 @@ class Model(object):
             str or dict
         """
 
+        if not hasattr(self, "config"):
+            # TODO read defaults from somewhere else
+            self.config = {"settings": {"threads": 1}}
+
         if isinstance(configuration, dict):
             self.config = utils.update_recursively(self.config, configuration)
 
@@ -73,7 +77,57 @@ class Model(object):
                     supplied_configuration)
 
         if validate:
-            return validation.validate_configuration(self.config)
+            validation.validate_configuration(self.config)
+        return None
+
+
+    def parameters(self, data):
+        """
+        Return the model parameters for some data. The model configuration is
+        applicable for a large number of observed channels, so the number of 
+        observed channels is required to determine the exact number of model
+        parameters.
+
+        :param data:
+            The observed data.
+
+        :type num_data_channels:
+            list of :class:`oracle.specutils.Spectrum1D` objects
+
+        :returns:
+            A list of model parameters.
+
+        :rtype:
+            tuple
+        """
+
+        parameters = ["effective_temperature", "surface_gravity", "[M/H]",
+            "microturbulence"]
+
+        # Single radial velocity for all channels
+        redshift = self.config["model"].get("redshift", False)
+        if redshift == True:
+            parameters.append("v_rad")
+
+        # Different radial velocity for each channel?
+        elif isinstance(redshift, (tuple, list, )):
+            parameters.extend(["v_rad.{}".format(i) for i, channel_v_rad in \
+                zip(range(len(data)), redshift) if channel_v_rad])
+
+        # Instrumental broadening
+        if self.config["model"].get("instrumental_resolution", False):
+            parameters.extend(["instrumental_resolution.{}".format(i) \
+                for i in range(len(data))])
+
+        # Continuum treatment
+        continuum = self.config["model"].get("continuum", False)
+        if isinstance(continuum, (tuple, list)):
+            # List contains order for each channel
+            for i, order in zip(range(len(data)), continuum):
+                parameters.extend(["continuum.{0}.{1}".format(i, j) \
+                    for j in range(order + 1)])
+
+        return tuple(parameters)
 
 
     def __str__(self):
@@ -92,6 +146,8 @@ class Model(object):
     def _load_grid(self, filename=None):
         """
         This is a temporary function until I can generalise the grid.
+
+        TODO
         """
 
         if filename is None:
@@ -209,6 +265,11 @@ class Model(object):
         :type data:
             list of :class:`oracle.specutils.Spectrum1D` objects
         """
+
+        if not isinstance(data, (tuple, list)):
+            raise ValueError("data must be a list of Spectrum1D objects")
+        if 1 > len(data):
+            raise ValueError("no data provided")
 
         data = sorted(data, key=lambda x: x.disp[0])
         parameters = self.parameters(data)
@@ -379,7 +440,8 @@ class Model(object):
             chi_sqs += np.nansum(differences, axis=1)
 
             # Estimate instrumental broadening
-            logger.warn("haven't done instrumental broadening")
+            # TODO
+            #logger.warn("haven't done instrumental broadening")
 
             # Determine the best match so far
             g_index = chi_sqs.argmin()
