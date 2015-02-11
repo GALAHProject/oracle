@@ -20,58 +20,8 @@ from oracle.models.jacobian \
 
 logger = logging.getLogger("oracle")
 
+import matplotlib.pyplot as plt
 
-
-class AbsorptionProfile(object):
-
-    def __init__(self, wavelength, continuum_order=-1, synthesised_spectrum=None,
-        oversample_rate=1):
-
-        self.wavelength = wavelength
-        self.synthesised_spectrum = synthesised_spectrum
-        self._synthesised_pixel_scale = 1.0/np.diff(self.synthesised_spectrum.disp)[0]
-
-        self.param_names = ["wavelength", "stddev"]
-        if continuum_order > -1:
-            self.param_names.extend(["c_{}".format(i) \
-                for i in range(continuum_order+2)])
-
-
-    def __call__(self, x, *theta):
-
-        assert len(theta) == len(self.param_names)
-        
-        wavelength, stddev = theta[:2]
-        if self.synthesised_spectrum is None:
-            y = np.ones(len(x))
-
-        else:
-            # Convolve the synthesised spectrum
-            # TODO, this should actually be some scaling of sigma since the
-            # synthetic spectrum already has some width to it.
-            y = ndimage.gaussian_filter(
-                self.synthesised_spectrum.flux, self._synthesised_pixel_scale \
-                    * 0.5 * stddev)[::self.oversample_rate]
-
-        # Apply the Gaussian
-        y *= 1 - np.exp(-(x - wavelength)**2 / (2*stddev**2))
-
-        # Convolve with any continuum coefficients
-        i, coefficients = 0, []
-        while True:
-            try:
-                index = self.param_names.index("c_{}".format(i))
-            except ValueError:
-                break
-            else:
-                coefficients.append(theta[index])
-                i += 1
-
-        if len(coefficients) > 0:
-            y *= np.polyval(coefficients[::-1], x)
-
-        # Return the model flux
-        return y
 
 
 class EqualibriaModel(Model):
@@ -217,33 +167,92 @@ class EqualibriaModel(Model):
 
     def fit_atomic_transitions(self, data, effective_temperature=None,
         surface_gravity=None, metallicity=None, microturbulence=None,
-        wavelength_region=3, outlier_modeling=True, max_outlier_profiles=5,
+        wavelength_region=2.5, outlier_modeling=True, max_outlier_profiles=5,
         **kwargs):
         """
-        Fit absorption profiles to the atomic transitions in this model, by
-        (approximately) accounting for the nearby blends.
+        Fit absorption profiles to the atomic transitions in this model and
+        account for the nearby blends.
 
+        :param data:
+            The observed spectra.
+
+        :type data:
+            list of :class:`oracle.specutils.Spectrum1D`
+
+        :param effective_temperature: [sometimes optional]
+            The effective temperature for the photosphere.
+
+            When there are nearby blending transitions, these lines need to be 
+            synthesised in order to accurately measure the actual transition we
+            care about. Thus, if any blending (non-clean) transitions are within
+            `wavelength_region` of a clean line then this parameter is required.
+
+        :type effective_temperature:
+            float
+
+        :param surface_gravity: [sometimes optional]
+            The surface gravity for the photosphere.
+
+            When there are nearby blending transitions, these lines need to be 
+            synthesised in order to accurately measure the actual transition we
+            care about. Thus, if any blending (non-clean) transitions are within
+            `wavelength_region` of a clean line then this parameter is required.
+
+        :type surface_gravity:
+            float
+
+        :param metallicity: [sometimes optional]
+            The scaled-solar metallicity for the photosphere.
+
+            When there are nearby blending transitions, these lines need to be 
+            synthesised in order to accurately measure the actual transition we
+            care about. Thus, if any blending (non-clean) transitions are within
+            `wavelength_region` of a clean line then this parameter is required.
+
+        :type metallicity:
+            float
+
+        :param microturbulence: [sometimes optional]
+            The microturbulence for the photosphere. This is not required for
+            <3D> models.
+
+            When there are nearby blending transitions, these lines need to be 
+            synthesised in order to accurately measure the actual transition we
+            care about. Thus, if any blending (non-clean) transitions are within
+            `wavelength_region` of a clean line then this parameter is required.
+
+        :type microturbulence:
+            float
+
+        :param wavelength_region: [optional]
+            The +/- region (in Angstroms) around each atomic transition to
+            consider.
+
+        :type wavelength_region:
+            float
+
+        :param outlier_modeling: [optional]
+            Detect inaccurate fits due to blending lines and account for them.
+            If enabled, then a poor fit is detected when the centroid of the 
+            atomic transition is not within 5 per cent of the data, or if the
+            profile FWHM has hit an upper boundary. When this happens the code
+            will detect regions that are most discrepant, and attempt to fit
+            them with additional profiles (using the same profile FWHM).
+
+        :type outlier_modeling:
+            bool
+
+        :param max_outlier_profiles: [optional]
+            The maximum number of outlier profiles to add for each atomic
+            transition. This keyword argument is ignored if `outlier_modeling`
+            is set to `False`.
         """
 
-        # TODO REMOVE ME
-        import matplotlib.pyplot as plt
-
-
-        # If any of the lines are not 'clean', we will need stellar parameters
-        # and an interpolator
-
-        # At each transition:
-        # (1) Look for nearby transitions within N angstroms.
-        # (2) Synthesise the nearby transitions
-        # (3) Create some astropy Model that uses the background synthesis
-        # (4) Fit the data.
-        # (5) Save the resultant equivalent width and profile.
-
-        # This specifies whether the wavelengths can move around or not.
-        # TODO this should really be changed to a limit based on radial velocity.
         oversampling_rate = int(kwargs.pop("oversampling_rate", 4))
         if 1 > oversampling_rate:
             raise ValueError("oversampling rate must be a positive integer")
+
+        # TODO this should really be changed to a limit based on radial velocity.
         wavelength_tolerance = abs(kwargs.pop("wavelength_tolerance", 0))
 
         # Allow the user to specify bounds on the data.
@@ -256,43 +265,84 @@ class EqualibriaModel(Model):
             raise ValueError("apply bounds on the profile location through the "
                 "wavelength_tolerance keyword argument")
 
+        # Create a handy function to update the compound model properties.
+        def _update_compound_model(compound_model, wavelength):
+
+            # Deal with the line we care about first.
+            single_model = hasattr(compound_model, "mean")
+            transition_mean_key = ["mean_0", "mean"][single_model]
+            if wavelength_tolerance > 0:
+                compound_model.bounds[transition_mean_key] = (
+                    wavelength - wavelength_tolerance,
+                    wavelength + wavelength_tolerance
+                )
+            else:
+                compound_model.fixed[transition_mean_key] = True
+
+            for param_name in compound_model.param_names:
+                if param_name.startswith("mean_") \
+                and param_name != transition_mean_key:
+                    # It's an outlier line. Fix the wavelength.
+                    compound_model.fixed[param_name] = True
+
+                # Apply common bounds.
+                try:
+                    prefix, num = param_name.split("_")
+
+                except ValueError:
+                    prefix, num = param_name, "0"
+
+                if prefix in common_bounds.keys():
+                    compound_model.bounds[param_name] = common_bounds[prefix]
+
+                # Tie the stddevs to the original absorption profile.
+                # The stddevs between the absorption transition we care
+                # about and the outlier transition are related by:
+                # R = lambda_1/delta_lambda_1 = lambda_2/delta_labmda_2
+                if prefix == "stddev" and num != "0":
+                    compound_model.tied[param_name] = lambda _: _.stddev_0 * \
+                        getattr(compound_model, "mean_{}".format(num))/_.mean_0
+            return True
+
+
         photosphere = None
-        # Interpolate a photosphere if requested.
-        # (This assumes that we will need it, but better to need it and have it)
+        # Interpolate a photosphere if we have the information to do so.
         if None not in (effective_temperature, surface_gravity, metallicity):
             photosphere = self._interpolator(
                 effective_temperature, surface_gravity, metallicity)
 
-        # Identify the lines actually in the data.
-        # If 'indices' is -1 for a line, it means it was not found in any data.
-        # Otherwise it will refer to the index where that wavelength exists in
-        # the data.
-        fitted_profiles = []
-        indices = wavelengths_in_data(self.atomic_transitions["wavelength"], data)
-        for i, (transition, index) \
-        in enumerate(zip(self.atomic_transitions, indices)):
-            # Is this transition in any of the data (e.g., index > -1)?
-            # And is it a clean transition?
-            if 0 > index or not transition["clean"]: continue
+        # Identify clean transitions that are actually in the data.
+        # If data_indices is -1 it means the line was not found in the data
+        data_indices = \
+            wavelengths_in_data(self.atomic_transitions["wavelength"], data)
+        measurable = self.atomic_transitions["clean"] * (data_indices > -1)
 
+        # Create the subset containing the measurable lines.
+        transition_indices = np.where(measurable)[0]
+        transitions = self.atomic_transitions[measurable]
+        data_indices = data_indices[measurable]
+
+        stddevs = []
+        fitted_profiles = []
+        for transition_index, transition, data_index \
+        in zip(transition_indices, transitions, data_indices):
+        
             wavelength = transition["wavelength"]
 
-            # Look for nearby transitions within 2*N A and ignore this line.
+            # Look for nearby transitions within the wavelength region and
+            # ignore this line.
             blending = wavelength_region >= \
                 np.abs(self.atomic_transitions["wavelength"] - wavelength) 
-            blending[i] = False
+            blending[transition_index] = False
 
             # Slice the data +/- some region.
-            spectrum = data[index]
+            spectrum = data[data_index]
             disp_indices = spectrum.disp.searchsorted([
                 wavelength - wavelength_region,
                 wavelength + wavelength_region
                 ]) + [0, 1]
-
-            # Prepare the data arrays
             x = spectrum.disp.__getslice__(*disp_indices)
             y = spectrum.flux.__getslice__(*disp_indices)
-            y_var = spectrum.variance.__getslice__(*disp_indices)
             
             # Calculate an initial stddev value based on the x spacing.
             initial_stddev = 5 * np.diff(x).mean()
@@ -304,9 +354,22 @@ class EqualibriaModel(Model):
             
             # TODO the amplitude initial guess will have to be udpated in the 
             #      presence of continuum.
- 
+            _ = x.searchsorted(wavelength)
+            initial_amplitude = 1.0 - y[_]
 
-            # Synthesise a spectrum.
+            # Any continuum?
+            continuum_order = self._continuum_order(data_index)
+            if continuum_order > -1:
+                # TODO I specify order and astropy uses degree. Switch to degree!
+                #profile_init *= modeling.models.Polynomial1D(continuum_order + 1)
+
+                # Set initial estimates of continuum.
+                # TODO
+
+                # This will probably fuck up the parameter names.
+                raise NotImplementedError
+
+            # Any synthesis?
             if np.any(blending):
                 if photosphere is None:
                     raise ValueError("transition at {0:.3f} has blending lines "
@@ -317,179 +380,150 @@ class EqualibriaModel(Model):
                 # Synthesise a spectrum (with oversampling)
                 synth_pixel_size = np.diff(x).mean()/oversampling_rate
                 synth_disp, synth_flux = synthesis.moog.synthesise(
-                    self.atomic_transitions[blending],
-                    photosphere, microturbulence=microturbulence,
+                    self.atomic_transitions[blending], photosphere,
+                    microturbulence=microturbulence,
                     wavelength_region=[x.min(), x.max()],
                     wavelength_step=synth_pixel_size)
 
-                # Create a custom class that uses the FWHM.
+                # Create a custom class that uses the synthesised spectrum.
                 class GaussianAbsorption1D(modeling.Fittable1DModel):
 
                     amplitude = modeling.Parameter(default=1)
                     mean = modeling.Parameter(default=0)
                     stddev = modeling.Parameter(default=1)
-                    #synthetic_stddev = modeling.Parameter(default=1)
+                    # TODO see issue 18 on GitHub
 
                     @staticmethod
-                    def evaluate(x, amplitude, mean, stddev):#, synthetic_stddev):
-                        convolved_flux = ndimage.gaussian_filter1d(synth_flux,
-                            stddev/synth_pixel_size)
-                        sampled = np.interp(x, synth_disp, convolved_flux, 1, 1)
-                        return sampled * (1.0 - modeling.models.Gaussian1D.evaluate(x,
-                            amplitude, mean, stddev))
+                    def evaluate(x, amplitude, mean, stddev):
+                        convolved = ndimage.gaussian_filter1d(
+                            synth_flux, stddev/synth_pixel_size)
+                        sampled = np.interp(x, synth_disp, convolved, 1, 1)
+                        return sampled * (1.0 - \
+                            modeling.models.Gaussian1D.evaluate(x, amplitude,
+                                mean, stddev))
 
-                # TODO the synthetic_stddev should be tied to the stddev
-                _ = x.searchsorted(wavelength)
-                profile_init = GaussianAbsorption1D(
-                    mean=wavelength, amplitude=1.0 - y[_],
-                    stddev=initial_stddev)
-                #    synthetic_stddev=initial_stddev)
-                #profile_init.tied["synthetic_stddev"] = lambda _: 
-
-            else:
-                _ = x.searchsorted(wavelength)
-                profile_init = modeling.models.GaussianAbsorption1D(
-                    mean=transition["wavelength"],
-                    amplitude=1.0 - y[_],
+                profile = GaussianAbsorption1D(
+                    mean=wavelength, amplitude=initial_amplitude,
                     stddev=initial_stddev)
 
-
-            # Any continuum?
-            continuum_order = self._continuum_order(index)
-            if continuum_order > -1:
-                # TODO I specify order and astropy uses degree. Switch to degree!
-                profile_init |= modeling.models.Polynomial1D(continuum_order + 1)
-
-                # Set initial estimates of continuum.
-                # TODO
-                raise NotImplementedError
-
-            # Apply common bounds.
-            profile_init.bounds.update(common_bounds)
-
-            # Fix the wavelength to within some limits.
-            if wavelength_tolerance == 0:
-                profile_init.fixed["mean"] = True
             else:
-                profile_init.bounds["mean"] = (
-                    wavelength - wavelength_tolerance,
-                    wavelength + wavelength_tolerance
-                )
-                
-            # Initialise the fitter
+                profile = modeling.models.GaussianAbsorption1D(
+                    mean=wavelength, amplitude=initial_amplitude,
+                    stddev=initial_stddev)
+
+            # Update the bounds, fixed, and tied properties.
+            _update_compound_model(profile, wavelength)
+
             fitter = modeling.fitting.LevMarLSQFitter()
+            j, y_initial = 1, profile(x)
 
-
-            # Here we jump into a loop because we may have to do some outlier
-            # modeling.
-            j = 1
-            fig, ax = plt.subplots()
-            ax.plot(x,y,c='k')
-            ax.plot(x,profile_init(x), 'r:')
-            ax.axvline(wavelength, c="k", ls=":")
             while True:
 
                 # Fit the profile.
-                profile = fitter(profile_init, x, y)
+                profile = fitter(profile, x, y)
                 
-                # Break here if we have no outlier modeling to do, or if we have
-                # reached the maximum number of outlier profiles that can be
-                # added
+                # Break here if we have no more outlier modeling to do.
                 if not outlier_modeling or max_outlier_profiles == j: break
 
                 # Limitingly-high stddev values are good indicators of nearby
                 # lines that have not been accounted for.
-                # Note: When no outlier transitions have been added, we can
-                #       expect profile.stddev to exist. But when one has been
-                #       added, profile.stddev will not exist and
-                #       profile.stddev_0 will live in its place.
 
                 # Having a large % difference between the profile and the data
                 # at the transition point is another good indicator of nearby
                 # lines that have not been accounted for.
-                k = x.searchsorted(wavelength)
-                key = ["stddev_0", "stddev"][j == 1]
-                if getattr(profile, key) == profile.bounds[key][1] \
-                or not (1.05 > y[k]/profile(x[k]) > 0.95): #absorption is 5% off
+                if (j == 1 and profile.stddev == profile.bounds["stddev"][1])   \
+                or (j > 1 and profile.stddev_0 == profile.bounds["stddev_0"][1])\
+                or not (1.05 > y[_]/profile(x[_]) > 0.95): #absorption is 5% off
 
-                    # OK, let's add another absorption profile to this model at
-                    # the location where a line is most likely to be. We will
-                    # tie the stddev of this line to be the same as the main.
+                    # Add a(nother) outlier absorption profile to this model at
+                    # the location where a blending line is most likely to be.
+
+                    # But ignore locations near existing lines so we don't just
+                    # pile up absorption profiles in the same place.
+                    existing_means = [getattr(profile, key) \
+                        for key in profile.param_names if key[:4] == "mean"]
+
                     difference = profile(x) - y
-                    
-                    # Ignore those near existing lines so we don't pile up in
-                    # the same place.
-                    if j == 1:
-                        means = [profile.mean]
-                    else:
-                        means = [getattr(profile, "mean_{}".format(_)) \
-                            for _ in range(j)]
-
-                    for mean in means:
-                        _ = np.clip(x.searchsorted([
+                    for mean in existing_means:
+                        __ = np.clip(x.searchsorted([
                             mean - 3 * initial_stddev,
                             mean + 3 * initial_stddev
                         ]) + [0, 1], 0, len(difference) - 1)
-                        difference.__setslice__(_[0], _[1], 0)
+                        difference.__setslice__(__[0], __[1], 0)
 
                     most_discrepant = difference.argmax()
-                    ax.axvline(x[most_discrepant])
-                    profile_init *= modeling.models.GaussianAbsorption1D(
-                        mean=x[most_discrepant],
-                        amplitude=1.0 - y[most_discrepant],
-                        stddev=initial_stddev)
 
-                    # Set the constraints on the line we care about.
-                    if wavelength_tolerance == 0:
-                        profile_init.fixed["mean_0"] = True
-                    else:
-                        profile_init.bounds["mean_0"] = (
-                            wavelength - wavelength_tolerance,
-                            wavelength + wavelength_tolerance
-                        )
+                    # TODO continuum will fuck this up too.
+                    profile *= modeling.models.GaussianAbsorption1D(
+                        mean=x[most_discrepant], stddev=initial_stddev,
+                        amplitude=1.0 - y[most_discrepant])
 
-                    # All outlier means should be fixed.
-                    for _ in range(1, 1 + j):
-                        profile_init.fixed["mean_{}".format(_)] = True
-
-                    # Update all of the common bounds.
-                    for _ in range(1 + j):
-                        for k, bound in common_bounds.items():
-                            profile_init.bounds["{0}_{1}".format(k, _)] = bound
-
-                    # Tie the stddevs to the original absorption profile.
-                    # The stddevs between the absorption transition we care
-                    # about and the outlier transition are related by:
-                    # R = lambda_1/delta_lambda_1 = lambda_2/delta_labmda_2
-                    for _ in range(1, 1 + j):
-                        profile_init.tied["stddev_{}".format(_)] = \
-                            lambda _: _.stddev_0 * (x[most_discrepant]/_.mean_0)
-
-                    ax.plot(x, profile(x), c='r', label='j = {}'.format(j))
-                    profile = fitter(profile_init, x, y)
-                    ax.plot(x, profile(x), c='b', label='j = {} after'.format(j))
-
+                    # Update the bounds, fixed, and tied properties.
+                    _update_compound_model(profile, wavelength)
                     j += 1
 
                 else:
+                    # No outlier treatment required, apparently.
                     break
 
-            # Once outlier treatment is finished (where applicable), save the
-            # final fit.
-            ax.plot(x, profile(x), c='g', label='breaking')
+            # TODO Pickle the model somehow so that we can show it in GUIS later
 
-            fitted_profiles.append(profile)
+            # Save the final model fit.
+            fitted_profiles.append((x, y, y_initial, profile(x)))
+
+            # Update the equivalent width
+            amplitude, stddev = "amplitude", "stddev"
+            if not "mean" in profile.param_names:
+                stddev += "_0"
+                amplitude += "_0"
+
+            stddevs.append(getattr(profile, stddev).value)
+
+            # Integral of Gaussian = amplitude * sigma * sqrt(pi)
+            # But the way astropy modeling works, they take 2s = s, so then
+            # (2s)**2 -> 4s**2, so we need a 1/4 factor.
+            self.atomic_transitions["equivalent_width"][transition_index] = \
+                10e3 * np.sqrt(np.pi) * getattr(profile, amplitude) \
+                    * 0.25 * getattr(profile, stddev)
+
+        # At this point should we consider re-fitting lines that are deviant
+        # from the wavelength vs stddev plot
+
+        """
+        for i, (x, y, y_initial, y_fitted) in enumerate(fitted_profiles):
+
+            fig, ax = plt.subplots()
+            ax.plot(x,y,c='k')
+            ax.plot(x, y_initial, "r:")
+            ax.plot(x, y_fitted, 'r')
+            is_it_the_first_one = True
+            for param_name in profile.param_names:
+                if param_name[:4] == "mean":
+                    c = "rk"[is_it_the_first_one]
+                    ax.axvline(getattr(profile, param_name), c=c)
+                    is_it_the_first_one = False
+
 
             # Put something about some statistic on the title.
             chi_sq = ((profile(x) - y)**2).sum()
             ax.set_title("chi_sq = {0:.1e}".format(chi_sq))
+        """
 
-            ax.legend()
-
-        # At this point we should consider re-fitting lines that are deviant
-        # from the wavelength vs stddev plot
-
+        # Only update those with good quality constraints.
+        stddevs = np.array(stddevs).flatten()
         
+        fig, ax = plt.subplots()
+        transitions = self.atomic_transitions[transition_indices]
+        ok = np.isfinite(transitions["equivalent_width"]) * \
+            (transitions["equivalent_width"] > 0) * (stddevs < 0.2)
+
+        ax.scatter(transitions["wavelength"], stddevs)
+        
+        abundances = synthesis.moog.atomic_abundances(
+            transitions, photosphere, microturbulence=microturbulence)
+        fig, ax = plt.subplots()
+        ax.scatter(transitions["excitation_potential"][ok],
+            abundances[ok], facecolor='k')
         raise a
 
 
@@ -981,7 +1015,7 @@ class EqualibriaModel(Model):
 
 
 def wavelengths_in_data(wavelengths, data):
-    orders = np.ones(len(wavelengths), dtype=int) * -1
+    orders = -np.ones(len(wavelengths), dtype=int)
     for i, spectrum in enumerate(data):
         orders[(spectrum.disp[-1] >= wavelengths) \
             * (wavelengths >= spectrum.disp[0])] = i
