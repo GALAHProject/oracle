@@ -9,7 +9,6 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import logging
 import numpy as np
-import six
 from scipy import stats, optimize as op
 from astropy import (modeling, table, units as u)
 
@@ -299,7 +298,7 @@ class EqualibriaModel(Model):
             #      because setting them to NaN will break the fitter.
 
             # Synthesise a spectrum.
-            if np.any(blending) and False:
+            if np.any(blending):
                 if photosphere is None:
                     raise ValueError("transition at {0:.3f} has blending lines "
                         "within {1:.0f} (so a synthesis approach is needed) but"
@@ -307,11 +306,16 @@ class EqualibriaModel(Model):
                             wavelength, wavelength_region))
 
                 # TODO apply oversampling
-                synthesised_spectrum = synthesis.moog.synthesise(
+                synthesised_dispersion, synthesised_fluxes = synthesis.moog.synthesise(
                     self.atomic_transitions[blending],
                     photosphere, microturbulence=microturbulence)
-                # Synthesise a spectrum (with oversampling)
 
+                # Synthesise a spectrum (with oversampling)
+                raise a
+
+                def convolve_synthetic(x, synthetic_stddev=0):
+
+                    flux = ndimage.gaussian_filter1d(synthesised_flux, )
                 # Needs to:
                 # convolve the synthetic spectrum
                 # sample every Nth point, since the synthetic spectra will be oversampled
@@ -460,7 +464,7 @@ class EqualibriaModel(Model):
 
         # At this point we should consider re-fitting lines that are deviant
         # from the wavelength vs stddev plot
-        
+
         
         raise a
 
