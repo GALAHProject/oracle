@@ -15,6 +15,7 @@ data = [
 
 model = equalibria.EqualibriaModel("hermes_classical.yaml")
 
+"""
 initial_theta, r_chi_sq, expected_dispersion, expected_flux = model.initial_theta(
     data, full_output=True)
 
@@ -29,9 +30,9 @@ for i, ax in enumerate(axes):
     ax.plot(data[i].disp, data[i].flux, 'k')
 
 raise a
+"""
 
-stellar_parameters = model.estimate_stellar_parameters(data,
-    initial_theta=initial_theta)
+stellar_parameters = model.estimate_stellar_parameters(data)
 
 raise a
 
