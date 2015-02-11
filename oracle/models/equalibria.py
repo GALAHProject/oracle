@@ -420,10 +420,10 @@ class EqualibriaModel(Model):
             while True:
 
                 # Fit the profile.
-                profile = fitter(profile, x, y)
+                fitted = fitter(profile, x, y)
                 
                 # Break here if we have no more outlier modeling to do.
-                if not outlier_modeling or max_outlier_profiles == j: break
+                if not outlier_modeling or j >= max_outlier_profiles: break
 
                 # Limitingly-high stddev values are good indicators of nearby
                 # lines that have not been accounted for.
@@ -431,24 +431,24 @@ class EqualibriaModel(Model):
                 # Having a large % difference between the profile and the data
                 # at the transition point is another good indicator of nearby
                 # lines that have not been accounted for.
-                if (j == 1 and profile.stddev == profile.bounds["stddev"][1])   \
-                or (j > 1 and profile.stddev_0 == profile.bounds["stddev_0"][1])\
-                or not (1.05 > y[_]/profile(x[_]) > 0.95): #absorption is 5% off
+                if (j == 1 and fitted.stddev == profile.bounds["stddev"][1])   \
+                or (j > 1 and fitted.stddev_0 == profile.bounds["stddev_0"][1])\
+                or not (1.05 > y[_]/fitted(x[_]) > 0.95): #absorption is 5% off
 
                     # Add a(nother) outlier absorption profile to this model at
                     # the location where a blending line is most likely to be.
 
                     # But ignore locations near existing lines so we don't just
                     # pile up absorption profiles in the same place.
-                    existing_means = [getattr(profile, key) \
-                        for key in profile.param_names if key[:4] == "mean"]
+                    existing_means = [getattr(fitted, key) \
+                        for key in fitted.param_names if key[:4] == "mean"]
 
-                    difference = profile(x) - y
+                    difference = abs(fitted(x) - y)
                     for mean in existing_means:
                         __ = np.clip(x.searchsorted([
                             mean - 3 * initial_stddev,
                             mean + 3 * initial_stddev
-                        ]) + [0, 1], 0, len(difference) - 1)
+                        ]) + [0, 1], 0, len(difference))
                         difference.__setslice__(__[0], __[1], 0)
 
                     most_discrepant = difference.argmax()
@@ -467,6 +467,11 @@ class EqualibriaModel(Model):
                     break
 
             # TODO Pickle the model somehow so that we can show it in GUIS later
+            if getattr(fitted, "stddev_0", None) == 0.3:
+                fig, ax = plt.subplots()
+                ax.plot(x,y,c='k')
+                ax.plot(x, fitted(x), c='r')
+                raise a
 
             # Save the final model fit.
             fitted_profiles.append((x, y, y_initial, profile(x)))
@@ -477,7 +482,7 @@ class EqualibriaModel(Model):
                 stddev += "_0"
                 amplitude += "_0"
 
-            stddevs.append(getattr(profile, stddev).value)
+            stddevs.append(getattr(fitted, stddev).value)
 
             # Integral of Gaussian = amplitude * sigma * sqrt(pi)
             # But the way astropy modeling works, they take 2s = s, so then
@@ -488,29 +493,21 @@ class EqualibriaModel(Model):
 
         # At this point should we consider re-fitting lines that are deviant
         # from the wavelength vs stddev plot
+        stddevs = np.array(stddevs).flatten()
 
-        """
         for i, (x, y, y_initial, y_fitted) in enumerate(fitted_profiles):
+            if stddevs[i] == 0.3:
 
-            fig, ax = plt.subplots()
-            ax.plot(x,y,c='k')
-            ax.plot(x, y_initial, "r:")
-            ax.plot(x, y_fitted, 'r')
-            is_it_the_first_one = True
-            for param_name in profile.param_names:
-                if param_name[:4] == "mean":
-                    c = "rk"[is_it_the_first_one]
-                    ax.axvline(getattr(profile, param_name), c=c)
-                    is_it_the_first_one = False
-
-
-            # Put something about some statistic on the title.
-            chi_sq = ((profile(x) - y)**2).sum()
-            ax.set_title("chi_sq = {0:.1e}".format(chi_sq))
-        """
+                fig, ax = plt.subplots()
+                ax.plot(x,y,c='k')
+                ax.plot(x, y_initial, "r:")
+                ax.plot(x, y_fitted, 'r')
+            
+                # Put something about some statistic on the title.
+                raise a
 
         # Only update those with good quality constraints.
-        stddevs = np.array(stddevs).flatten()
+        
         
         fig, ax = plt.subplots()
         transitions = self.atomic_transitions[transition_indices]
