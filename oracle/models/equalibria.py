@@ -9,7 +9,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import logging
 import numpy as np
-from scipy import stats, optimize as op
+from scipy import stats, ndimage, optimize as op
 from astropy import (modeling, table, units as u)
 
 from oracle import atmospheres, specutils, synthesis, utils
@@ -241,6 +241,9 @@ class EqualibriaModel(Model):
 
         # This specifies whether the wavelengths can move around or not.
         # TODO this should really be changed to a limit based on radial velocity.
+        oversampling_rate = int(kwargs.pop("oversampling_rate", 4))
+        if 1 > oversampling_rate:
+            raise ValueError("oversampling rate must be a positive integer")
         wavelength_tolerance = abs(kwargs.pop("wavelength_tolerance", 0))
 
         # Allow the user to specify bounds on the data.
@@ -253,8 +256,9 @@ class EqualibriaModel(Model):
             raise ValueError("apply bounds on the profile location through the "
                 "wavelength_tolerance keyword argument")
 
-        # Interpolate a photosphere if requested.
         photosphere = None
+        # Interpolate a photosphere if requested.
+        # (This assumes that we will need it, but better to need it and have it)
         if None not in (effective_temperature, surface_gravity, metallicity):
             photosphere = self._interpolator(
                 effective_temperature, surface_gravity, metallicity)
@@ -297,6 +301,11 @@ class EqualibriaModel(Model):
             # TODO This should just remove the masked pixels from x and y,
             #      because setting them to NaN will break the fitter.
 
+            
+            # TODO the amplitude initial guess will have to be udpated in the 
+            #      presence of continuum.
+ 
+
             # Synthesise a spectrum.
             if np.any(blending):
                 if photosphere is None:
@@ -305,31 +314,45 @@ class EqualibriaModel(Model):
                         " not all stellar parameters were given".format(
                             wavelength, wavelength_region))
 
-                # TODO apply oversampling
-                synthesised_dispersion, synthesised_fluxes = synthesis.moog.synthesise(
-                    self.atomic_transitions[blending],
-                    photosphere, microturbulence=microturbulence)
-
                 # Synthesise a spectrum (with oversampling)
-                raise a
+                synth_pixel_size = np.diff(x).mean()/oversampling_rate
+                synth_disp, synth_flux = synthesis.moog.synthesise(
+                    self.atomic_transitions[blending],
+                    photosphere, microturbulence=microturbulence,
+                    wavelength_region=[x.min(), x.max()],
+                    wavelength_step=synth_pixel_size)
 
-                def convolve_synthetic(x, synthetic_stddev=0):
+                # Create a custom class that uses the FWHM.
+                class GaussianAbsorption1D(modeling.Fittable1DModel):
 
-                    flux = ndimage.gaussian_filter1d(synthesised_flux, )
-                # Needs to:
-                # convolve the synthetic spectrum
-                # sample every Nth point, since the synthetic spectra will be oversampled
-                # multiply by the gaussian profile
-                # convolve by the continuum function
+                    amplitude = modeling.Parameter(default=1)
+                    mean = modeling.Parameter(default=0)
+                    stddev = modeling.Parameter(default=1)
+                    #synthetic_stddev = modeling.Parameter(default=1)
+
+                    @staticmethod
+                    def evaluate(x, amplitude, mean, stddev):#, synthetic_stddev):
+                        convolved_flux = ndimage.gaussian_filter1d(synth_flux,
+                            stddev/synth_pixel_size)
+                        sampled = np.interp(x, synth_disp, convolved_flux, 1, 1)
+                        return sampled * (1.0 - modeling.models.Gaussian1D.evaluate(x,
+                            amplitude, mean, stddev))
+
+                # TODO the synthetic_stddev should be tied to the stddev
+                _ = x.searchsorted(wavelength)
+                profile_init = GaussianAbsorption1D(
+                    mean=wavelength, amplitude=1.0 - y[_],
+                    stddev=initial_stddev)
+                #    synthetic_stddev=initial_stddev)
+                #profile_init.tied["synthetic_stddev"] = lambda _: 
 
             else:
                 _ = x.searchsorted(wavelength)
-                # TODO the amplitude initial guess will have to be udpated in the 
-                #      presence of continuum.
                 profile_init = modeling.models.GaussianAbsorption1D(
                     mean=transition["wavelength"],
                     amplitude=1.0 - y[_],
                     stddev=initial_stddev)
+
 
             # Any continuum?
             continuum_order = self._continuum_order(index)
@@ -363,6 +386,7 @@ class EqualibriaModel(Model):
             fig, ax = plt.subplots()
             ax.plot(x,y,c='k')
             ax.plot(x,profile_init(x), 'r:')
+            ax.axvline(wavelength, c="k", ls=":")
             while True:
 
                 # Fit the profile.
