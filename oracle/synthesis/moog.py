@@ -131,10 +131,6 @@ def _format_photosphere(photosphere_information, photosphere_kwargs,
 
     elif kind == "stagger":
 
-        averaging = photosphere.meta["horizontal_averaging"].lower()
-        if averaging[0] == "r":
-            raise NotImplementedError
-
         # Photospheric quantities and units:
         # log(tau) optical depth (at 500 nm)
         # rho      density at {tau} (g/cm^3)
@@ -150,10 +146,17 @@ def _format_photosphere(photosphere_information, photosphere_kwargs,
         # tauref, t, ne, pgas
 
         # Note Stagger Pth ~= MARCS Pg
-        modtype = "WEBMARCS"
-        indices = np.array([photosphere.dtype.names.index(c) \
-            for c in ("logtau", "T", "Pe", "Pth")])
-        photosphere_arr = photosphere_arr[:, indices]
+
+        averaging = photosphere.meta["horizontal_averaging"].lower()
+        if averaging[0] == "r":
+            raise NotImplementedError("rosseland opacity averages not set up in"
+                " MOOG yet")
+
+        else:
+            modtype = "WEBMARCS"
+            indices = np.array([photosphere.dtype.names.index(c) \
+                for c in ("logtau", "T", "Pe", "Pth")])
+            photosphere_arr = photosphere_arr[:, indices]
 
     else:
         raise ValueError("photosphere kind {} not recognised".format(kind))
