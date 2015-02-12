@@ -7,12 +7,15 @@ from __future__ import absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
+import logging
 import numpy as np
 from scipy import stats
 
 from oracle.atmospheres import solar_abundance
 
-def equalibrium_state(data, sigma_clip=2, metallicity=None, full_output=False):
+logger = logging.getLogger(__name__)
+
+def equalibrium_state(data, sigma_clip=5, metallicity=None, full_output=False):
     """
     Calculate the current equalibrium state.
     """
@@ -34,25 +37,26 @@ def equalibrium_state(data, sigma_clip=2, metallicity=None, full_output=False):
     while True:
         neutral *= ~outliers
         ionised *= ~outliers
+        combined = neutral + ionised
 
         # Calculate the slope with excitation potential and abundance.
         excitation_regression = stats.linregress(
-            x=data["excitation_potential"][neutral],
-            y=data["abundance"][neutral])
+            x=data["excitation_potential"][combined],
+            y=data["abundance"][combined])
 
         # Calculate the ionisation state.
         ionisation_state = np.median(data["abundance"][neutral]) \
             - np.median(data["abundance"][ionised])
 
         # Calculate the abundance state.
-        abundance_state = np.median(data["abundance"][neutral] - \
-            (solar_abundance(data["species"][neutral]) + metallicity))
+        abundance_state = np.median(data["abundance"][combined] - \
+            (solar_abundance(data["species"][combined]) + metallicity))
 
         # Slope with reduced equivalent width and line abundance.
         rew = np.log(data["equivalent_width"] / data["wavelength"])
         rew_regression = stats.linregress(
-            x=rew[neutral],
-            y=data["abundance"][neutral])
+            x=rew[combined],
+            y=data["abundance"][combined])
 
         # Calculate the state
         state = np.array([
@@ -71,8 +75,7 @@ def equalibrium_state(data, sigma_clip=2, metallicity=None, full_output=False):
             initial_state = (excitation_regression, ionisation_state,
                 abundance_state, rew_regression)
 
-            if sigma_clip is None or not np.isfinite(sigma_clip) \
-            or 0 >= sigma_clip:
+            if sigma_clip is None or 0 >= sigma_clip:
                 # Don't remove any outliers
                 outliers_removed, final_state = False, initial_state
                 break
@@ -85,25 +88,46 @@ def equalibrium_state(data, sigma_clip=2, metallicity=None, full_output=False):
             # fits.
 
             # Outliers in excitation potential vs abundance:
-            x = data["excitation_potential"][neutral]
-            y = data["abundance"][neutral]
+            x = data["excitation_potential"][combined]
+            y = data["abundance"][combined]
             line = excitation_regression[0] * x + excitation_regression[1]
 
             differences = np.abs(line - y)
             excitation_sigma = differences/np.std(differences)
 
             # Outliers in reduced equivalent width vs abundance:
-            x = rew[neutral]
-            y = data["abundance"][neutral]
+            x = rew[combined]
+            y = data["abundance"][combined]
             line = rew_regression[0] * x + rew_regression[1]
 
             differences = np.abs(line - y)
             line_strength_sigma = differences/np.std(differences)
 
             # Update the finite mask to remove outliers
-            outliers[neutral] = (excitation_sigma > sigma_clip) \
+            logger.debug("Largest deviant was at {0:.2f} sigma".format(
+                max([line_strength_sigma.max(), excitation_sigma.max()])))
+
+
+            outliers_to_remove = (excitation_sigma > sigma_clip) \
                 + (line_strength_sigma > sigma_clip)
 
+            # Check that we aren't throwing out the last of a species.
+            if len(set(data["species"][combined][~outliers_to_remove])) < \
+                len(set(data["species"][combined])):
+                
+                species_being_removed = list(set(data["species"][combined])\
+                    .difference(data["species"][combined][~outliers_to_remove]))
+
+                logger.warn("Doing outlier rejection would remove the last {0} "
+                    "line. Instead we will just remove the most discrepant"
+                    "measurement from that species, then hope.".format(
+                        species_being_removed[0]))
+
+                _ = (data["species"][combined] == species_being_removed[0])
+                __ = np.argsort((excitation_sigma + line_strength_sigma)[np.where(_)[0]])[0]
+                outliers_to_remove[np.where(_)[0][__]] = False
+
+            outliers[combined] = outliers_to_remove
             outliers_removed = True
             continue # to re-fit the lines
 
@@ -115,13 +139,14 @@ def equalibrium_state(data, sigma_clip=2, metallicity=None, full_output=False):
                 [excitation_regression[0], excitation_regression[1]],
                 [rew_regression[0], rew_regression[1]]
             ],
-            "outliers": np.where(finite)[0][outliers]
+            "outliers": np.where(finite)[0][outliers],
+            "~outliers": np.where(finite)[0][~outliers]
         }
         return (state, info)
     return state
 
 
-def jacobian(stellar_parameters):
+def jacobian(stellar_parameters, *args, **kwargs):
     """
     Calculate the approximate Jacobian matrix, given some stellar parameters.
 

@@ -569,7 +569,8 @@ class EqualibriaModel(Model):
 
 
 
-    def estimate_stellar_parameters(self, data, initial_theta=None, **kwargs):
+    def estimate_stellar_parameters(self, data, initial_theta=None,
+        full_output=False, **kwargs):
         """
         Return point estimates for the stellar parameters (effective temperature,
         surface gravity, metallicity, microturbulence) using an excitation and
@@ -593,11 +594,13 @@ class EqualibriaModel(Model):
             metallicity, and microturbulence.
         """
 
+        # TODO: this is just for debugging.
+        plot = kwargs.pop("plot", False)
         if initial_theta is None:
             initial_theta = self.initial_theta(data)
 
         # State keywords for later on.
-        state_kwds = kwargs.pop("state_kwargs", {"sigma_clip": 2})
+        state_kwds = kwargs.pop("state_kwargs", {"sigma_clip": 5})
         state_kwds["full_output"] = True
 
         sp_initial_theta = [initial_theta[p] for p in self._stellar_parameters]
@@ -611,55 +614,57 @@ class EqualibriaModel(Model):
 
         # Create a copy of the transitions for our little 'objective adventure'.
         transitions = self.atomic_transitions.copy()
-        # Chose the lines to use for the equalibrium.
         for_equalibria = np.isfinite(transitions["equivalent_width"]) \
             * (transitions["equivalent_width"] > 0) \
             * ((transitions["species"] == 26.0) + (transitions["species"] == 26.1))
+        # TODO permit elements other than Fe.
+        transitions = transitions[for_equalibria]
 
-        # TODO just create a subset of the table data and delete the extra rows
-
-        # Measure the initial state and remove outliers for good.
+        # Measure the initial state and record them.
         initial_state, info = utils.equalibrium_state(transitions, 
             metallicity=sp_initial_theta[2], **state_kwds)
-        for_equalibria[info["outliers"]] = False
 
+        global transitions
+        transitions = transitions[info["~outliers"]]
 
         def objective_function(theta):
             """ Minimise the simultaeous equalibrium constraints. """
 
+            global transitions
             stellar_parameters, microturbulence = theta[:3], theta[3]
             try:
                 photosphere = self._interpolator(*stellar_parameters)
-                transitions["abundance"][for_equalibria] = \
-                    synthesis.moog.atomic_abundances(
-                        transitions[for_equalibria], photosphere,
-                        microturbulence=microturbulence)
+                abundances = \
+                    synthesis.moog.atomic_abundances(transitions,
+                        photosphere, microturbulence=microturbulence)
 
             except:
                 logger.exception("Exception while calculating abundances at {}"\
                     .format(theta))
                 return [np.inf] * len(theta)
 
-            state, info = \
-                utils.equalibrium_state(transitions[for_equalibria],
+            transitions["abundance"] = abundances
+            state, info = utils.equalibrium_state(transitions,
                     metallicity=stellar_parameters[2], **state_kwds)
             # Remove outliers from future iterations
-            for_equalibria[info["outliers"]] = False
+            transitions = transitions[info["~outliers"]]
 
-            fig, ax = plt.subplots(2)
-            ax[0].scatter(transitions["excitation_potential"][for_equalibria], transitions["abundance"][for_equalibria])
-            ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"])[for_equalibria],
-                transitions["abundance"][for_equalibria], facecolor="k")
+            if plot:
+                # THIS IS JUST FOR DEBUGGING
+                fig, ax = plt.subplots(2)
+                ax[0].scatter(transitions["excitation_potential"], transitions["abundance"])
+                ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"]),
+                    transitions["abundance"], facecolor="k")
 
-            coefficients = info["coefficients"]
-            ok = for_equalibria
-            x = transitions["excitation_potential"][ok]
-            ax[0].plot(x, np.polyval(coefficients[0], x), c='b')
-            x = np.log(transitions["equivalent_width"] / transitions["wavelength"])[ok]
-            ax[1].plot(x, np.polyval(coefficients[1], x), c='b')
+                coefficients = info["coefficients"]
+                x = transitions["excitation_potential"]
+                ax[0].plot(x, np.polyval(coefficients[0], x), c='b')
+                x = np.log(transitions["equivalent_width"] / transitions["wavelength"])
+                ax[1].plot(x, np.polyval(coefficients[1], x), c='b')
 
             # Remove outliers for future fits.
-            print("theta", theta, state, (state**2).sum())
+            logger.debug("State at {0}: {1} --> {2:.2f}".format(theta, state,
+                (state**2).sum()))
             return state
 
         # Optimisation
@@ -674,20 +679,11 @@ class EqualibriaModel(Model):
         op_kwds["full_output"] = True
 
         result = op.fsolve(objective_function, sp_initial_theta, **op_kwds)
-        raise a
-        return result
-        # Another solving round?
-        """
-        result2 = op.leastsq(objective_function, result[0])
-        ax[0].scatter(transitions["excitation_potential"][for_equalibria], transitions["abundance"][for_equalibria],
-            facecolor="r")
-        ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"])[for_equalibria],
-            transitions["abundance"][for_equalibria], facecolor="r")
-        """
 
-        raise CaffieneRequiredToContinueError
-
-
+        if full_output:
+            return result
+        return result[0]
+        
 
 def wavelengths_in_data(wavelengths, data):
     orders = -np.ones(len(wavelengths), dtype=int)
