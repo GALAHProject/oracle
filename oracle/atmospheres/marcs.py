@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 class Interpolator(BaseInterpolator):
 
+    logarithmic_photosphere_quantities = ["Pe", "Pg"]
+
     def __init__(self, **kwargs):
         """
         A class to interpolate spherical and plane-parallel MARCS model
@@ -35,36 +37,16 @@ class Interpolator(BaseInterpolator):
         """
         return super(self.__class__, self).__init__("marcs-2011-standard.pkl",
             **kwargs)
+        
 
-    def neighbours(self, *point):
-        """
-        Return the indices of the neighbouring model points.
+    def _spherical_or_plane_parallel(self, *point):
 
-        This function will switch between spherical and plane-parallel
-        photospheres depending on which photospheres are more available, given
-        the stellar parameters required.
-        """
+        point = list(point) + [0.5] # equi-spaced from plane-parallel/spherical
+        neighbours = self.nearest_neighbours(point, 8) # 8 = 2**3
 
-        # Point is actually length 3, but the fourth column contains
-        # 'is_spherical', e.g. 1 for spherical, 0 for plane-parallel.
-
-        # Ignore the faux value:
-        point = point[:3]
-        assert len(point) == 3, "Expected 3-length point for stellar parameters"
-
-        # Check both spherical and plane-parallel?
-        indices = super(self.__class__, self).neighbours(*point)
-        sph_or_pp = self.stellar_parameters["is_spherical?"][indices]
-        if len(np.unique(sph_or_pp)) > 1:
-            # Take whichever has more points.
-            is_spherical = Counter(sph_or_pp).most_common()[0][0]
-            logger.debug("Selecting {0} models".format(
-                ["plane-parallel", "spherical"][int(is_spherical)]))
-            indices *= (self.stellar_parameters["is_spherical?"] == is_spherical)
-
-        if 2**len(point) > indices.sum():
-            raise ValueError("nope")
-        return indices
+        sph_or_pp = self.stellar_parameters.view(float).reshape(
+            len(self.stellar_parameters), -1)[:, -1]
+        return np.round(np.median(sph_or_pp[neighbours]))
 
 
     def interpolate(self, *point):
@@ -73,8 +55,7 @@ class Interpolator(BaseInterpolator):
         scale.
         """
 
-        # Put in a faux point value that we will ignore later.
-        point = [] + list(point) + [np.nan]
+        point = list(point) + [self._spherical_or_plane_parallel(*point)]
         return super(self.__class__, self).interpolate(*point)
 
 

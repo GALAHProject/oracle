@@ -49,16 +49,6 @@ class Interpolator(BaseInterpolator):
         return super(self.__class__, self).interpolate(*point)
 
 
-    def neighbours(self, *point):
-        assert len(point) == 4, "Insufficient parameters."
-        if point[3] not in self.stellar_parameters["alpha_enhancement"]:
-            raise ValueError("alpha value not allowed, sorry")
-
-        indices = super(self.__class__, self).neighbours(*point[:3]) \
-            * (self.stellar_parameters["alpha_enhancement"] == point[3])
-        return indices
-
-
 def parse_filename(filename, full_output=False):
     """
     Return the basic stellar parameters from the filename.
