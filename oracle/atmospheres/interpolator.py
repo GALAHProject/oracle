@@ -26,7 +26,7 @@ np.seterr(divide="ignore", invalid="ignore")
 
 class BaseInterpolator(object):
     
-    def __init__(self, pickled_atmospheres):
+    def __init__(self, pickled_atmospheres, live_dangerously=True):
         """
         Create a class to interpolate photospheric quantities.
 
@@ -62,6 +62,7 @@ class BaseInterpolator(object):
             raise ValueError("{} duplicate stellar parameters found".format(
                 stellar_parameters.size - idx.size))
 
+        self.live_dangerously = live_dangerously
         self.stellar_parameters = stellar_parameters
         self.photospheres = photospheres
         self.photospheric_quantities = photospheric_quantities
@@ -124,11 +125,41 @@ class BaseInterpolator(object):
         """
 
         opacity_index = self.photospheric_quantities.index(self.opacity_scale)
+
+        # Is the point actually in the grid?
+        grid_reshaped = self.stellar_parameters.view(float).reshape(
+            len(self.stellar_parameters), -1)
+        grid_index = np.all(grid_reshaped == point, axis=1)
+        if np.any(grid_index):
+            grid_index = np.where(grid_index)[0][0]
+            meta = self.meta.copy()
+            meta["common_optical_depth"] = self.opacity_scale
+            meta["stellar_parameters"] = \
+                dict(zip(self.stellar_parameters.dtype.names, point))
+            return astropy.table.Table(data=self.photospheres[grid_index],
+                names=self.photospheric_quantities, meta=meta)
+
         try:
             indices = self.neighbours(*point)
         except (ValueError, IndexError):
-            raise ValueError("cannot interpolate model photosphere because the "
-                "grid is mal-formed")
+            if not self.live_dangerously:
+                raise ValueError("cannot interpolate model photosphere because "
+                    "we are missing grid points")
+
+            # Live dangerously you say?
+            nearest_point = np.argmin(np.sum(np.abs((point - grid_reshaped) \
+                /np.ptp(grid_reshaped, axis=0)), axis=1))
+            logger.warn("Point {0} is outside of the grid. Instead we are going"
+                " to live dangerously and return the closest point at {1}"\
+                .format(point, grid_reshaped[nearest_point]))
+
+            meta = self.meta.copy()
+            meta["common_optical_depth"] = self.opacity_scale
+            meta["stellar_parameters"] = \
+                dict(zip(self.stellar_parameters.dtype.names,
+                    grid_reshaped[nearest_point]))
+            return astropy.table.Table(data=self.photospheres[nearest_point],
+                names=self.photospheric_quantities, meta=meta)
 
         # Resample the opacities to a common opacity scale
         photospheres = self.photospheres[indices].copy()

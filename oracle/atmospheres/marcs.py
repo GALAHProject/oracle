@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class Interpolator(BaseInterpolator):
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """
         A class to interpolate spherical and plane-parallel MARCS model
         atmospheres.
@@ -33,7 +33,8 @@ class Interpolator(BaseInterpolator):
         of 1 km/s in plane-parallel models and 2 km/s in spherical models.
 
         """
-        return super(self.__class__, self).__init__("marcs-2011-standard.pkl")
+        return super(self.__class__, self).__init__("marcs-2011-standard.pkl",
+            **kwargs)
 
     def neighbours(self, *point):
         """

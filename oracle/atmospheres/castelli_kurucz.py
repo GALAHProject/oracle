@@ -29,8 +29,9 @@ warnings.simplefilter("once", StandardCompositionAssumed)
 
 class Interpolator(BaseInterpolator):
 
-    def __init__(self):
-        return super(self.__class__, self).__init__("castelli-kurucz-2004.pkl")
+    def __init__(self, **kwargs):
+        return super(self.__class__, self).__init__("castelli-kurucz-2004.pkl",
+            **kwargs)
 
 
     def interpolate(self, *point):
