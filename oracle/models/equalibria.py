@@ -12,11 +12,8 @@ import numpy as np
 from scipy import stats, ndimage, optimize as op
 from astropy import (modeling, table, units as u)
 
-from oracle import atmospheres, specutils, synthesis, utils
-from oracle.models.model import Model
-from oracle.models import transitions
-from oracle.models.jacobian \
-    import approximate as stellar_parameter_jacobian_approximation
+from oracle import (atmospheres, specutils, synthesis, utils)
+from oracle.models import Model, utils
 
 logger = logging.getLogger("oracle")
 
@@ -559,7 +556,8 @@ class EqualibriaModel(Model):
         ax[2].scatter(self.atomic_transitions["wavelength"],
             self.atomic_transitions["profile_stddev"], facecolor="k")
 
-        state, info = self.equalibrium_state(full_output=True)
+        state, info = utils.equalibrium_state(
+            self.atomic_transitions, full_output=True)
         coefficients = info["coefficients"]
         ok = np.isfinite(self.atomic_transitions["abundance"])
         x = self.atomic_transitions["excitation_potential"][ok]
@@ -569,116 +567,6 @@ class EqualibriaModel(Model):
         ax[1].plot(x, np.polyval(coefficients[1], x), c='b')
         raise a
 
-
-    def equalibrium_state(self, data=None, sigma_clip=2, full_output=False):
-        """
-        Calculate the current equalibrium state.
-        """
-
-        if data is None:
-            data = self.atomic_transitions
-
-        # Use the abundances in self.atomic_transitions
-        finite = np.isfinite(data["abundance"])
-        if finite.sum() == 0:
-            raise ValueError("no abundances calculated")
-
-        outliers_removed = -1
-        neutral = ((data["species"] % 1) == 0)
-        ionised = ((data["species"] % 1) > 0)
-        metallicity = data.meta["abundances_given_stellar_parameters"][2]
-
-        while True:
-            neutral *= finite
-            ionised *= finite
-
-            # Calculate the slope with excitation potential and abundance.
-            excitation_regression = stats.linregress(
-                x=data["excitation_potential"][neutral + ionised],
-                y=data["abundance"][neutral + ionised])
-
-            # Calculate the ionisation state.
-            ionisation_state = data["abundance"][neutral].mean() \
-                - data["abundance"][ionised].mean()
-
-            # Calculate the abundance state.
-            abundance_state = np.mean(data["abundance"][neutral + ionised] \
-                - (atmospheres.solar_abundance(metallicity \
-                    + data["species"][neutral + ionised])))
-
-            # Slope with reduced equivalent width and line abundance.
-            rew = np.log(data["equivalent_width"] / data["wavelength"])
-            rew_regression = stats.linregress(
-                x=rew[neutral + ionised],
-                y=data["abundance"][neutral + ionised])
-
-            # Calculate the state
-            state = np.array([
-                excitation_regression[0],
-                ionisation_state,
-                abundance_state,
-                rew_regression[0]
-            ])
-
-            if outliers_removed > -1:
-                final_state = (excitation_regression, ionisation_state,
-                    abundance_state, rew_regression)
-                break
-
-            else:
-                # Remove the outliers?
-                initial_state = (excitation_regression, ionisation_state,
-                    abundance_state, rew_regression)
-
-                if sigma_clip is None or not np.isfinite(sigma_clip) \
-                or 0 >= sigma_clip:
-                    # Don't remove any outliers
-                    outliers_removed, final_state = False, initial_state
-                    break
-
-                # We don't want to remove stars that are simply on the edge of
-                # distributions because if our initial guess was very wrong, we
-                # could just be removing the weakest or strongest lines.
-
-                # Instead we will remove lines that are discrepant from the line
-                # fits.
-
-                # Outliers in excitation potential vs abundance:
-                x = data["excitation_potential"][neutral + ionised]
-                y = data["abundance"][neutral + ionised]
-                line = excitation_regression[0] * x + excitation_regression[1]
-
-                differences = np.abs(line - y)
-                excitation_sigma = differences/np.std(differences)
-
-                # Outliers in reduced equivalent width vs abundance:
-                x = rew[neutral + ionised]
-                y = data["abundance"][neutral + ionised]
-                line = rew_regression[0] * x + rew_regression[1]
-
-                differences = np.abs(line - y)
-                line_strength_sigma = differences/np.std(differences)
-
-                # Update the finite mask to remove outliers
-                outliers = (excitation_sigma > sigma_clip) \
-                    + (line_strength_sigma > sigma_clip)
-                finite[finite] *= ~outliers
-
-                outliers_removed = outliers.sum()
-                continue # to re-fit the lines
-
-        # TODO include information about which lines were outliers.
-        if full_output:
-            info = {
-                "initial_state": initial_state,
-                "final_state": final_state,
-                "coefficients": [
-                    [excitation_regression[0], excitation_regression[1]],
-                    [rew_regression[0], rew_regression[1]]
-                ]
-            }
-            return (state, info)
-        return state
 
 
     def estimate_stellar_parameters(self, data, initial_theta=None, **kwargs):
@@ -708,79 +596,93 @@ class EqualibriaModel(Model):
         if initial_theta is None:
             initial_theta = self.initial_theta(data)
 
+        # State keywords for later on.
+        state_kwds = kwargs.pop("state_kwargs", {"sigma_clip": 2})
+        state_kwds["full_output"] = True
 
-        # Were profiles measured, and were they measured at the initial theta point?
+        sp_initial_theta = [initial_theta[p] for p in self._stellar_parameters]
+        
+        # Were profiles measured, and where were they measured?
         profiles_measured = self.atomic_transitions.meta.get(
             "profiles_given_stellar_parameters", False)
-        sp_initial_theta = [initial_theta[p] for p in self._stellar_parameters]
         if not profiles_measured or sp_initial_theta != profiles_measured:
             # Measure them again.
             fitted_profiles = self.fit_atomic_transitions(data, **initial_theta)
 
         # Create a copy of the transitions for our little 'objective adventure'.
         transitions = self.atomic_transitions.copy()
-        measured_atomic_lines = np.isfinite(transitions["equivalent_width"]) \
-            * (transitions["equivalent_width"] > 0)
+        # Chose the lines to use for the equalibrium.
+        for_equalibria = np.isfinite(transitions["equivalent_width"]) \
+            * (transitions["equivalent_width"] > 0) \
+            * ((transitions["species"] == 26.0) + (transitions["species"] == 26.1))
 
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots(2)
-        ax[0].scatter(transitions["excitation_potential"], transitions["abundance"],
-            facecolor="k")
-        ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"]),
-            transitions["abundance"], facecolor="k")
+
+        # Measure the initial state and remove outliers for good.
+        initial_state, info = utils.equalibrium_state(transitions, 
+            metallicity=sp_initial_theta[2], **state_kwds)
+        for_equalibria[info["outliers"]] = False
+
 
         def objective_function(theta):
+            """ Minimise the simultaeous equalibrium constraints. """
 
-            logger.debug("Attempting theta {}".format(theta))
             stellar_parameters, microturbulence = theta[:3], theta[3]
-            
-            # Interpolate a photosphere and calculate atomic abundances.
             try:
                 photosphere = self._interpolator(*stellar_parameters)
-                abundances = synthesis.moog.atomic_abundances(
-                    transitions[measured_atomic_lines], photosphere,
-                    microturbulence=microturbulence)
+                transitions["abundance"][for_equalibria] = \
+                    synthesis.moog.atomic_abundances(
+                        transitions[for_equalibria], photosphere,
+                        microturbulence=microturbulence)
 
             except:
-                logger.exception("Exception while calculating abundances at "\
-                    "{0}".format(theta))
-                # TODO what about when no microturbulence?
+                logger.exception("Exception while calculating abundances at {}"\
+                    .format(theta))
+                return [np.inf] * len(theta)
 
+            state, info = \
+                utils.equalibrium_state(transitions[for_equalibria],
+                    metallicity=stellar_parameters[2], **state_kwds)
+            # Remove outliers from future iterations
+            for_equalibria[info["outliers"]] = False
 
-                fig, ax = plt.subplots(2)
-                ax[0].scatter(transitions["excitation_potential"], transitions["abundance"],
-                    facecolor="k")
-                ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"]),
-                    transitions["abundance"], facecolor="k")
+            fig, ax = plt.subplots(2)
+            ax[0].scatter(transitions["excitation_potential"][for_equalibria], transitions["abundance"][for_equalibria])
+            ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"])[for_equalibria],
+                transitions["abundance"][for_equalibria], facecolor="k")
 
-                raise WTFError()
-                return [np.nan] * 4
+            coefficients = info["coefficients"]
+            ok = for_equalibria
+            x = transitions["excitation_potential"][ok]
+            ax[0].plot(x, np.polyval(coefficients[0], x), c='b')
+            x = np.log(transitions["equivalent_width"] / transitions["wavelength"])[ok]
+            ax[1].plot(x, np.polyval(coefficients[1], x), c='b')
 
-            else:
-                transitions["abundance"][measured_atomic_lines] = abundances
-
-            state = self.equalibrium_state(data=transitions)
-            
-            state[2] *= 0.1
+            # Remove outliers for future fits.
             print("theta", theta, state, (state**2).sum())
-
-            # Re-arrange the state.
             return state
 
-
         # Optimisation
-        xtol = kwargs.pop("xtol", 1e-10)
-        maxfev = kwargs.pop("maxfev", 100)
+        op_kwds = {
+            "fprime": utils.jacobian,
+            "col_deriv": 1,
+            "epsfcn": 0,
+            "xtol": 1e-10,
+            "maxfev": 100
+        }
+        op_kwds.update(kwargs.pop("op_kwargs", {}))
+        op_kwds["full_output"] = True
 
-        result = op.fsolve(objective_function, sp_initial_theta,
-            fprime=stellar_parameter_jacobian_approximation, col_deriv=1,
-            epsfcn=0, xtol=xtol, maxfev=maxfev, full_output=True)
-
-        fig, ax = plt.subplots(2)
-        ax[0].scatter(transitions["excitation_potential"], transitions["abundance"],
-            facecolor="k")
-        ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"]),
-            transitions["abundance"], facecolor="k")
+        result = op.fsolve(objective_function, sp_initial_theta, **op_kwds)
+        raise a
+        return result
+        # Another solving round?
+        """
+        result2 = op.leastsq(objective_function, result[0])
+        ax[0].scatter(transitions["excitation_potential"][for_equalibria], transitions["abundance"][for_equalibria],
+            facecolor="r")
+        ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"])[for_equalibria],
+            transitions["abundance"][for_equalibria], facecolor="r")
+        """
 
         raise CaffieneRequiredToContinueError
 
@@ -792,4 +694,5 @@ def wavelengths_in_data(wavelengths, data):
         orders[(spectrum.disp[-1] >= wavelengths) \
             * (wavelengths >= spectrum.disp[0])] = i
     return orders
+
 

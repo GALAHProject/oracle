@@ -1,9 +1,15 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-import os
+""" Test the equalibrium model. """
+
+from __future__ import absolute_import, print_function
+
+__author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+
+from time import time
+
 import oracle
-
-
-import equalibria
 
 
 data = [
@@ -12,8 +18,7 @@ data = [
     oracle.specutils.Spectrum1D.load("/Users/arc/codes/oracle-with-siu/oracle/tests/data/benchmarks/18Sco/18Sco_narval_red_noresample.txt"),
     oracle.specutils.Spectrum1D.load("/Users/arc/codes/oracle-with-siu/oracle/tests/data/benchmarks/18Sco/18Sco_narval_ir_noresample.txt")
 ]
-
-model = equalibria.EqualibriaModel("hermes_classical.yaml")
+model = oracle.models.EqualibriaModel("hermes_classical.yaml")
 
 """
 initial_theta, r_chi_sq, expected_dispersion, expected_flux = model.initial_theta(
@@ -32,7 +37,10 @@ for i, ax in enumerate(axes):
 raise a
 """
 
+t_init = time()
 stellar_parameters = model.estimate_stellar_parameters(data)
+print("Completed in {0:.1f} seconds".format(time() - t_init))
+
 
 raise a
 
