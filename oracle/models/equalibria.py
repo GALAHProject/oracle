@@ -616,6 +616,7 @@ class EqualibriaModel(Model):
             * (transitions["equivalent_width"] > 0) \
             * ((transitions["species"] == 26.0) + (transitions["species"] == 26.1))
 
+        # TODO just create a subset of the table data and delete the extra rows
 
         # Measure the initial state and remove outliers for good.
         initial_state, info = utils.equalibrium_state(transitions, 
