@@ -7,12 +7,16 @@ from __future__ import absolute_import, print_function
 __all__ = ["atomic_abundances", "synthesise"]
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
+import logging
+import multiprocessing
 import numpy as np
 
 from astropy.table import Table
 
 import oracle.atmospheres
 from . import _mini_moog as moog
+
+logger = logging.getLogger("oracle")
 
 
 def _format_transitions(transitions):
@@ -273,6 +277,7 @@ def atomic_abundances(transitions, photosphere_information, microturbulence=None
     """
 
     debug = kwargs.pop("debug", False)
+    safe_mode = kwargs.pop("safe_mode", False)
     modtype, photosphere_arr, metallicity = _format_photosphere(
         photosphere_information, photosphere_kwargs,
         interpolator=kwargs.pop("_interpolator", None))
@@ -293,10 +298,35 @@ def atomic_abundances(transitions, photosphere_information, microturbulence=None
     photospheric_abundances = _format_abundances(photospheric_abundances)
 
     # Calculate abundances.
-    code, output = moog.abundances(metallicity, microturbulence, photosphere_arr,
-        photospheric_abundances, transitions, modtype_=modtype, debug_=debug)
+    if not safe_mode: 
+        code, output = moog.abundances(metallicity, microturbulence,
+            photosphere_arr, photospheric_abundances, transitions,
+            modtype_=modtype, debug_=debug)
+        return output
 
-    return output
+    else:
+        print("IN SAFE MODE")
+        p = multiprocessing.Process(target=moog.abundances, args=(metallicity,
+            microturbulence, photosphere_arr, photospheric_abundances,
+            transitions), kwargs={"modtype_": modtype, "debug_": debug})
+        p.start()
+        p.join(10)
+        if p.is_alive():
+            logger.warn("Terminating MOOG process that has timed out")
+            p.terminate()
+            p.join()
+
+            return np.ones(len(transitions)) * np.nan
+        
+        # So. Slow. But now that we know this will work...
+        code, output = moog.abundances(metallicity, microturbulence,
+            photosphere_arr, photospheric_abundances, transitions,
+            modtype_=modtype, debug_=debug)
+        return output
+
+
+        
+
 
     
 
