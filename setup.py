@@ -46,21 +46,22 @@ moog = Extension(name = "oracle.synthesis._mini_moog",
 # External data.
 if "--with-models" in map(str.lower, sys.argv):
     data_paths = [
-        # Model photospheres (Castelli & Kurucz, MARCS, Stagger)
+        # Model photospheres:
+        # Castelli & Kurucz (2004)
         ("https://zenodo.org/record/14964/files/castelli-kurucz-2004.pkl",
             "oracle/atmospheres/castelli-kurucz-2004.pkl"),
+        # MARCS (2008)
         ("https://zenodo.org/record/14964/files/marcs-2011-standard.pkl",
             "oracle/atmospheres/marcs-2011-standard.pkl"),
-        """
-        (,
+        # Stagger-Grid <3D> (2013)
+        ("https://zenodo.org/record/15077/files/stagger-2013-optical.pkl",
             "oracle/atmospheres/stagger-2013-optical.pkl"),
-        (,
+        ("https://zenodo.org/record/15077/files/stagger-2013-mass-density.pkl",
             "oracle/atmospheres/stagger-2013-mass-density.pkl"),
-        (,
+        ("https://zenodo.org/record/15077/files/stagger-2013-rosseland.pkl",
             "oracle/atmospheres/stagger-2013-rosseland.pkl"),
-        (,
+        ("https://zenodo.org/record/15077/files/stagger-2013-height.pkl",
             "oracle/atmospheres/stagger-2013-height.pkl"),
-        """
         # Model spectra (AMBRE grid for GALAH)
         ("https://zenodo.org/record/14977/files/galah-ambre-grid.pkl",
             "oracle/models/galah-ambre-grid.pkl")
