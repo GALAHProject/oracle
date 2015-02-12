@@ -130,7 +130,7 @@ c     molecular line can possibly be in this category
             endif
          else
             write (*,2004) iatom
-            stop
+c            stop
          endif
       enddo
       printstrong = 1

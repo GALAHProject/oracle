@@ -69,7 +69,7 @@ c        stop
 c            print *, "k wave", k, lim1, wave, st1
             if (k .eq. 30 .and. debug .gt. 0) then
                write (*,1010) wave
-               stop
+c               stop (1010)
             endif
             wave = wave1(lim1) + 5.*st1
             call taukap

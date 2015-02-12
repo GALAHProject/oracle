@@ -376,8 +376,8 @@ c               write (array,1003) molecule, dlog10(abundin),
 c     .                            dlog10(average)
 c               lscreen = lscreen + 2
 c               call prinfo (lscreen)
-c               print *, "molecule!"
-               stop
+               print *, "molecule!"
+c               stop
             endif
          endif
       endif
