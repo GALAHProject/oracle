@@ -136,8 +136,15 @@ class BaseInterpolator(object):
             meta["common_optical_depth"] = self.opacity_scale
             meta["stellar_parameters"] = \
                 dict(zip(self.stellar_parameters.dtype.names, point))
-            return astropy.table.Table(data=self.photospheres[grid_index],
+            photosphere = astropy.table.Table(data=self.photospheres[grid_index],
                 names=self.photospheric_quantities, meta=meta)
+            units = self.meta.get("photospheric_units", None)
+            if units is not None:
+                for name, unit in zip(self.photospheric_quantities, units):
+                    photosphere[name].unit = unit
+            return photosphere
+                
+
 
         try:
             indices = self.neighbours(*point)
@@ -158,8 +165,14 @@ class BaseInterpolator(object):
             meta["stellar_parameters"] = \
                 dict(zip(self.stellar_parameters.dtype.names,
                     grid_reshaped[nearest_point]))
-            return astropy.table.Table(data=self.photospheres[nearest_point],
+            photosphere = astropy.table.Table(
+                data=self.photospheres[nearest_point],
                 names=self.photospheric_quantities, meta=meta)
+            units = self.meta.get("photospheric_units", None)
+            if units is not None:
+                for name, unit in zip(self.photospheric_quantities, units):
+                    photosphere[name].unit = unit
+            return photosphere
 
         # Resample the opacities to a common opacity scale
         photospheres = self.photospheres[indices].copy()
@@ -247,8 +260,13 @@ class BaseInterpolator(object):
         meta["common_optical_depth"] = self.opacity_scale
         meta["stellar_parameters"] = \
             dict(zip(self.stellar_parameters.dtype.names, point))
-        return astropy.table.Table(data=interpolated_photosphere,
+        photosphere = astropy.table.Table(data=interpolated_photosphere,
             names=self.photospheric_quantities, meta=meta)
+        units = self.meta.get("photospheric_units", None)
+        if units is not None:
+            for name, unit in zip(self.photospheric_quantities, units):
+                photosphere[name].unit = unit
+        return photosphere
 
 
 def resample_photosphere(opacities, photosphere, opacity_index):

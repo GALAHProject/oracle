@@ -17,6 +17,7 @@ import numpy as np
 
 import marcs
 import castelli_kurucz
+import stagger
 
 
 def pickle_atmospheres(atmosphere_filenames, kind, meta=None):
