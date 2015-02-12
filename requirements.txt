@@ -1,7 +1,7 @@
 numpy>=1.8
 scipy
 matplotlib>=1.0.1
-astropy
+astropy==1.0rc1
 pyyaml
 emcee>=1.1.0
 
