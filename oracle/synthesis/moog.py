@@ -32,15 +32,15 @@ def _format_transitions(transitions):
        :class:`astropy.table.Table` or :class:`numpy.core.recordarray`
     """
 
-    data = transitions if hasattr(transitions, "view") else transitions._data
+    d = transitions if hasattr(transitions, "view") else transitions.as_array()
 
     columns = ("wavelength", "species", "excitation_potential", "loggf",
         "C6???", "C4???", "equivalent_width")
 
-    transitions_arr = np.zeros((len(data), 7))
+    transitions_arr = np.zeros((len(d), 7))
     for i, column in enumerate(columns):
-        if column not in data.dtype.names: continue
-        transitions_arr[:, i] = data[column]
+        if column not in d.dtype.names: continue
+        transitions_arr[:, i] = d[column]
     return np.asfortranarray(transitions_arr)
 
 
@@ -86,42 +86,79 @@ def _format_photosphere(photosphere_information, photosphere_kwargs,
         if interpolator is None:
             if photosphere_kwargs is None:
                 photosphere_kwargs = {}
-            interpolator = oracle.atmospheres.Interpolator(**photosphere_kwargs)
+            interpolator = oracle.atmospheres.interpolator(**photosphere_kwargs)
         photosphere = interpolator.interpolate(*photosphere_information)
 
     else:
         photosphere = photosphere_information
 
-    metallicity = photosphere.meta["stellar_parameters"]["metallicity"]
-    modtype = {
-        "marcs": "WEBMARCS",
-        "castelli/kurucz": "KURUCZ"
-    }[photosphere.meta["kind"]]
-    d = photosphere if hasattr(photosphere, "view") else photosphere._data
+    d = photosphere if hasattr(photosphere, "view") else photosphere.as_array()
     photosphere_arr = np.asfortranarray(d.view(float).reshape(d.size, -1))
 
-    # Based on the kind of model, we should select the correct columns from the
-    # photosphere that MOOG actually needs.
-    if photosphere.meta["kind"] == "marcs":
-        """
-        ayer number (not needed), log{tau(Rosseland)} (not needed),
-        c     log{tau(5000)}, depth, t, pe, pgas, prad (not read in) and
-        c     pturb (not read in)
-        c      elseif (modtype .eq. 'WEBMARCS') then
-        c         read (nfmodel,*) wavref
-        c         do i=1,ntau
-        c            read (nfmodel,*) k, dummy1(k), tauref(i), dummy2(k), t(i),
-        c     .                       ne(i), pgas(i)
-        """
+    kind = photosphere.meta["kind"].lower()
+    if kind == "marcs":
+
+        # Photospheric quantities and units:
+        # log(tau) optical depth
+        # T        temperature at {tau} (K)
+        # Pe       electron pressure at {tau} [dyne/cm^2]
+        # Pg       gas pressure at {tau} [dyne/cm^2]
+
+        # Photospheric quantities expected by MOOG:
+        # tauref, t, ne, pgas
+
+        modtype = "WEBMARCS"
         indices = np.array([photosphere.dtype.names.index(c) \
-            for c in ("lgTau5", "T", "Pe", "Pg")]) # MOOG calls Pe as Ne
+            for c in ("lgTau5", "T", "Pe", "Pg")]) # MOOG calls Pe as Ne??
+        photosphere_arr = photosphere_arr[:, indices]
         
-    elif photosphere.meta["kind"] == "castelli/kurucz":
-        # From Inmodel.f: rhox(i),t(i),pgas(i),ne(i),kaprefmass(i)
+    elif kind == "castelli/kurucz":
+        
+        # Photospheric quantities and units:
+        # RHOX  density at {tau}
+        # T     Temperature at {tau} (K)
+        # P     Gas pressure at {tau} [dyne/cm^2]
+        # XNE   Number density of electrons at {tau}??? (???)  
+        # kappa Rosseland mean opacity on a mass scale (cm^2/gm)
+
+        # Photospheric quantities expected by MOOG:
+        # rhox, t, pgas, ne, kaprefmass
+
+        modtype = "KURUCZ"
         indices = np.array([photosphere.dtype.names.index(c) \
             for c in ("RHOX", "T", "P", "XNE", "ABROSS")])
+        photosphere_arr = photosphere_arr[:, indices]
 
-    photosphere_arr = photosphere_arr[:, indices]
+    elif kind == "stagger":
+
+        averaging = photosphere.meta["horizontal_averaging"].lower()
+        if averaging[0] == "r":
+            raise NotImplementedError
+
+        # Photospheric quantities and units:
+        # log(tau) optical depth (at 500 nm)
+        # rho      density at {tau} (g/cm^3)
+        # T        temperature at {tau} (K)
+        # Pth      thermodynamic pressure at {tau} [dyne/cm^2]
+        # Ptb      turbulent pressure at {tau} [dyne/cm^2]
+        # Pe       electron pressure at {tau} [dyne/cm^2]
+
+        # Note that Ptb is not relevant/required for photospheres averaged along
+        # the Rosseland opacity.
+
+        # Photospheric quantities passing to MOOG (as 'WEBMARCS' modtype):
+        # tauref, t, ne, pgas
+
+        # Note Stagger Pth ~= MARCS Pg
+        modtype = "WEBMARCS"
+        indices = np.array([photosphere.dtype.names.index(c) \
+            for c in ("logtau", "T", "Pe", "Pth")])
+        photosphere_arr = photosphere_arr[:, indices]
+
+    else:
+        raise ValueError("photosphere kind {} not recognised".format(kind))
+
+    metallicity = photosphere.meta["stellar_parameters"]["metallicity"]
     return (modtype, photosphere_arr, metallicity)
 
 
