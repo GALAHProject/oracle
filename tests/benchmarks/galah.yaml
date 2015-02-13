@@ -1,0 +1,29 @@
+{
+    "model": {
+        "atmosphere_kwargs": {
+            "kind": "stagger-m"
+        },
+        "atomic_transitions_filename": "line_list.csv",
+        "continuum_mask": [
+            [
+                4899, 
+                4905
+            ], 
+            [
+                7592, 
+                7730
+            ]
+        ], 
+        "instrumental_resolution": true, 
+        "cross_correlation_mask": [
+            [
+                7500, 
+                7730
+            ]
+        ], 
+        "redshift": true
+    }, 
+    "settings": {
+        "threads": 4
+    }
+}
