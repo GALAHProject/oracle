@@ -66,6 +66,14 @@ if __name__ == "__main__":
         # Exit run
         # Was any science actually done?
         if os.path.exists("science.log"):
+            print("SCIENCE LOG CONTAINS")
+            os.system("cat science.log")
+            with open("science.log", "r") as fp:
+                contents = fp.read()
+
+            pr = auth_token.get_repo(repo_slug).get_pull(pull_request)
+            pr.create_issue_comment("Well:\n" + "".join(contents))
+
             # [TODO] Parse the log/similar for results and make checks.
             # Then set as either success/failure
             r = commit.create_status("success", target_url="http://astrowizici.st",

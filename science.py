@@ -55,7 +55,7 @@ for benchmark in benchmarks:
     data = map(oracle.specutils.Spectrum1D.load, filenames)
 
     t_init = time()
-    model = oracle.models.EqualibriaModel("tests/benchmarks/galah.yaml")
+    model = oracle.models.EqualibriaModel("galah.yaml")
     stellar_parameters = model.estimate_stellar_parameters(data)
 
     t_taken = time() - t_init
