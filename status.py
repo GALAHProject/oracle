@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     # Check that we are on a pull request
     print("Checking to see if we are on a pull request: {0}".format(
-        os.environ.get("TRAVIS_PULL_REQUEST", None))
+        os.environ.get("TRAVIS_PULL_REQUEST", None)))
     if os.environ.get("TRAVIS_PULL_REQUEST", "false") == "false":
         print("Exiting..")
         sys.exit(0)
