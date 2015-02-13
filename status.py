@@ -46,9 +46,14 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Check that we are on a pull request
+    print("Checking to see if we are on a pull request: {0}".format(
+        os.environ.get("TRAVIS_PULL_REQUEST", None))
     if os.environ.get("TRAVIS_PULL_REQUEST", "false") == "false":
+        print("Exiting..")
         sys.exit(0)
 
+    print("We are on pull request #{0}, so we have work to do..".format(
+        os.environ["TRAVIS_PULL_REQUEST"]))
     gh = github.Github(os.environ["GH_TOKEN"])
     context = "science-verification/gaia-benchmarks"
     repo_slug = os.environ["TRAVIS_REPO_SLUG"]
@@ -56,7 +61,9 @@ if __name__ == "__main__":
 
     commit, states = get_commit_info(gh, repo_slug, pull_request, context)
 
+    print("Checking states: {0}".format(states))
     if len(states) == 0:
+        print("This is the entry run. Set status to pending.")
         # Entry run
         r = commit.create_status("pending", target_url="http://astrowizici.st",
             description="Analysing benchmark stars", context=context)
@@ -72,7 +79,7 @@ if __name__ == "__main__":
                 contents = fp.read()
 
             pr = auth_token.get_repo(repo_slug).get_pull(pull_request)
-            pr.create_issue_comment("Well:\n" + "".join(contents))
+            new_comment = pr.create_issue_comment("Well:\n" + "".join(contents))
 
             # [TODO] Parse the log/similar for results and make checks.
             # Then set as either success/failure
