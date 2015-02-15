@@ -92,7 +92,7 @@ markdown = \
 The [Gaia benchmark spectra]({record_url}) were downloaded and analysed using commit {{commit_sha}}. Literature (leftmost) values are from [Jofre et al. (2014)](http://arxiv.org/pdf/1309.1099v2.pdf).
 
 **Initial Parameters**
-Initial stellar parameters, velocities, and continuum coefficients were first estimated by cross-correlations against a grid of models:
+Initial stellar parameters, velocities, and continuum coefficients were first estimated by cross-correlation against a grid of models:
 
 Star | Teff | logg | [Fe/H] | Teff [ccf] | logg [ccf] | [Fe/H] [ccf] | Time |
 :----|:----:|:----:|:------:|:----------:|:----------:|:------------:|:----:|

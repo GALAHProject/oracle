@@ -101,12 +101,9 @@ if __name__ == "__main__":
             pr = gh.get_repo(repo_slug).get_pull(pull_request)
             new_comment = pr.create_issue_comment(results)
 
-            # [TODO] Parse the log/similar for results and make checks.
-            # Then set as either success/failure
-
             # Update the science-verification state
             r = commit.create_status("success", target_url="http://astrowizici.st",
-                description="Gaia benchmarks within mutual uncertainties",
+                description="Gaia benchmarks stars analysed successfully",
                 context=context)
 
         else:
