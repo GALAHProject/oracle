@@ -90,9 +90,11 @@ if __name__ == "__main__":
             print("No results were found in {0}".format(results_filename))
 
             pr = gh.get_repo(repo_slug).get_pull(pull_request)
-            new_comment = pr.create_issue_comment("Could not find science verification"
-                " results file `{0}` after running science checks with commit `{1}`".format(
-                results_filename, commit))
+            new_comment = pr.create_issue_comment("Could not find the science "
+                "verification results file `{0}` after analysing with code "
+                "commit [`{1}`]({2}) by @{3}".format(
+                results_filename, commit.sha[:10], commit.url,
+                commit.author.login))
 
             r = commit.create_status("error", target_url="http://astrowizici.st",
                 description="An error occurred and no results were found",
