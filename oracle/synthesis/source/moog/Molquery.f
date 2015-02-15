@@ -35,7 +35,7 @@ c*****halt if M.E. wasn't done or didn't include this species
             lscreen = lscreen + 2
             write (array,1001) iabatom
             call prinfo (lscreen)
-            stop
+c            stop
          endif
          call sunder(atom1(lim1obs),ia,ib)
          iaa = ia
@@ -47,7 +47,7 @@ c*****halt if M.E. wasn't done or didn't include this species
             lscreen = lscreen + 2
             write (array,1002) iabatom
             call prinfo (lscreen)
-            stop
+c            stop
          endif
          molflag = 1
 
@@ -64,7 +64,7 @@ c*****for other molecules, the user specifies which element will be varied
          else
             print *, "don't know what element to vary in ", ibatom
             print *, "stahp"
-            stop
+c            stop
 c            write (array,1003) iabatom
 c            nchars = 56
 c            call getnum (nchars,ikount+1,xnum,shortnum)

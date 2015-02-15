@@ -37,7 +37,7 @@ c*****either read in the dissociation data for a molecular species
                if (datmol(1,k) .eq. amol(jmol)) go to 11                
             enddo
             if (debug .gt. 0) write (nf1out,1001) amol(jmol)                   
-            stop                                                        
+c            stop                                                        
 11          do kk=1,6                                                   
                const(kk,jmol) = datmol(kk+1,k)                          
             enddo 

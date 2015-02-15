@@ -68,11 +68,11 @@ c         print *, "wavelo, wavehi", wave, wavelo, wavehi
 c        requested synthesis too far from linelist limits
          if (wavehi .lt. wave1(1)-10.0) then
             write (*,1004)
-            stop
+c            stop
          elseif (wavelo .gt. wave1(nlines)+10.0 .and.
      .           nlines+nstrong .lt. 2500) then
             write (*,1005)
-            stop
+c            stop
          endif
 c        blank synthesis at start or end of requested wavelength range
          if     (wavehi .lt. wave1(1)) then
@@ -127,7 +127,7 @@ c            call prinfo (10)
 c            write (array,1002)
 c            call prinfo (11)
             print *, "stahpping"
-            stop
+c            stop
          endif
          if (lim1line .eq. nlines) then
             lim2line = lim1line
@@ -145,7 +145,7 @@ c            call prinfo (11)
 c         write (array,1003) mode
 c         call prinfo (10)
          print *, "staaaaahpping"
-         stop
+c         stop
       endif
 
 
