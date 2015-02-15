@@ -33,7 +33,7 @@ after_success:
  - "mkdir science; cp science.py science/"
  - "cp tests/benchmarks/galah* science/"
  - cd science
- - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py; fi"
+ - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py > science.log; fi"
  - cd ../
 
 after_script:

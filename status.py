@@ -75,6 +75,7 @@ if __name__ == "__main__":
             .format(pull_request, "|".join(states)))
 
         # Was any science actually done?
+        log_filename = "science/science.log"
         results_filename = "science/results.md"
         if os.path.exists(results_filename):
     
@@ -103,14 +104,22 @@ if __name__ == "__main__":
         else:
             print("No results were found in {0}".format(results_filename))
 
+            # Get the log output if it exists.
+            if os.path.exists(log_filename):
+                with open(log_filename, "r") as fp:
+                    log = fp.read()
+
+                else:
+                    log = "No log could be found at `{}`".format(log_filename)
+
             # Make a comment on the pull request that highlights the author of
             # this commit.
             pr = gh.get_repo(repo_slug).get_pull(pull_request)
             new_comment = pr.create_issue_comment("Could not find the science "
                 "verification results file `{0}` after analysing with code "
-                "commit [`{1}`]({2}) by @{3}".format(
+                "commit [`{1}`]({2}) by @{3}:\n\n{4}".format(
                 results_filename, commit.sha[:10], commit.url,
-                commit.author.login))
+                commit.author.login, log))
 
             # Update the science-verification state
             r = commit.create_status("error", target_url="http://astrowizici.st",

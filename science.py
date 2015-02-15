@@ -29,6 +29,7 @@ if __name__ != "__main__":
 
 # Download the benchmark data and unpack it.
 data_url = "https://zenodo.org/record/15103/files/benchmarks.tar.gz"
+record_url = "https://zenodo.org/record/15103/"
 if not os.path.exists("DATA/benchmarks/benchmarks.csv"):
     logger.info("Downloading {0}".format(data_url))
     try:
@@ -87,15 +88,15 @@ for benchmark in benchmarks:
 # Create a results file in markdown
 markdown = \
 """
-The [Gaia benchmark spectra]({data_url}) were downloaded from and analysed using commit {{commit_sha}}. The results are below.
+The [Gaia benchmark spectra]({record_url}) were downloaded and analysed using commit {{commit_sha}}. The results are below.
 
 **Initial Parameters**
 Initial stellar parameters, velocities, and continuum coefficients were first estimated by cross-correlations against a grid of models:
 
 Star | Teff | logg | [Fe/H] | Teff [init] | logg [init] | [Fe/H] [init] | Time |
-:----|:----:|:----:|:------:|:-----------:|:-----------:|:-------------:|:----:|
+:----|:----:|:----:|-------:|:-----------:|:-----------:|--------------:|:----:|
      |**(K)**|**(cgs)**|    | **(K)**     | **(cgs)**   |            |**(sec)**|
-""".format(data_url=data_url)
+""".format(record_url=record_url)
 
 for row in results:
     markdown += "{0} | {1:.0f} | {2:.3f} | {3:.3f} | {4:.0f} | {5:.2f} | {6:.2f}"\
@@ -141,7 +142,7 @@ try:
     imgur = pyimgur.Imgur(os.environ.get("IMGUR_CLIENT_ID", None))
     uploaded_image = imgur.upload_image("benchmarks.png")
 
-except as e:
+except Exception as e:
     logger.exception("Could not upload benchmarks image to Imgur")
     markdown += "\n\nError uploading figures to Imgur ({0}: {1})".format(
         e.errno, e.strerror)
