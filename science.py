@@ -62,13 +62,14 @@ for benchmark in benchmarks:
     data = map(oracle.specutils.Spectrum1D.load, filenames)
     model = oracle.models.EqualibriaModel("galah.yaml")
 
-    t_init = time()
+    t = time()
     initial_theta = model.initial_theta(data)
-
-    #stellar_parameters = model.estimate_stellar_parameters(data,
-    #    initial_theta=initial_theta)
-
-    time_taken = time() - t_init
+    t_initial = time() - t 
+   
+    t = time()
+    stellar_parameters = model.estimate_stellar_parameters(data,
+        initial_theta=initial_theta)
+    t_estimate = time() - t
 
     results.append([
         star,
@@ -78,10 +79,15 @@ for benchmark in benchmarks:
         initial_theta["effective_temperature"],
         initial_theta["surface_gravity"],
         initial_theta["metallicity"],
-        time_taken
-    ])# + list(stellar_parameters)
+        t_initial,
+        stellar_parameters["effective_temperature"],
+        stellar_parameters["surface_gravity"],
+        stellar_parameters["metallicity"],
+        stellar_parameters["microturbulence"],
+        t_estimate
+    ])
 
-    logger.info("Took {0:.1f} seconds to solve for {1}".format(time_taken, star))
+    logger.info("Took {0:.1f} seconds to solve for {1}".format(t_estimate + t_initial, star))
     logger.info("Literature for {0:} ({1:.0f}, {2:.2f}"
         ", {3:.2f})".format(star, benchmark["effective_temperature"],
         benchmark["surface_gravity"], benchmark["metallicity"]))
@@ -104,14 +110,32 @@ for row in results:
     markdown += "{0} | {1:.0f} | {2:.3f} | {3:+.3f} | {4:.0f} | {5:.2f} | {6:+.2f}"\
         " | {7:.1f}\n".format(*row)
 
+# Add another table for the final values.
+markdown += \
+"""
+
+**Equalibrium Parameters**
+Spectra were synthesised around each line and an equalibrium balance was performed using the [Stagger-Grid](https://staggergrid.wordpress.com/) ⟨3D⟩ (mass density) photospheres in [MOOG](http://www.as.utexas.edu/~chris/moog.html).
+
+Star | Teff | logg | [Fe/H] | Teff [eq] | logg [eq] | [Fe/H] [eq] | xi [eq] | Time |
+:----|:----:|:----:|:------:|:---------:|:---------:|:-----------:|:-------:|:----:|
+     |**(K)**|**(cgs)**|    | **(K)**   | **(cgs)** |         |**(km/s)**|**(sec)**|
+"""
+
+for row in results:
+    _ = row[:4] + row[8:]
+    markdown += "{0} | {1:.0f} | {2:.3f} | {3:+.3f} | {4:.0f} | {5:.2f} | {6:+.2f}"\
+        " | {7:.1f}\n".format(_)
+
 # Create a results table for easier plottingg 
 results_table = astropy.table.Table(rows=results,
     names=["Star", "Teff_lit", "logg_lit", "[Fe/H]_lit", "Teff_ccf", "logg_ccf",
-    "[Fe/H]_ccf", "Time"])
+    "[Fe/H]_ccf",  "Time_ccf", "Teff_eq", "logg_eq", "[Fe/H]_eq", "Time_eq"])
 
 # Make a difference plot
 fig, ax = plt.subplots(3)
 ax[0].scatter(results_table["Teff_lit"], results_table["Teff_ccf"]-results_table["Teff_lit"], facecolor="k")
+ax[0].scatter(results_table["Teff_lit"], results_table["Teff_eq"]-results_table["Teff_lit"], facecolor="r")
 ax[0].axhline(0, ls=":", c="#666666")
 ax[0].set_xlabel("$T_{\\rm eff}$ (K)")
 ax[0].set_ylabel("$\Delta{}T_{\\rm eff}$ (K)")
@@ -120,6 +144,7 @@ ax[0].set_ylim(-_, +_)
 ax[0].yaxis.set_major_locator(MaxNLocator(5))
 
 ax[1].scatter(results_table["logg_lit"], results_table["logg_ccf"]-results_table["logg_lit"], facecolor="k")
+ax[1].scatter(results_table["logg_lit"], results_table["logg_eq"]-results_table["logg_lit"], facecolor="r")
 ax[1].axhline(0, ls=":", c="#666666")
 ax[1].set_xlabel("$\log{g}$")
 ax[1].set_ylabel("$\Delta{}\log{g}$ (dex)")
@@ -128,6 +153,7 @@ ax[1].set_ylim(-_, +_)
 ax[1].yaxis.set_major_locator(MaxNLocator(5))
 
 ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_ccf"]-results_table["[Fe/H]_lit"], facecolor="k")
+ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_eq"]-results_table["[Fe/H]_lit"], facecolor="r")
 ax[2].axhline(0, ls=":", c="#666666")
 ax[2].set_xlabel("[Fe/H]")
 ax[2].set_ylabel("$\Delta{}{\\rm [Fe/H]}$ (dex)")
