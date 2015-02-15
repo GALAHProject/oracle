@@ -17,6 +17,7 @@ from urllib import urlretrieve
 
 import astropy.table
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 
 import oracle
@@ -116,6 +117,7 @@ ax[0].set_xlabel("$T_{\\rm eff}$ (K)")
 ax[0].set_ylabel("$\Delta{}T_{\\rm eff}$ (K)")
 _ = np.max(np.abs(ax[0].get_ylim()))
 ax[0].set_ylim(-_, +_)
+ax[0].yaxis.set_major_locator(MaxNLocator(5))
 
 ax[1].scatter(results_table["logg_lit"], results_table["logg_ccf"]-results_table["logg_lit"], facecolor="k")
 #ax[1].scatter(results_table["logg_lit"], results_table["logg_eq"]-results_table["logg_lit"], facecolor="k")
@@ -124,6 +126,7 @@ ax[1].set_xlabel("$\log{g}$")
 ax[1].set_ylabel("$\Delta{}\log{g}$ (dex)")
 _ = np.max(np.abs(ax[1].get_ylim()))
 ax[1].set_ylim(-_, +_)
+ax[1].yaxis.set_major_locator(MaxNLocator(5))
 
 ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_ccf"]-results_table["[Fe/H]_lit"], facecolor="k")
 #ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_eq"]-results_table["[Fe/H]_lit"], facecolor="k")
@@ -132,6 +135,7 @@ ax[2].set_xlabel("[Fe/H]")
 ax[2].set_ylabel("$\Delta{}{\\rm [Fe/H]}$ (dex)")
 _ = np.max(np.abs(ax[2].get_ylim()))
 ax[2].set_ylim(-_, +_)
+ax[2].yaxis.set_major_locator(MaxNLocator(5))
 
 fig.tight_layout()
 fig.savefig("benchmarks.png")
@@ -142,7 +146,7 @@ try:
     imgur = pyimgur.Imgur(os.environ.get("IMGUR_CLIENT_ID", None))
     uploaded_image = imgur.upload_image("benchmarks.png")
 
-except Exception as e:
+except BaseException as e:
     logger.exception("Could not upload benchmarks image to Imgur")
     markdown += "\n\nError uploading figures to Imgur ({0}: {1})".format(
         e.errno, e.strerror)

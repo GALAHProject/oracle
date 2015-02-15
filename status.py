@@ -88,16 +88,18 @@ if __name__ == "__main__":
             }
             results = results.format(**formattable)
 
+            if os.path.exists(log_filename):
+                # There was an error log. Let's post it too
+                with open(log_filename, "r") as fp:
+                    log = fp.read().strip()
+                if len(log) > 0:
+                    results += "An error log file `{0}` was also found:\n\n"\
+                        "````\n{1}\n````".format(log_filename, log)
+
             # Make a comment on the pull request that contains the information
             # from the results file.
             pr = gh.get_repo(repo_slug).get_pull(pull_request)
             new_comment = pr.create_issue_comment(results)
-
-            if os.path.exists(log_filename):
-                with open(log_filename, "r") as fp:
-                    log = fp.read()
-
-                new_comment = pr.create_issue_comment("Log:\n{}".format(log))
 
             # [TODO] Parse the log/similar for results and make checks.
             # Then set as either success/failure
