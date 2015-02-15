@@ -88,18 +88,18 @@ for benchmark in benchmarks:
 # Create a results file in markdown
 markdown = \
 """
-The [Gaia benchmark spectra]({record_url}) were downloaded and analysed using commit {{commit_sha}}. The results are below.
+The [Gaia benchmark spectra]({record_url}) were downloaded and analysed using commit {{commit_sha}}. Literature (leftmost) values are from [Jofre et al. (2014)](http://arxiv.org/pdf/1309.1099v2.pdf).
 
 **Initial Parameters**
 Initial stellar parameters, velocities, and continuum coefficients were first estimated by cross-correlations against a grid of models:
 
-Star | Teff | logg | [Fe/H] | Teff [init] | logg [init] | [Fe/H] [init] | Time |
-:----|:----:|:----:|-------:|:-----------:|:-----------:|--------------:|:----:|
-     |**(K)**|**(cgs)**|    | **(K)**     | **(cgs)**   |            |**(sec)**|
+Star | Teff | logg | [Fe/H] | Teff [ccf] | logg [ccf] | [Fe/H] [ccf] | Time |
+:----|:----:|:----:|:------:|:----------:|:----------:|:------------:|:----:|
+     |**(K)**|**(cgs)**|    | **(K)**    | **(cgs)**  |              |**(sec)**|
 """.format(record_url=record_url)
 
 for row in results:
-    markdown += "{0} | {1:.0f} | {2:.3f} | {3:.3f} | {4:.0f} | {5:.2f} | {6:.2f}"\
+    markdown += "{0} | {1:.0f} | {2:.3f} | {3:+.3f} | {4:.0f} | {5:.2f} | {6:+.2f}"\
         " | {7:.1f}\n".format(*row)
 
 # Create a results table for easier plottingg 
