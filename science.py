@@ -36,7 +36,8 @@ if not os.path.exists("DATA/benchmarks/benchmarks.csv"):
     try:
         urlretrieve(data_url, "benchmarks.tar.gz")
     except IOError:
-        logger.exception("Error downloading benchmark data from {0}".format(data_url))
+        logger.exception(
+            "Error downloading benchmark data from {0}".format(data_url))
         raise
     else:
         with tarfile.open("benchmarks.tar.gz") as tar:
@@ -111,7 +112,6 @@ results_table = astropy.table.Table(rows=results,
 # Make a difference plot
 fig, ax = plt.subplots(3)
 ax[0].scatter(results_table["Teff_lit"], results_table["Teff_ccf"]-results_table["Teff_lit"], facecolor="k")
-#ax[0].scatter(results_table["Teff_lit"], results_table["Teff_eq"]-results_table["Teff_lit"], facecolor="k")
 ax[0].axhline(0, ls=":", c="#666666")
 ax[0].set_xlabel("$T_{\\rm eff}$ (K)")
 ax[0].set_ylabel("$\Delta{}T_{\\rm eff}$ (K)")
@@ -120,7 +120,6 @@ ax[0].set_ylim(-_, +_)
 ax[0].yaxis.set_major_locator(MaxNLocator(5))
 
 ax[1].scatter(results_table["logg_lit"], results_table["logg_ccf"]-results_table["logg_lit"], facecolor="k")
-#ax[1].scatter(results_table["logg_lit"], results_table["logg_eq"]-results_table["logg_lit"], facecolor="k")
 ax[1].axhline(0, ls=":", c="#666666")
 ax[1].set_xlabel("$\log{g}$")
 ax[1].set_ylabel("$\Delta{}\log{g}$ (dex)")
@@ -129,7 +128,6 @@ ax[1].set_ylim(-_, +_)
 ax[1].yaxis.set_major_locator(MaxNLocator(5))
 
 ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_ccf"]-results_table["[Fe/H]_lit"], facecolor="k")
-#ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_eq"]-results_table["[Fe/H]_lit"], facecolor="k")
 ax[2].axhline(0, ls=":", c="#666666")
 ax[2].set_xlabel("[Fe/H]")
 ax[2].set_ylabel("$\Delta{}{\\rm [Fe/H]}$ (dex)")
