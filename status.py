@@ -61,7 +61,6 @@ if __name__ == "__main__":
 
     commit, states = get_commit_info(gh, repo_slug, pull_request, context)
 
-    print("Checking states: {0}".format(states))
     if len(states) == 0:
         print("This is the entry run. Set status to pending.")
         # Entry run
@@ -71,11 +70,13 @@ if __name__ == "__main__":
 
     else:
         # Exit run
+        print("Current state of PR #{0} is {1}, checking for science results..".format(
+            pull_request, "|".join(states)))
         # Was any science actually done?
-        if os.path.exists("science.log"):
+        results_filename = "science.log"
+        if os.path.exists(results_filename):
             print("SCIENCE LOG CONTAINS")
-            os.system("cat science.log")
-            with open("science.log", "r") as fp:
+            with open(results_filename, "r") as fp:
                 contents = fp.read()
 
             pr = auth_token.get_repo(repo_slug).get_pull(pull_request)
@@ -88,6 +89,12 @@ if __name__ == "__main__":
                 context=context)
 
         else:
+            print("No results were found in {0}".format(results_filename))
+
+            pr = auth_token.get_repo(repo_slug).get_pull(pull_request)
+            new_comment = pr.create_issue_comment("Could not find `{0}`".format(
+                results_filename))
+
             r = commit.create_status("error", target_url="http://astrowizici.st",
                 description="An error occurred and no results were found",
                 context=context)
