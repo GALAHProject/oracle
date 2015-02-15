@@ -649,19 +649,8 @@ class EqualibriaModel(Model):
             # Remove outliers from future iterations
             transitions = transitions[info["~outliers"]]
 
-            if plot:
-                # THIS IS JUST FOR DEBUGGING
-                fig, ax = plt.subplots(2)
-                ax[0].scatter(transitions["excitation_potential"], transitions["abundance"])
-                ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"]),
-                    transitions["abundance"], facecolor="k")
-
-                coefficients = info["coefficients"]
-                x = transitions["excitation_potential"]
-                ax[0].plot(x, np.polyval(coefficients[0], x), c='b')
-                x = np.log(transitions["equivalent_width"] / transitions["wavelength"])
-                ax[1].plot(x, np.polyval(coefficients[1], x), c='b')
-
+            # TODO: Save transitions table for future introspection.
+            
             # Remove outliers for future fits.
             logger.debug("State at {0}: {1} --> {2:.2f}".format(theta, state,
                 (state**2).sum()))
@@ -680,9 +669,11 @@ class EqualibriaModel(Model):
 
         result = op.fsolve(objective_function, sp_initial_theta, **op_kwds)
 
+        stellar_parameters = dict(zip(self._stellar_parameters, result[0]))
+
         if full_output:
-            return result
-        return result[0]
+            return (stellar_parameters, result)
+        return stellar_parameters
         
 
 def wavelengths_in_data(wavelengths, data):
