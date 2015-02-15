@@ -105,12 +105,13 @@ if __name__ == "__main__":
             print("No results were found in {0}".format(results_filename))
 
             # Get the log output if it exists.
-            if os.path.exists(log_filename):
+            try:
                 with open(log_filename, "r") as fp:
                     log = fp.read()
 
-                else:
-                    log = "No log could be found at `{}`".format(log_filename)
+            except IOError as e:
+                log = "No log could be read at `{0}` (`{1}: {2}`)".format(
+                    log_filename, e.errno, e.strerror)
 
             # Make a comment on the pull request that highlights the author of
             # this commit.
