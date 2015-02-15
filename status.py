@@ -64,7 +64,6 @@ if __name__ == "__main__":
         # Entry run
         r = commit.create_status("pending", target_url="http://astrowizici.st",
             description="Analysing benchmark stars", context=context)
-        sys.exit(0)
 
     else:
         # Exit run
@@ -91,13 +90,13 @@ if __name__ == "__main__":
             print("No results were found in {0}".format(results_filename))
 
             pr = gh.get_repo(repo_slug).get_pull(pull_request)
-            new_comment = pr.create_issue_comment("Could not find `{0}`".format(
-                results_filename))
+            new_comment = pr.create_issue_comment("Could not find science verification"
+                " results file `{0}` after running science checks with commit `{1}`".format(
+                results_filename, commit))
 
             r = commit.create_status("error", target_url="http://astrowizici.st",
                 description="An error occurred and no results were found",
                 context=context)
 
-        sys.exit(0)
-
+    
 
