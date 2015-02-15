@@ -93,6 +93,12 @@ if __name__ == "__main__":
             pr = gh.get_repo(repo_slug).get_pull(pull_request)
             new_comment = pr.create_issue_comment(results)
 
+            if os.path.exists(log_filename):
+                with open(log_filename, "r") as fp:
+                    log = fp.read()
+
+                new_comment = pr.create_issue_comment("Log:\n{}".format(log))
+
             # [TODO] Parse the log/similar for results and make checks.
             # Then set as either success/failure
 
