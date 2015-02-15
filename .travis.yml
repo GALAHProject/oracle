@@ -28,10 +28,9 @@ script:
 
 after_success:
  - coveralls
- - pwd
- - ls
  # If we are on a pull request, run the science verification tests.
- - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then echo 'RUNNING SCIENCE CHECKS'; fi"
+# - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then echo 'RUNNING SCIENCE CHECKS'; fi"
+ - python science.py
  - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py > science.log; fi"
 
 after_script:
