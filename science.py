@@ -125,12 +125,12 @@ Star | Teff | logg | [Fe/H] | Teff [eq] | logg [eq] | [Fe/H] [eq] | xi [eq] | Ti
 for row in results:
     _ = row[:4] + row[8:]
     markdown += "{0} | {1:.0f} | {2:.3f} | {3:+.3f} | {4:.0f} | {5:.2f} | {6:+.2f}"\
-        " | {7:.1f}\n".format(_)
+        " | {7:.2f} | {8:.1f}\n".format(*_)
 
 # Create a results table for easier plottingg 
 results_table = astropy.table.Table(rows=results,
     names=["Star", "Teff_lit", "logg_lit", "[Fe/H]_lit", "Teff_ccf", "logg_ccf",
-    "[Fe/H]_ccf",  "Time_ccf", "Teff_eq", "logg_eq", "[Fe/H]_eq", "Time_eq"])
+    "[Fe/H]_ccf",  "Time_ccf", "Teff_eq", "logg_eq", "[Fe/H]_eq", "xi", "Time_eq"])
 
 # Make a difference plot
 fig, ax = plt.subplots(3)
