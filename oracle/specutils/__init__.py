@@ -1,3 +1,3 @@
 
-import cross_correlate
-from .spectrum1d import Spectrum1D
+from ..specutils import cross_correlate, spectrum1d
+from spectrum1d import Spectrum1D

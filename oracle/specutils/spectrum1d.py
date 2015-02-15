@@ -1,16 +1,17 @@
-# coding: utf-8
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-""" Class for dealing with 1D spectra. """
+""" Class for dealing with 1D spectra """
 
 from __future__ import division, print_function
 
-__author__ = "Andy Casey <arc@ast.cam.ac.uk>"
-
 __all__ = ["Spectrum1D", "Spectrum"]
+__author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 # Standard library
 import logging
 import os
+import warnings
 
 # Third-party
 import numpy as np
@@ -18,10 +19,16 @@ import pyfits
 
 logger = logging.getLogger("oracle")
 
+# Warn about missing variance arrays, but only once.
+class MissingVarianceWarning(Warning):
+    pass
+warnings.simplefilter("once", MissingVarianceWarning)
+
 class Spectrum1D(object):
     """
     This is a temporary class holder for a Spectrum1D object until the
-    :class:`astropy.specutils.Spectrum1D` module has advanced sufficiently to replace it.
+    :class:`astropy.specutils.Spectrum1D` module has advanced sufficiently to
+    replace it.
     """
     
     def __init__(self, disp, flux, variance=None, headers=None, **kwargs):
@@ -64,9 +71,11 @@ class Spectrum1D(object):
         self.disp = disp.copy()
         self.flux = flux.copy()
         if variance is None:
-            # Assumed to be Poisson
-            logger.warn("No variance given. Assuming noise to be Poisson-distributed.")
+            warnings.warn("No variance array provided. Unless otherwise given,"\
+                " the noise in spectra are assumed to be Poisson-distributed.",
+                MissingVarianceWarning)
             self.variance = self.flux.copy()
+
         else:
             self.variance = variance.copy()
 
@@ -90,7 +99,16 @@ class Spectrum1D(object):
             variance=self.variance.copy(), headers=self.headers.copy())
     
 
-    def slice(self, wavelengths):
+    def mask_by_dispersion(self, mask, mask_value=np.nan):
+
+        flux = self.flux.copy()
+        for start, end in mask:
+            indices = self.disp.searchsorted([start, end])
+            flux[indices[0]:indices[1]] = mask_value
+
+        return self.__class__(self.disp, flux, variance=self.variance, headers=self.headers.copy())
+
+    def slice(self, wavelengths, copy=False):
         """
         Slice a spectrum by some wavelengths.
         """
@@ -101,11 +119,18 @@ class Spectrum1D(object):
         index_start = self.disp.searchsorted(wavelength_start, side="left")
         index_end = self.disp.searchsorted(wavelength_end, side="right")
 
-        disp = self.disp[index_start:index_end]
-        flux = self.flux[index_start:index_end]
-        variance = self.variance[index_start:index_end]
+        if copy:
+            disp = self.disp[index_start:index_end].copy()
+            flux = self.flux[index_start:index_end].copy()
+            variance = self.variance[index_start:index_end].copy()
 
-        return self.__class__(disp, flux, variance=variance, headers=self.headers.copy())
+        else:
+            disp = self.disp[index_start:index_end]
+            flux = self.flux[index_start:index_end]
+            variance = self.variance[index_start:index_end]
+
+        return self.__class__(disp, flux, variance=variance,
+            headers=self.headers.copy())
 
 
     @classmethod
@@ -143,11 +168,15 @@ class Spectrum1D(object):
             else:
 
                 # According to http://iraf.net/irafdocs/specwcs.php ....
-                #li = a.headers['LTM1_1'] * np.arange(a.headers['NAXIS1']) + a.headers['LTV1']
-                #a.headers['CRVAL1'] + a.headers['CD1_1'] * (li - a.headers['CRPIX1'])
+                #li = a.headers['LTM1_1'] * np.arange(a.headers['NAXIS1']) \
+                #       + a.headers['LTV1']
+                #a.headers['CRVAL1'] + a.headers['CD1_1'] * (li - 
+                #a.headers['CRPIX1'])
 
-                if np.all([key in header.keys() for key in ('CDELT1', 'NAXIS1', 'CRVAL1')]):
-                    disp = header['CRVAL1'] + np.arange(header['NAXIS1']) * header['CDELT1']
+                if np.all([key in header.keys() \
+                    for key in ('CDELT1', 'NAXIS1', 'CRVAL1')]):
+                    disp = header['CRVAL1'] \
+                        + np.arange(header['NAXIS1']) * header['CDELT1']
             
                 if "LTV1" in header.keys():
                     disp -= header['LTV1'] * header['CDELT1']
@@ -190,11 +219,37 @@ class Spectrum1D(object):
 
         else:
             headers = {}
+            loadtxt_kwargs = kwargs.copy()
+            loadtxt_kwargs["unpack"] = True
             try:
-                disp, flux, variance = np.loadtxt(filename, unpack=True, **kwargs)
+                disp, flux, variance = np.loadtxt(filename, **loadtxt_kwargs)
             except:
-                disp, flux = np.loadtxt(filename, unpack=True, **kwargs)
+                disp, flux = np.loadtxt(filename, **loadtxt_kwargs)
             
+        # Clean the edges?
+        clean_edges = kwargs.pop("clean_edges", True)
+        if clean_edges:
+            # Look for really sharp changes at the edges of the spectrum
+            y = np.abs(np.diff(flux))
+            stds = (y - np.median(y))/np.std(y)
+
+            lhs = np.any(stds[:50] > 10)
+            if lhs:
+                lhs_index = np.argmax(stds[:50]) + 1
+            else:
+                lhs_index = 0
+
+            rhs = np.any(stds[-50:] > 10)
+            if rhs:
+                rhs_index = flux.size - np.argmax(stds[-50::][::-1]) - 1
+            else:
+                rhs_index = None
+
+            disp = disp[lhs_index:rhs_index]
+            flux = flux[lhs_index:rhs_index]
+            if variance is not None:
+                variance = variance[lhs_index:rhs_index]
+
         return cls(disp, flux, variance=variance, headers=headers)
 
 
@@ -235,7 +290,8 @@ class Spectrum1D(object):
             # Create a tabular FITS format
             disp = pyfits.Column(name='disp', format='1D', array=self.disp)
             flux = pyfits.Column(name='flux', format='1D', array=self.flux)
-            var = pyfits.Column(name='variance', format='1D', array=self.variance)
+            var = pyfits.Column(name='variance', format='1D',
+                array=self.variance)
             table_hdu = pyfits.new_table([disp, flux, var])
 
             # Create Primary HDU

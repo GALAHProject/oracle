@@ -1,26 +1,46 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+""" Test the equalibrium model. """
+
+from __future__ import absolute_import, print_function
+
+__author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+
+from time import time
 
 import oracle
 
+
+data = [
+    oracle.specutils.Spectrum1D.load("/Users/arc/codes/oracle-with-siu/oracle/tests/data/benchmarks/18Sco/18Sco_narval_blue_noresample.txt"),
+    oracle.specutils.Spectrum1D.load("/Users/arc/codes/oracle-with-siu/oracle/tests/data/benchmarks/18Sco/18Sco_narval_green_noresample.txt"),
+    oracle.specutils.Spectrum1D.load("/Users/arc/codes/oracle-with-siu/oracle/tests/data/benchmarks/18Sco/18Sco_narval_red_noresample.txt"),
+    oracle.specutils.Spectrum1D.load("/Users/arc/codes/oracle-with-siu/oracle/tests/data/benchmarks/18Sco/18Sco_narval_ir_noresample.txt")
+]
+model = oracle.models.EqualibriaModel("hermes_classical.yaml")
+
 """
-data = [oracle.specutils.Spectrum1D.load("Spectra/ccd_1/sun_blu.0002.fits")]
+initial_theta, r_chi_sq, expected_dispersion, expected_flux = model.initial_theta(
+    data, full_output=True)
 
-model = oracle.models.EqualibriaModel({
-        "model": {
-            "redshift": True,
-            "instrumental_resolution": True,
-            "continuum": 2,
-            "atomic_lines": [
-                [4800.648, 26.0, 4.120, -1.028, 0, 0, 0.2],
-                [4871.318, 26.0, 2.870, -0.362]
-            ]
-#            "atomic_lines_filename": "test_atomic_lines.txt"
-#            "blending_lines_filename": "test_blen"
-        },
-        "settings": {
-            "threads": 4
-        }
-    })
+fig, axes = plt.subplots(4)
+indices = [-1] + list(np.where(np.diff(expected_dispersion) > 10)[0]) + [None]
+for i, ax in enumerate(axes):
 
+    disp = expected_dispersion[indices[i]+1:indices[i+1]]
+    flux = expected_flux[indices[i]+1:indices[i+1]]
 
-theta = model.initial_theta(data)
+    ax.plot(disp, flux, "bgrr"[i])
+    ax.plot(data[i].disp, data[i].flux, 'k')
+
+raise a
 """
+
+t_init = time()
+stellar_parameters = model.estimate_stellar_parameters(data)
+print("Completed in {0:.1f} seconds".format(time() - t_init))
+
+
+raise a
+

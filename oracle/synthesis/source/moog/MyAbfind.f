@@ -1,8 +1,8 @@
 
       function abundances(mh_, vturb_,
      .   photospheric_structure_, photospheric_abundances,
-     .   transitions_, debug_, output, ntau_, ncols_, natoms_,
-     .   nlines_)
+     .   transitions_, modtype_, debug_, output, ntau_, 
+     .   ncols_, natoms_, nlines_)
 
       implicit real*8 (a-h,o-z)
       real*8, intent(in) :: mh_, vturb_
@@ -11,9 +11,11 @@
       real*8, dimension(natoms_, 2), intent(in) ::
      .   photospheric_abundances
       real*8, dimension(nlines_, 7), intent(in) :: transitions_
+      character*10, intent(in) :: modtype_
       integer, optional :: debug_
 
       real*8, dimension(nlines_), intent(out) :: output
+
 
 c      if (.not. present(debug_)) then
 c         debug_ = 0
@@ -32,6 +34,173 @@ c      real*8, dimension(1, 7) :: strong_transitions_
       include 'Linex.com'
       include 'Mol.com'
       include 'Pstuff.com'
+
+
+
+      include 'Factor.com' 
+c      include 'Obspars.com'
+c      include 'Multistar.com'
+
+
+
+      t(:) = 0.0
+      theta(:) = 0.0 
+      tkev(:) = 0.0 
+      tlog(:) = 0.0 
+      pgas(:) = 0.0 
+      ne(:) = 0.0 
+      nhtot(:) = 0.0 
+      numdens(:,:,:) = 0.0 
+      molweight(:) = 0.0 
+      vturb(:) = 0.0 
+      scont(:) = 0.0 
+      kapref(:) = 0.0 
+      kaplam(:) = 0.0 
+      tauref(:) = 0.0 
+      taulam(:) = 0.0 
+      kaplamabs(:) = 0.0 
+      kaplamsca(:) = 0.0 
+      rho(:) = 0.0 
+      rhox(:) = 0.0 
+      xref(:) = 0.0 
+      xdepth(:) = 0.0 
+      elem(:) = 0.0 
+      xabund(:) = 0.0 
+      xabu(:) = 0.0 
+      u(:,:,:) = 0.0 
+
+      a(:,:) = 0.0
+      dopp(:,:) = 0.0
+      kapnu0(:,:) = 0.0
+      gf(:) = 0.0
+      wave1(:) = 0.0
+      atom1(:) = 0.0
+      e(:,:) = 0.0
+      chi(:,:) = 0.0
+      amass(:) = 0.0
+      charge(:) = 0.0
+      d0(:) = 0.0
+      dampnum(:) = 0.0
+      gf1(:) = 0.0
+      width(:) = 0.0
+      abundout(:) = 0.0
+      widout(:) = 0.0
+      strength(:) = 0.0
+      rdmass(:) = 0.0
+      gambark(:) = 0.0
+      alpbark(:) = 0.0
+      gamrad(:) = 0.0
+      wid1comp(:) = 0.0
+      computed_wls(:) = 0.0
+      computed_fluxes(:) = 0.0
+      kapnu(:) = 0.0
+      taunu(:) = 0.0
+      cd(:) = 0.0
+      sline(:) = 0.0
+      d(:) = 0.0
+      dellam(:) = 0.0
+      w(:) = 0.0
+      rwtab(:) = 0.0
+      gftab(:) = 0.0
+
+
+c     fails after this.
+      pmol(:) = 0.0
+      xmol(:,:) = 0.0
+      xamol(:,:) = 0.0
+      xatom(:) = 0.0
+      patom(:) = 0.0
+      amol(:) = 0.0
+c      print *, "smallmollist", smallmollist(1), largemollist(1)
+c      print *, "const", datmol(1,1), const(1,1)
+c      smallmollist(:) = 0.0
+c      largemollist(:) = 0.0
+c      datmol(:,:) = 0.0
+c      const(:,:) = 0.0
+
+
+c     Params crap. Can probably be removed eventually.
+      nfmodel =  0 
+      nflines =  0
+      nfslines = 0
+      nfobs =    0
+      nftable =  0
+      modprintopt  = 1
+      molopt       = 1
+      linprintopt  = 1
+      fluxintopt   = 0
+      plotopt      = 0
+      dampingopt   = 1
+      specfileopt  = 0
+      linfileopt   = 0
+      iunits       = 0
+      itru         = 0
+      iscale       = 0
+      nlines       = 0
+      iraf         = 0
+      histoyes     = 0
+      byteswap     = 0
+      deviations   = 0
+      scatopt      = 0
+      gfstyle      = 0
+      maxshift     = 0
+      dostrong     = 0
+      molset       = 1
+      fudge = -1.0
+
+
+c  INITIALIZE SOME VARIABLES: spectrum run parameters
+c      oldstart = 0.
+c      start = 0.
+c      sstop = 0.
+c      step = 0.
+c      delta = 0.
+      cogatom = 0.
+      contnorm = 1.0
+
+
+c  INITIALIZE SOME VARIABLES: line limit parameters
+      ncurve = 0
+      lim1line = 0
+      lim2line = 0
+      lim1obs = 0
+      lim2obs = 0
+      lim1 = 0
+      lim2 = 0
+
+c      May need to initialise these later:
+      numpecatom = 0
+      numatomsyn = 0
+      newnumpecatom = 0
+      newnumatomsyn = 0
+      ninetynineflag = 0
+      pec(:) = 0
+      newpec(:) = 0
+      abfactor(:) = 0
+      pecabund(:, :) = 0
+      newpecabund(:, :) = 0.
+      numiso = 0
+      numisosyn = 0
+      newnumiso = 0
+      newnumisosyn = 0
+      isotope(:) = 0.0
+      newisotope(:) = 0.0
+      isoabund(:,:) = 0.0
+      newisoabund(:,:) = 0.0
+
+
+
+
+
+
+
+
+
+
+
+
+
+      modtype = modtype_
 
 
 c      print *, "teff_ etc", teff_, logg_, mh_, vturb_
@@ -72,15 +241,10 @@ c      print *, "input vturb", vturb_, vturb_absolute
 
 c     These should not change...
       ntau = ntau_
-      modtype = 'WEBMARCS'
       moditle = 'atmosphere comment'
       natoms = natoms_
       abscale = mh_
 
-c      print *, "num atoms", natoms_, natoms, ntau_, ntau
-
-c*****read the parameter file
-      call params
 
 
 c*****open the files for standard output and summary abundances
@@ -154,6 +318,7 @@ c         print *, "finishing"
       endif
       lim1obs = lim1line
       lim2obs = lim2line
+      lim2line = 0 + nlines_
 c      print *, "lim1line, lim2line", lim1line, lim2line
 
 
@@ -172,7 +337,7 @@ c         print *, "ABUNDIN IS GOING TO BE", abundin
          enddo
 c         print *, "CALLING STATS NOW--------------------"
 c         print *, "array", array
-         call stats
+c         call stats
 c         print *, "CALLLLING LINE INFO NOW--------------"
          call lineinfo (3)
       else
@@ -186,7 +351,7 @@ c     agreement
          do lim1=lim1line,lim2line
             call lineabund(abundin)
          enddo
-         call stats
+c         call stats
          call lineinfo (3)
          if (t(jtau5).lt.3800                 .or. 
      .       atom1(lim1line).gt.100.0         .or.
@@ -211,8 +376,8 @@ c               write (array,1003) molecule, dlog10(abundin),
 c     .                            dlog10(average)
 c               lscreen = lscreen + 2
 c               call prinfo (lscreen)
-c               print *, "molecule!"
-               stop
+               print *, "molecule!"
+c               stop
             endif
          endif
       endif
@@ -274,7 +439,7 @@ c       call finish(0)
 c       print *, "finishing"
 c       print *, "abundances", abundout(:nlines)
 
-       output = abundout(:nlines)
+       output = abundout(1:nlines)
 c       abundances = abundout(:nlines)
 c       what = abundout(:nlines)
 
