@@ -17,7 +17,6 @@ def get_last_commit_in_pull_request(auth_token, repo_slug, pull_request):
     """
 
     pr = auth_token.get_repo(repo_slug).get_pull(pull_request)
-
     # Get last commit. This is probably the second worst way possible.
     return deque(pr.get_commits(), maxlen=1).pop()
 
@@ -28,14 +27,11 @@ def get_commit_info(auth_token, repo_slug, pull_request, context):
     """
 
     commit = get_last_commit_in_pull_request(auth_token, repo_slug, pull_request)
-
     context_states = []
     for status in commit.get_statuses():
         if status.raw_data["context"] == context: 
             context_states.append(status.raw_data["state"])
-
     context_states = list(set(context_states))
-
     return (commit, context_states)
 
 
@@ -43,6 +39,7 @@ if __name__ == "__main__":
 
     # Check for credentials
     if "GH_TOKEN" not in os.environ:
+        print("No GH_TOKEN found in the environment.")
         sys.exit(1)
 
     # Check that we are on a pull request
@@ -60,6 +57,7 @@ if __name__ == "__main__":
     pull_request = int(os.environ["TRAVIS_PULL_REQUEST"])
 
     commit, states = get_commit_info(gh, repo_slug, pull_request, context)
+    print("The last commit is {0}".format(commit))
 
     if len(states) == 0:
         print("This is the entry run. Set status to pending.")
@@ -70,16 +68,17 @@ if __name__ == "__main__":
 
     else:
         # Exit run
-        print("Current state of PR #{0} is {1}, checking for science results..".format(
-            pull_request, "|".join(states)))
+        print("Current state of PR #{0} is {1}, checking for science results.."\
+            .format(pull_request, "|".join(states)))
+
         # Was any science actually done?
         results_filename = "science.log"
         if os.path.exists(results_filename):
-            print("SCIENCE LOG CONTAINS")
+            
             with open(results_filename, "r") as fp:
                 contents = fp.read()
 
-            pr = auth_token.get_repo(repo_slug).get_pull(pull_request)
+            pr = gh.get_repo(repo_slug).get_pull(pull_request)
             new_comment = pr.create_issue_comment("Well:\n" + "".join(contents))
 
             # [TODO] Parse the log/similar for results and make checks.
@@ -91,7 +90,7 @@ if __name__ == "__main__":
         else:
             print("No results were found in {0}".format(results_filename))
 
-            pr = auth_token.get_repo(repo_slug).get_pull(pull_request)
+            pr = gh.get_repo(repo_slug).get_pull(pull_request)
             new_comment = pr.create_issue_comment("Could not find `{0}`".format(
                 results_filename))
 
