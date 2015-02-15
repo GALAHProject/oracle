@@ -30,8 +30,12 @@ after_success:
  - coveralls
  # If we are on a pull request, run the science verification tests.
 # - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then echo 'RUNNING SCIENCE CHECKS'; fi"
- - python science.py
- - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py > science.log; fi"
+ # Sciencing
+ - "mkdir science; cp science.py science/; cd science; python science.py"
+# - cp science.py science/
+#- cd science
+#- python science.py
+# - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py > science.log; fi"
 
 after_script:
  # Where applicable, update the commit status with a success, error, or failure
