@@ -89,14 +89,16 @@ markdown = \
 """
 The [Gaia benchmark spectra]({data_url}) were downloaded from and analysed using commit {{commit_sha}}. The results are below.
 
+Initial stellar parameters, velocities, and continuum coefficients were first estimated by cross-correlations against a grid of models:
+
 Star | Teff | logg | [Fe/H] | Teff (CCF) | logg (CCF) | [Fe/H] (CCF) | Time
 ---- | ---- | ---- | ------ | ---------- | ---------- | ------------ | ----
      | (K)  | (cgs)|        |    (K)     | (cgs)      |              | (sec)
 """.format(data_url=data_url)
 
 for row in results:
-    markdown += "{0} | {1:.0f} | {2:.3f} | {3.3f} | {4:.0f} | {5:.2f} | {6:.2f}"
-        " | {7:.0f}\n".format(*row)
+    markdown += "{0} | {1:.0f} | {2:.3f} | {3:.3f} | {4:.0f} | {5:.2f} | {6:.2f}"\
+        " | {7:.1f}\n".format(*row)
 
 # Create a results table for easier plottingg 
 results_table = astropy.table.Table(rows=results,
@@ -105,7 +107,7 @@ results_table = astropy.table.Table(rows=results,
 
 # Make a difference plot
 fig, ax = plt.subplots(3)
-ax[0].scatter(results_table["Teff_lit"], results_table["Teff_ccf"]-results_table["Teff_lit"], facecolor="r")
+ax[0].scatter(results_table["Teff_lit"], results_table["Teff_ccf"]-results_table["Teff_lit"], facecolor="k")
 #ax[0].scatter(results_table["Teff_lit"], results_table["Teff_eq"]-results_table["Teff_lit"], facecolor="k")
 ax[0].axhline(0, ls=":", c="#666666")
 ax[0].set_xlabel("$T_{\\rm eff}$ (K)")
@@ -113,7 +115,7 @@ ax[0].set_ylabel("$\Delta{}T_{\\rm eff}$ (K)")
 _ = np.max(np.abs(ax[0].get_ylim()))
 ax[0].set_ylim(-_, +_)
 
-ax[1].scatter(results_table["logg_lit"], results_table["logg_ccf"]-results_table["logg_lit"], facecolor="r")
+ax[1].scatter(results_table["logg_lit"], results_table["logg_ccf"]-results_table["logg_lit"], facecolor="k")
 #ax[1].scatter(results_table["logg_lit"], results_table["logg_eq"]-results_table["logg_lit"], facecolor="k")
 ax[1].axhline(0, ls=":", c="#666666")
 ax[1].set_xlabel("$\log{g}$")
@@ -121,7 +123,7 @@ ax[1].set_ylabel("$\Delta{}\log{g}$ (dex)")
 _ = np.max(np.abs(ax[1].get_ylim()))
 ax[1].set_ylim(-_, +_)
 
-ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_ccf"]-results_table["[Fe/H]_lit"], facecolor="r")
+ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_ccf"]-results_table["[Fe/H]_lit"], facecolor="k")
 #ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_eq"]-results_table["[Fe/H]_lit"], facecolor="k")
 ax[2].axhline(0, ls=":", c="#666666")
 ax[2].set_xlabel("[Fe/H]")
