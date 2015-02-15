@@ -1,6 +1,7 @@
-# coding: utf-8
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-""" Update GitHub pull requests with science verification statuses """ 
+""" Update GitHub pull requests with the science verification status. """ 
 
 from __future__ import print_function
 
@@ -8,13 +9,15 @@ import os
 import sys
 from collections import deque 
 
+# Note, this requires the forked PyGithub version from 
+# https://github.com/andycasey/PyGithub because the standard PyGithub does not
+# allow you to provide context when creating a status.
+# See https://github.com/jacquev6/PyGithub/pull/289
 import github
 
 
 def get_last_commit_in_pull_request(auth_token, repo_slug, pull_request):
-    """
-    Get the last commit in a given repository's pull request.
-    """
+    """ Get the last commit in a given repository's pull request. """
 
     pr = auth_token.get_repo(repo_slug).get_pull(pull_request)
     # Get last commit. This is probably the second worst way possible.
@@ -22,9 +25,7 @@ def get_last_commit_in_pull_request(auth_token, repo_slug, pull_request):
 
 
 def get_commit_info(auth_token, repo_slug, pull_request, context):
-    """
-    Check if this pull request has a pending state with the same context.
-    """
+    """ Check if the pull request has 'pending' state in the given context. """
 
     commit = get_last_commit_in_pull_request(auth_token, repo_slug, pull_request)
     context_states = []

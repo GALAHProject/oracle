@@ -7,13 +7,14 @@ virtualenv:
  system_site_packages: true
 
 before_install:
- # Install PyGithub, which we will use to update the GitHub commit status
- # Need my version of PyGithub at the moment so that we can provide context to statuses
+ # We will need PyGithub and pyimgur to update the GitHub commit status and upload images of results
+ # Note: We need my fork of PyGithub until https://github.com/jacquev6/PyGithub/pull/289 is merged.
  - pip install https://github.com/andycasey/PyGithub/archive/master.zip
- # If applicable, set a pending status for the commit
- - python status.py
- 
- # OK now install the stuff we need
+ - pip install pyimgur
+ # If we are on a PR, send a 'pending' status for the science-verification
+ - python status.py 
+
+ # Now install the things we actually need for running oracle
  - sudo apt-get install gfortran libcfitsio3-dev python-matplotlib python-pyfits python-scipy
  - "export DISPLAY=:99.0"
  - "sh -e /etc/init.d/xvfb start"
@@ -28,7 +29,7 @@ script:
 
 after_success:
  - coveralls
- # If we are on a pull request, run the science verification tests.
+ # If we are on a pull request, run the science verification tests
  - "mkdir science; cp science.py science/"
  - "cp tests/benchmarks/galah* science/"
  - cd science
@@ -36,7 +37,7 @@ after_success:
  - cd ../
 
 after_script:
- # Where applicable, update the commit status with a success, error, or failure
+ # If we are on a PR, update the status for science-verification 
  - python status.py
 
 notifications:

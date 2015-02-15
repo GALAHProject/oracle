@@ -89,11 +89,12 @@ markdown = \
 """
 The [Gaia benchmark spectra]({data_url}) were downloaded from and analysed using commit {{commit_sha}}. The results are below.
 
+**Initial Parameters**
 Initial stellar parameters, velocities, and continuum coefficients were first estimated by cross-correlations against a grid of models:
 
-Star | Teff | logg | [Fe/H] | Teff (CCF) | logg (CCF) | [Fe/H] (CCF) | Time
----- | ---- | ---- | ------ | ---------- | ---------- | ------------ | ----
-     | (K)  | (cgs)|        |    (K)     | (cgs)      |              | (sec)
+Star | Teff | logg | [Fe/H] | Teff [init] | logg [init] | [Fe/H] [init] | Time |
+:----|:----:|:----:|:------:|:-----------:|:-----------:|:-------------:|:----:|
+     |**(K)**|**(cgs)**|    | **(K)**     | **(cgs)**   |            |**(sec)**|
 """.format(data_url=data_url)
 
 for row in results:
@@ -140,9 +141,10 @@ try:
     imgur = pyimgur.Imgur(os.environ.get("IMGUR_CLIENT_ID", None))
     uploaded_image = imgur.upload_image("benchmarks.png")
 
-except:
+except as e:
     logger.exception("Could not upload benchmarks image to Imgur")
-    markdown += "\n\nError uploading figures to Imgur"
+    markdown += "\n\nError uploading figures to Imgur ({0}: {1})".format(
+        e.errno, e.strerror)
 
 else:
     markdown += "\n\n![Benchmark results]({})".format(uploaded_image.link)
