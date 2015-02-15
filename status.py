@@ -44,8 +44,7 @@ if __name__ == "__main__":
 
     # Check that we are on a pull request
     pull_request = os.environ.get("TRAVIS_PULL_REQUEST", None)
-    print("Checking to see if we are on a pull request: {0}".format(
-        ))
+    print("Checking if we are on a pull request: {0}".format(pull_request))    
     if pull_request in (None, "false"):
         print("Exiting..")
         sys.exit(0)
@@ -77,9 +76,15 @@ if __name__ == "__main__":
         # Was any science actually done?
         results_filename = "science/results.md"
         if os.path.exists(results_filename):
-            
+    
             with open(results_filename, "r") as fp:
                 results = fp.read()
+
+            # TODO: Make more things formattable
+            formattable = {
+                "commit_sha": commit.sha[:10]
+            }
+            results = results.format(**formattable)
 
             # Make a comment on the pull request that contains the information
             # from the results file.

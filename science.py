@@ -28,13 +28,13 @@ if __name__ != "__main__":
     sys.exit(0)
 
 # Download the benchmark data and unpack it.
+data_url = "https://zenodo.org/record/15103/files/benchmarks.tar.gz"
 if not os.path.exists("DATA/benchmarks/benchmarks.csv"):
-    data_uri = "https://zenodo.org/record/15103/files/benchmarks.tar.gz"
-    logger.info("Downloading {0}".format(data_uri))
+    logger.info("Downloading {0}".format(data_url))
     try:
-        urlretrieve(data_uri, "benchmarks.tar.gz")
+        urlretrieve(data_url, "benchmarks.tar.gz")
     except IOError:
-        logger.exception("Error downloading benchmark data from {0}".format(data_uri))
+        logger.exception("Error downloading benchmark data from {0}".format(data_url))
         raise
     else:
         with tarfile.open("benchmarks.tar.gz") as tar:
@@ -87,12 +87,13 @@ for benchmark in benchmarks:
 # Create a results file in markdown
 markdown = \
 """
-The Gaia benchmark spectra were downloaded from {data_url} and analysed using commit {commit_sha}. The results are below.
+The [Gaia benchmark spectra]({data_url}) were downloaded from and analysed using commit {{commit_sha}}. The results are below.
 
 Star | Teff | logg | [Fe/H] | Teff (CCF) | logg (CCF) | [Fe/H] (CCF) | Time
 ---- | ---- | ---- | ------ | ---------- | ---------- | ------------ | ----
      | (K)  | (cgs)|        |    (K)     | (cgs)      |              | (sec)
-"""
+""".format(data_url=data_url)
+
 for row in results:
     markdown += "{0} | {1:.0f} | {2:.3f} | {3.3f} | {4:.0f} | {5:.2f} | {6:.2f}"
         " | {7:.0f}\n".format(*row)
