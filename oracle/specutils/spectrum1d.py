@@ -15,7 +15,8 @@ import warnings
 
 # Third-party
 import numpy as np
-import pyfits
+from astropy.io import fits
+
 
 logger = logging.getLogger("oracle")
 
@@ -149,7 +150,7 @@ class Spectrum1D(object):
             raise IOError("filename {0} does not exist" .format(filename))
         
         if filename.endswith('.fits'):
-            image = pyfits.open(filename, **kwargs)
+            image = fits.open(filename, **kwargs)
             
             header = image[0].header
             
@@ -288,14 +289,14 @@ class Spectrum1D(object):
             
         else:          
             # Create a tabular FITS format
-            disp = pyfits.Column(name='disp', format='1D', array=self.disp)
-            flux = pyfits.Column(name='flux', format='1D', array=self.flux)
-            var = pyfits.Column(name='variance', format='1D',
+            disp = fits.Column(name='disp', format='1D', array=self.disp)
+            flux = fits.Column(name='flux', format='1D', array=self.flux)
+            var = fits.Column(name='variance', format='1D',
                 array=self.variance)
-            table_hdu = pyfits.new_table([disp, flux, var])
+            table_hdu = fits.new_table([disp, flux, var])
 
             # Create Primary HDU
-            hdu = pyfits.PrimaryHDU()
+            hdu = fits.PrimaryHDU()
 
             # Update primary HDU with headers
             for key, value in self.headers.iteritems():
@@ -309,7 +310,7 @@ class Spectrum1D(object):
                         "{0} = {1}".format(key, value))
 
             # Create HDU list with our tables
-            hdulist = pyfits.HDUList([hdu, table_hdu])
+            hdulist = fits.HDUList([hdu, table_hdu])
             return hdulist.writeto(filename, clobber=clobber, **kwargs)
 
 
