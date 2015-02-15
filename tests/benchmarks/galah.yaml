@@ -3,7 +3,7 @@
         "atmosphere_kwargs": {
             "kind": "stagger-m"
         },
-        "atomic_transitions_filename": "line_list.csv",
+        "atomic_transitions_filename": "galah_line_list.csv",
         "continuum_mask": [
             [
                 4899, 

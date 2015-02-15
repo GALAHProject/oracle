@@ -613,6 +613,7 @@ class EqualibriaModel(Model):
             fitted_profiles = self.fit_atomic_transitions(data, **initial_theta)
 
         # Create a copy of the transitions for our little 'objective adventure'.
+        global transitions
         transitions = self.atomic_transitions.copy()
         for_equalibria = np.isfinite(transitions["equivalent_width"]) \
             * (transitions["equivalent_width"] > 0) \
@@ -624,7 +625,6 @@ class EqualibriaModel(Model):
         initial_state, info = utils.equalibrium_state(transitions, 
             metallicity=sp_initial_theta[2], **state_kwds)
 
-        global transitions
         transitions = transitions[info["~outliers"]]
 
         def objective_function(theta):

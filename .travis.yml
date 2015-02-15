@@ -31,7 +31,9 @@ after_success:
  # If we are on a pull request, run the science verification tests.
 # - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then echo 'RUNNING SCIENCE CHECKS'; fi"
  # Sciencing
- - "mkdir science; cp science.py science/; cd science; python science.py"
+ - "mkdir science; cp science.py science/"
+ - "cp tests/benchmarks/galah* science/"
+ - "cd science; python science.py"
 # - cp science.py science/
 #- cd science
 #- python science.py
