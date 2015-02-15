@@ -31,8 +31,9 @@ after_success:
  # If we are on a pull request, run the science verification tests.
  - "mkdir science; cp science.py science/"
  - "cp tests/benchmarks/galah* science/"
-#- "cd science; python science.py; cd ../"
-# - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py > science.log; fi"
+ - cd science
+ - "if [[ $TRAVIS_PULL_REQUEST != 'false' ]]; then python science.py; fi"
+ - cd ../
 
 after_script:
  # Where applicable, update the commit status with a success, error, or failure

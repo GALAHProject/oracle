@@ -9,6 +9,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import os
 import logging
+import sys
 import tarfile
 from glob import glob
 from time import time
@@ -22,6 +23,9 @@ import oracle
 
 logger = logging.getLogger("oracle")
 
+if __name__ != "__main__":
+    print("This is a script.")
+    sys.exit(0)
 
 # Download the benchmark data and unpack it.
 if not os.path.exists("DATA/benchmarks/benchmarks.csv"):
@@ -47,57 +51,77 @@ for benchmark in benchmarks:
         logger.info("Skipping {0} because no data files found".format(star))
         continue
 
-    logger.info(
-        "Solving for {0:} ({1:.0f}, {2:.2f}"
+    logger.info("Solving for {0:} ({1:.0f}, {2:.2f}"
             ", {3:.2f})".format(star, benchmark["effective_temperature"],
             benchmark["surface_gravity"], benchmark["metallicity"]))
 
+    # Load the model and the data.
     data = map(oracle.specutils.Spectrum1D.load, filenames)
+    model = oracle.models.EqualibriaModel("galah.yaml")
 
     t_init = time()
-    model = oracle.models.EqualibriaModel("galah.yaml")
-    stellar_parameters = model.estimate_stellar_parameters(data)
+    initial_theta = model.initial_theta(data)
 
-    t_taken = time() - t_init
+    #stellar_parameters = model.estimate_stellar_parameters(data,
+    #    initial_theta=initial_theta)
+
+    time_taken = time() - t_init
 
     results.append([
-        star, benchmark["effective_temperature"], benchmark["surface_gravity"],
-        benchmark["metallicity"], model._initial_theta["effective_temperature"],
-        model._initial_theta["surface_gravity"], model._initial_theta["metallicity"],
-    ] + list(stellar_parameters) + [t_taken])
+        star,
+        benchmark["effective_temperature"],
+        benchmark["surface_gravity"],
+        benchmark["metallicity"],
+        initial_theta["effective_temperature"],
+        initial_theta["surface_gravity"],
+        initial_theta["metallicity"],
+        time_taken
+    ])# + list(stellar_parameters)
 
-    logger.info("Took {0:.1f} seconds to solve for {1}".format(t_taken, star))
+    logger.info("Took {0:.1f} seconds to solve for {1}".format(time_taken, star))
+    logger.info("Literature for {0:} ({1:.0f}, {2:.2f}"
+        ", {3:.2f})".format(star, benchmark["effective_temperature"],
+        benchmark["surface_gravity"], benchmark["metallicity"]))
+    
 
-results = astropy.table.Table(rows=results,
+# Create a results file in markdown
+markdown = \
+"""
+The Gaia benchmark spectra were downloaded from {data_url} and analysed using commit {commit_sha}. The results are below.
+
+Star | Teff | logg | [Fe/H] | Teff (CCF) | logg (CCF) | [Fe/H] (CCF) | Time
+---- | ---- | ---- | ------ | ---------- | ---------- | ------------ | ----
+     | (K)  | (cgs)|        |    (K)     | (cgs)      |              | (sec)
+"""
+for row in results:
+    markdown += "{0} | {1:.0f} | {2:.3f} | {3.3f} | {4:.0f} | {5:.2f} | {6:.2f}"
+        " | {7:.0f}\n".format(*row)
+
+# Create a results table for easier plottingg 
+results_table = astropy.table.Table(rows=results,
     names=["Star", "Teff_lit", "logg_lit", "[Fe/H]_lit", "Teff_ccf", "logg_ccf",
-        "[Fe/H]_ccf", "Teff_eq", "logg_eq", "[Fe/H]_eq", "xi_eq", "Time"])
-
-results["Teff_lit"].unit = "K"
-results["Teff_ccf"].unit = "K"
-results["Teff_eq"].unit = "K"
-results["Time"].unit = "seconds"
-
+    "[Fe/H]_ccf", "Time"])
 
 # Make a difference plot
 fig, ax = plt.subplots(3)
-ax[0].scatter(results["Teff_lit"], results["Teff_ccf"]-results["Teff_lit"], facecolor="r")
-ax[0].scatter(results["Teff_lit"], results["Teff_eq"]-results["Teff_lit"], facecolor="k")
+ax[0].scatter(results_table["Teff_lit"], results_table["Teff_ccf"]-results_table["Teff_lit"], facecolor="r")
+#ax[0].scatter(results_table["Teff_lit"], results_table["Teff_eq"]-results_table["Teff_lit"], facecolor="k")
 ax[0].axhline(0, ls=":", c="#666666")
 ax[0].set_xlabel("$T_{\\rm eff}$ (K)")
 ax[0].set_ylabel("$\Delta{}T_{\\rm eff}$ (K)")
 _ = np.max(np.abs(ax[0].get_ylim()))
 ax[0].set_ylim(-_, +_)
 
-ax[1].scatter(results["logg_lit"], results["logg_ccf"]-results["logg_lit"], facecolor="r")
-ax[1].scatter(results["logg_lit"], results["logg_eq"]-results["logg_lit"], facecolor="k")
+ax[1].scatter(results_table["logg_lit"], results_table["logg_ccf"]-results_table["logg_lit"], facecolor="r")
+#ax[1].scatter(results_table["logg_lit"], results_table["logg_eq"]-results_table["logg_lit"], facecolor="k")
 ax[1].axhline(0, ls=":", c="#666666")
 ax[1].set_xlabel("$\log{g}$")
 ax[1].set_ylabel("$\Delta{}\log{g}$ (dex)")
 _ = np.max(np.abs(ax[1].get_ylim()))
 ax[1].set_ylim(-_, +_)
 
-ax[2].scatter(results["[Fe/H]_lit"], results["[Fe/H]_ccf"]-results["[Fe/H]_lit"], facecolor="r")
-ax[2].scatter(results["[Fe/H]_lit"], results["[Fe/H]_eq"]-results["[Fe/H]_lit"], facecolor="k")
+ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_ccf"]-results_table["[Fe/H]_lit"], facecolor="r")
+#ax[2].scatter(results_table["[Fe/H]_lit"], results_table["[Fe/H]_eq"]-results_table["[Fe/H]_lit"], facecolor="k")
 ax[2].axhline(0, ls=":", c="#666666")
 ax[2].set_xlabel("[Fe/H]")
 ax[2].set_ylabel("$\Delta{}{\\rm [Fe/H]}$ (dex)")
@@ -105,9 +129,23 @@ _ = np.max(np.abs(ax[2].get_ylim()))
 ax[2].set_ylim(-_, +_)
 
 fig.tight_layout()
+fig.savefig("benchmarks.png")
 
-results.write("benchmark-results.fits")
-fig.savefig("benchmark-results.pdf")
+# Try to upload the figure to Imgur
+try:
+    import pyimgur
+    imgur = pyimgur.Imgur(os.environ.get("IMGUR_CLIENT_ID", None))
+    uploaded_image = imgur.upload_image("benchmarks.png")
+
+except:
+    logger.exception("Could not upload benchmarks image to Imgur")
+    markdown += "\n\nError uploading figures to Imgur"
+
+else:
+    markdown += "\n\n![Benchmark results]({})".format(uploaded_image.link)
 
 
+# Save the markdown to file.
+with open("results.md", "w") as fp:
+    fp.write(markdown)
 
