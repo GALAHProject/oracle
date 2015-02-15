@@ -19,6 +19,8 @@ c     the line profile
 
 c*****get started; calculate an initial step size; wavestep only is 
 c*****used in synpop
+c      print *, "imode", imode, jtau5
+c      print *, "OK", wave1(lim1), dopp(lim1,jtau5)
       if (imode .eq. 0) gf1(ncurve) = gf(lim1)                          
       dellam(1) = 0.                                                    
       if (wavestep .eq. 0.) then
@@ -28,7 +30,8 @@ c*****used in synpop
          st1 = wavestep
       endif
       storig = st1
-c      print *, "INITIAL STEP SIZE", st1, wavestep
+c      print *, "INITIAL STEP SIZE", st1, wavestep, lim1
+c      print *, "jtau5", st1, jtau5
 
 
 c*****calculate continuous opacity and intensity/flux at line wavelength 
@@ -63,10 +66,10 @@ c        stop
          first = 0.4343*cd(1)
          d(1) = rinteg(xref,cd,dummy1,ntau,first)
          do k=1,30
-c            print *, "k wave", k, wave, st1
+c            print *, "k wave", k, lim1, wave, st1
             if (k .eq. 30 .and. debug .gt. 0) then
                write (*,1010) wave
-               stop
+c               stop (1010)
             endif
             wave = wave1(lim1) + 5.*st1
             call taukap

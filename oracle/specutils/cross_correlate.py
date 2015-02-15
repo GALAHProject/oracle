@@ -105,6 +105,8 @@ def cross_correlate(observed, template, wavelength_range=None):
     ccf[N/2:] = correlation[:N/2]
     
     # Get height and redshift of best peak
+    # TODO: Fit a Gaussian profile here instead, and get the z_err from the FWHM
+    #       of the profile
     h = ccf.max()
     
     # Scale the CCF

@@ -16,22 +16,24 @@ c******************************************************************************
 c*****initialization                                                        
       freq = 2.997925d18/waveop
       freqlg = dlog(freq)
+      evhkt(:) = 0.0
       do i = 1,ntau
          hkt = 6.6256d-27/(1.38054d-16*t(i))
          evhkt(i) = dexp(-freq*hkt)
       enddo
-      do i=1,ntau
-         aH1(i) =      1.d-99
-         aHminus(i) =  1.d-99
-         aHeminus(i) = 1.d-99
-         aC1(i) =      1.d-99
-         aMg1(i) =     1.d-99
-         aMg2(i) =     1.d-99
-         aAl1(i) =     1.d-99
-         aSi1(i) =     1.d-99
-         aSi2(i) =     1.d-99
-         aFe1(i) =     1.d-99
-      enddo
+
+c      do i=1,ntau
+       aH1(:) =      1.d-99
+       aHminus(:) =  1.d-99
+       aHeminus(:) = 1.d-99
+       aC1(:) =      1.d-99
+       aMg1(:) =     1.d-99
+       aMg2(:) =     1.d-99
+       aAl1(:) =     1.d-99
+       aSi1(:) =     1.d-99
+       aSi2(:) =     1.d-99
+       aFe1(:) =     1.d-99
+c      enddo
 
 
 c*****compute the opacities
@@ -58,12 +60,14 @@ c*****sum up all the opacities
      .                  aSi2(i) + aFe1(i)
          kaplamsca(i) = sigH(i) + sigH2(i) + sigHe(i) + sigel(i)
          kaplam(i)    = kaplamabs(i) + kaplamsca(i)
-c         print *, "OPACIT SUM", aH1(1), aHminus(1), aHeminus(1), 
-c     .      aC1(1), aMg1(1), aMg2(1), aAl1(1), aSi1(1), aSi2(1),
-c     .      aFe1(1), sigH(1), sigH2(1), sigHe(1), sigel(1)
 c         stop   
       enddo
+c      print *, "OPACIT SUM", aH1(1), aHminus(1), aHeminus(1), 
+c     .      aC1(1), aMg1(1), aMg2(1), aAl1(1), aSi1(1), aSi2(1),
+c     .      aFe1(1), sigH(1), sigH2(1), sigHe(1), sigel(1)
+c      print *, "MODEOP", modeop
 
+c      print *, "kaplam", kaplam(60)
       
 
 c*****write out the opacities

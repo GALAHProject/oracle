@@ -46,15 +46,27 @@ c      endif
       wavref = 5000.0
 
 c      print *, "WERRRRRRR"
-      do i=1,ntau
-c         k = photospheric_structure(i, 1)
-c         dummy1(i) = photospheric_structure(i, 2)
-         tauref(i) = photospheric_structure(i, 1)
-         dummy2(i) = photospheric_structure(i, 2)
-         t(i) = photospheric_structure(i, 3)
-         ne(i) = photospheric_structure(i, 4)
-         pgas(i) = photospheric_structure(i, 5)
-      enddo
+      if (modtype .eq. 'WEBMARCS') then
+         do i=1,ntau
+            tauref(i) = photospheric_structure(i, 1)
+            t(i) = photospheric_structure(i, 2)
+            ne(i) = photospheric_structure(i, 3)
+            pgas(i) = photospheric_structure(i, 4)
+         enddo
+         rhox(:) = 0.0
+
+      elseif (modtype .eq. 'KURUCZ   ') then
+         do i=1,ntau
+            rhox(i) = photospheric_structure(i, 1)
+            t(i) = photospheric_structure(i, 2)
+            pgas(i) = photospheric_structure(i, 3)
+            ne(i) = photospheric_structure(i, 4)
+            kaprefmass(i) = photospheric_structure(i, 5)
+         enddo
+      endif
+c            rhox(i),t(i),pgas(i),ne(i),kaprefmass(i)
+      
+c      print *, "kaprefmas", rhox(1)
 
 c      print *, "t(:ntau)", t(:ntau)
 c         do i=1,ntau
@@ -395,7 +407,7 @@ c*****SPECIAL NEEDS: for NEWMARCS models, to convert kaprefs to our units
          enddo
 c     SPECIAL NEEDS: for KURUCZ models, to create the optical depth array,
 c     and to convert kaprefs to our units
-      elseif (modtype .eq. 'KURUCZ    ') then
+      elseif (modtype .eq. 'KURUCZ   ') then
          first = rhox(1)*kaprefmass(1)
          tottau = rinteg(rhox,kaprefmass,tauref,ntau,first) 
          tauref(1) = first
@@ -433,14 +445,18 @@ c     SPECIAL NEEDS: for NEWMARCS models, to convert kaprefs to our units
          do i=1,ntau
             kapref(i) = kaprefmass(i)*rho(i)
          enddo
+      else
+         first = 0.0
+         tottau = 0.0
+         kaprefmass(:) = 0.0
+         call opacit(1, wavref)
+      endif
+
 c     SPECIAL NEEDS: for generic models, to create internal kaprefs,
 c      elseif (modtype .eq. 'GENERIC   ' .or.
 c     .        modtype .eq. 'WEBMARCS  ' .or.
 c     .        modtype .eq. 'WEB2MARC  ') then
 c         call opacit (1,wavref)
-      else
-         call opacit(1, wavref)
-      endif
 
 
 c*****Convert from logarithmic optical depth scales, or vice versa.
@@ -456,18 +472,19 @@ c     xref will contain the log of the tauref
          enddo
       endif
 
+c      print *, "xref", xref(1), tauref(1)
 
 c*****Write information to output files
 c      if (modprintopt .lt. 1) return
 c      write (nf1out,1002) moditle
-c ARC! It's not clear to me why this shouldn't happen if modprintout
-c is less than 1, but anyways...
 c      do i=1,ntau
 c         dummy1(i) = dlog10(pgas(i))
 c         dummy2(i) = dlog10(ne(i)*1.38054d-16*t(i))
 c      enddo
-c      write (nf1out,1003) wavref,(i,xref(i),tauref(i),t(i),dummy1(i),
-c     .                    pgas(i),dummy2(i),ne(i),vturb(i),i=1,ntau)
+      if (debug .eq. 1) then
+         write (nf1out,1003) wavref,(i,xref(i),tauref(i),t(i),dummy1(i),
+     .                    pgas(i),dummy2(i),ne(i),vturb(i),i=1,ntau)
+      endif
 c      write (nf1out,1004)
 c      do i=1,95
 c         dummy1(i) = dlog10(xabund(i)) + 12.0
