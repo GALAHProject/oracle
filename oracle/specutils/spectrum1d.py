@@ -265,11 +265,15 @@ class Spectrum1D(object):
 
                 if np.all([key in header.keys() \
                     for key in ('CDELT1', 'NAXIS1', 'CRVAL1')]):
-                    disp = header['CRVAL1'] \
-                        + np.arange(header['NAXIS1']) * header['CDELT1']
+
+                    li = header.get("LTM1_1", 1) * np.arange(header['NAXIS1']) \
+                        - header.get("LTV1", 0)
+
+                    disp = header['CRVAL1']\
+                        + header['CDELT1'] * (li - header.get("CRPIX1", 0))
             
-                if "LTV1" in header.keys():
-                    disp -= header['LTV1'] * header['CDELT1']
+                #if "LTV1" in header.keys():
+                #    disp -= header['LTV1'] * header['CDELT1']
 
                 #disp -= header['LTV1'] if header.has_key('LTV1') else 0
                 flux = image[0].data
