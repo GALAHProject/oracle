@@ -22,7 +22,7 @@ from astropy.io import fits
 from astropy.time import Time
 
 # This module.
-import helcorr
+from . import helcorr
 
 logger = logging.getLogger("oracle")
 
