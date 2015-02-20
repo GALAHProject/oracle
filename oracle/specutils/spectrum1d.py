@@ -12,11 +12,17 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 import logging
 import os
 import warnings
+from pkg_resources import resource_stream
 
 # Third-party
 import numpy as np
+import yaml
+import astropy.units as u
 from astropy.io import fits
+from astropy.time import Time
 
+# This module.
+import helcorr
 
 logger = logging.getLogger("oracle")
 
@@ -99,6 +105,89 @@ class Spectrum1D(object):
         return self.__class__(self.disp.copy(), self.flux.copy(),
             variance=self.variance.copy(), headers=self.headers.copy())
     
+
+    @property
+    def v_helio(self):
+        """
+        Return the heliocentric velocity, given the information available in
+        the headers.
+        """
+
+        if hasattr(self, "_v_helio"):
+            return self._v_helio
+
+        # Needs: RA, DEC (degrees, J2000)
+        # MJD of middle of exposure
+        # Some observatory information
+
+        # ORIGIN: Observatory
+        #RA
+        # DEC
+        #UTSTART = '14:19:02'           / UT start                                       
+        #UTEND   = '14:39:03'           / UT end      
+
+        #ALT_OBS =                 1164 / Altitude of observatory in metres              
+        #LAT_OBS =            -31.27704 / Observatory latitude in degrees                
+        #LONG_OBS=             149.0661 / Observatory longitude in degrees  
+
+        # MEANRA (degrees)
+        # MEANDEC (degrees)
+
+        # Get the observatory.
+        alt_obs = self.headers.get("ALT_OBS", None)
+        lat_obs = self.headers.get("LAT_OBS", None)
+        long_obs = self.headers.get("LONG_OBS", None)
+        if None in (alt_obs, lat_obs, long_obs):
+            # Try and determine it from the observatory name, if it exists.
+            origin = self.headers.get("ORIGIN", None)
+
+            if origin is None:
+                raise KeyError("no observatory information available (ALT_OBS, "
+                    "LAT_OBS, LONG_OBS) or ORIGIN")
+
+            with resource_stream(__name__, "observatories.yaml") as fp:
+                observatories_dictionary = yaml.load(fp)
+
+            origin = origin.strip().lower()
+            if origin not in observatories_dictionary:
+                raise KeyError("could not find {} in the observatory dictionary"\
+                    .format(origin))
+
+            observatory = observatories_dictionary[origin]
+            alt_obs = observatory["altitude"]
+            lat_obs = observatory["latitude"]
+            raise WTFError()
+
+        # Get the RA/DEC.
+        ra = self.headers.get("RA", None) # assuming degrees
+        dec = self.headers.get("DEC", None)
+        if None in (ra, dec):
+            ra = self.headers.get("MEANRA", None)
+            dec = self.headers.get("MEANDEC", None)
+
+        if None in (ra, dec):
+            raise KeyError("no position information (looked for RA/DEC, MEANRA"\
+                "/MEANDEC")
+
+        # Time of observation.
+        for k in ("UTDATE", "UTSTART", "UTEND"):
+            if k not in self.headers:
+                raise KeyError("cannot find key {} in headers".format(k))
+
+        ut_start = Time("{0}T{1}".format(self.headers["UTDATE"].replace(":", "-"),
+            self.headers["UTSTART"]), format="isot", scale="utc")
+        ut_end = Time("{0}T{1}".format(self.headers["UTDATE"].replace(":", "-"),
+            self.headers["UTEND"]), format="isot", scale="utc")
+
+        # Get the MJD of the mid-point of the observation.
+        mjd = (ut_end - ut_start).jd/2 + ut_start.mjd
+
+        # Calculate the correction.
+        v_helio = helcorr.helcorr(long_obs, lat_obs, alt_obs, ra, dec, mjd)
+        self._v_helio = v_helio
+        return v_helio
+
+
 
     def mask_by_dispersion(self, mask, mask_value=np.nan):
 
@@ -312,6 +401,11 @@ class Spectrum1D(object):
             # Create HDU list with our tables
             hdulist = fits.HDUList([hdu, table_hdu])
             return hdulist.writeto(filename, clobber=clobber, **kwargs)
+
+
+
+
+
 
 
 

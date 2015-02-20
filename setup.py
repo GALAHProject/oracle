@@ -105,6 +105,7 @@ setup(
             "stagger-2013-rosseland.pkl",
             "stagger-2013-height.pkl"
         ],
-        "oracle.models": ["galah-ambre-grid.pkl"]
+        "oracle.models": ["galah-ambre-grid.pkl"],
+        "oracle.specutils": ["observatories.yaml"]
     }
 )
