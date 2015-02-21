@@ -23,6 +23,8 @@ logger = logging.getLogger("oracle")
 from oracle import atmospheres, specutils, utils
 from oracle.models import profiles, validation
 
+from astropy import constants
+
 # Silence 'Polyfit may be poorly conditioned' messages
 warnings.simplefilter("ignore", np.RankWarning)
 
@@ -272,6 +274,17 @@ class Model(object):
             return np.ones(len(dispersion), dtype=bool)
 
 
+    def _mask(self, dispersion, regions, z=0, fill_value=False, **kwargs):
+
+        mask = np.ones(len(dispersion), dtype=bool)
+        regions = np.array(regions)
+        for start, end in regions * (1. + z):
+            indices = dispersion.searchsorted([start, end])
+            mask[indices[0]:indices[1]] = fill_value
+        return mask
+
+
+
     def initial_theta(self, data, full_output=False, **kwargs):
         """
         Return an initial guess of the model parameters theta using no prior
@@ -305,6 +318,7 @@ class Model(object):
         continuum_coefficients = {}
         expected_channel_disp = []
         expected_channel_fluxes = []
+        closest_grid_points = []
         chi_sqs = np.zeros(grid_points.size)
 
         # [TODO] Andy you should parallelise this part
@@ -322,6 +336,11 @@ class Model(object):
                 channel.disp, channel.flux, left=np.nan, right=np.nan)
             rebinned_channel_ivar = np.interp(rebinned_channel_disp,
                 channel.disp, channel.ivariance, left=np.nan, right=np.nan)   
+
+            # Set below zero fluxes as nans
+            unphysical_fluxes = rebinned_channel_flux < 0
+            rebinned_channel_flux[unphysical_fluxes] = np.nan
+            rebinned_channel_ivar[unphysical_fluxes] = np.nan
 
             # Get the continuum order
             order = self._continuum_order(i)
@@ -409,6 +428,8 @@ class Model(object):
                     # Measured radial velocity applies to this channel only
                     theta["v_rad.{}".format(i)] = v_rad
 
+            closest_grid_points.append(highest_peak)
+
             # We need the continuum mask regardless of whether continuum is
             # actually determined or not. This is because the continuum mask
             # is later used to determine which pixels are used for the nearest
@@ -416,60 +437,49 @@ class Model(object):
             continuum_mask = ~(self.mask(rebinned_channel_disp,
                 mask_key="continuum_mask") * np.isfinite(rebinned_channel_flux))
 
-            # Calculate continuum coefficients for each model grid point
+            # Calculate the best continuum coefficients.
             if order >= 0:
-                continuum_disp = rebinned_channel_disp[~continuum_mask]
-                continuum_flux = rebinned_channel_flux[~continuum_mask].copy()
-                # [TODO] This might fail with nans/infs in the data
 
-                # Note below we assume you are not doing some Big Ass Matrix(tm)
-                # operations.
+                disp = rebinned_channel_disp[~continuum_mask]
 
-                # The dispersion matrix will use rebinned channel dispersion
-                # points because we will use it later to calculate the expected
-                # fluxes at each point
-                disp_matrix = np.ones((order+1, rebinned_channel_disp.size))
-                for j in range(order + 1):
-                    disp_matrix[j] *= rebinned_channel_disp**j
+                # Correct for the observed velocity.
+                corrected_disp = disp * (1 - v_rad/constants.c.to("km/s").value)
+                corrected_flux = np.interp(disp, corrected_disp,
+                    rebinned_channel_flux[~continuum_mask], left=np.nan,
+                    right=np.nan)
 
-                A = (continuum_flux \
-                    / grid_fluxes[:,indices[0]:indices[1]][:,~continuum_mask]).T
-                coefficients = np.linalg.lstsq(disp_matrix[:,~continuum_mask].T,
-                    A)[0]
+                # Best fit from CCF.
+                synthetic_flux = grid_fluxes[highest_peak, indices[0]:indices[1]][~continuum_mask]
 
-                # Save the continuum coefficients (we will use them later)
-                continuum_coefficients[i] = coefficients[::-1]
-                continuum = np.dot(coefficients.T, disp_matrix)
-        
-                # Calculate the expected flux and chi-sq values at each point
-                expected_fluxes = grid_fluxes[:,indices[0]:indices[1]]*continuum
+                finite = np.isfinite(corrected_flux)
+
+                disp = corrected_disp[finite]
+                corrected_flux = corrected_flux[finite]
+                synthetic_flux = synthetic_flux[finite]
+
+                # Initial guess.
+                p0 = np.polyfit(disp, corrected_flux/synthetic_flux, order+1)
+
+                # Optimize.
+                difference = lambda p: np.polyval(p, disp) * synthetic_flux \
+                    - corrected_flux
+                chi_sq = lambda p: np.sum(difference(p)**2)
+
+                # Slow, but reliable.
+                result = op.fmin(chi_sq, p0, disp=False)
+
+                # Create expected fluxes and save result
+                expected_channel_disp.append(
+                    disp * (1 + 2 * v_rad/constants.c.to("km/s").value))
+                expected_channel_fluxes.append(
+                    (np.polyval(result, disp) * synthetic_flux))
+
+                for j, coefficient in enumerate(result):
+                    theta["continuum.{0}.c{1}".format(i, j)] = coefficient
 
             else:
-                # No continuum treatment.
-                expected_fluxes = grid_fluxes[:, indices[0]:indices[1]]
-
-            # Keep the expected fluxes if necessary
-            if full_output:
-                expected_channel_disp.append(rebinned_channel_disp)
-                expected_channel_fluxes.append(expected_fluxes)
-
-            # Add to the chi-sq values
-            tm = continuum_mask + ccf_mask
-            num_pixels += (~tm).sum()
-            differences = (rebinned_channel_flux[~tm] \
-                - expected_fluxes[:, ~tm])**2 * rebinned_channel_ivar[~tm]
-            chi_sqs += np.nansum(differences, axis=1)
-
-            # Estimate instrumental broadening
-            # TODO
-            #logger.warn("haven't done instrumental broadening")
-
-            # Determine the best match so far
-            g_index = chi_sqs.argmin()
-            r_chi_sq = chi_sqs[g_index] / (num_pixels - len(parameters) - 1)
-            logger.debug(u"Grid point with lowest χ² point so far is {0} with "\
-                u"reduced χ² = {1:.1f}".format(utils.readable_dict(
-                    grid_points.dtype.names, grid_points[g_index]), r_chi_sq))
+                expected_fluxes = \
+                    grid_fluxes[highest_peak, indices[0]:indices[1]]
 
         # Do we need to conglomerate radial velocity measurements together?
         if "v_rad" in parameters:
@@ -478,26 +488,11 @@ class Model(object):
                 "{1:.1f} km/s".format(theta["v_rad"], median_v_rad))
             theta["v_rad"] = median_v_rad
 
-        # Now determine the nearest point as that which has the lowest chi-sq
-        g_index = chi_sqs.argmin()
-        closest_grid_point = grid_points[g_index]
-        r_chi_sq = chi_sqs[g_index] / (num_pixels - len(parameters) - 1)
-        logger.info(u"Grid point with lowest χ² point is {0} with reduced χ² ="\
-            " {1:.1f}".format(utils.readable_dict(grid_points.dtype.names,
-                closest_grid_point), r_chi_sq))
-
-        # Refine the continuum coefficient estimates using the grid point with
-        # the lowest chi-sq value?
-        # [TODO] Perhaps we should do this
-
+        closest_grid_point = grid_points[max(set(closest_grid_points),
+            key=closest_grid_points.count)]
 
         # Update theta with the nearest grid point
         theta.update(dict(zip(self._stellar_parameters, closest_grid_point)))
-
-        # And the continuum coefficients
-        for i, coefficients in continuum_coefficients.iteritems():
-            for j, coefficient in enumerate(coefficients[:, g_index]):
-                theta["continuum.{0}.{1}".format(i, j)] = coefficient
 
         # Is microturbulence a parameter?
         if "microturbulence" in parameters:
@@ -513,8 +508,8 @@ class Model(object):
 
         self._initial_theta = theta
         if full_output:
-            return (theta, r_chi_sq, np.hstack(expected_channel_disp),
-                np.hstack([ecf[g_index] for ecf in expected_channel_fluxes]))
+            return (theta, np.hstack(expected_channel_disp),
+                np.hstack(expected_channel_fluxes))
         return theta
 
 
