@@ -7,13 +7,14 @@ from __future__ import division, absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
+#import setuptools
+
 # Standard library.
 import os
 import re
 import sys
 from urllib import urlretrieve
 
-# Third-party.
 from numpy.distutils.core import Extension, setup
 
 major, minor1, minor2, release, serial =  sys.version_info
@@ -95,6 +96,7 @@ setup(
         "console_scripts": ["oracle = oracle.cli:main"]
     },
     ext_modules=[moog],
+    zip_safe=True,
     include_package_data=True,
     package_data={
         "oracle.atmospheres": [

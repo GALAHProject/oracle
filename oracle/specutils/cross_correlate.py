@@ -269,8 +269,8 @@ def cross_correlate_grid(template_dispersion, template_fluxes, observed_flux,
     else:
         # Thread this!
         for i in xrange(N_models):
-            peak_index, z[i], z_err[i], R[i] = _ccf(z_array,
-                apod_template_flux[i, :], template_flux_corr[i, :], N)
+            z[i], z_err[i], R[i] = _ccf(z_array, apod_template_flux[i, :],
+                template_flux_corr[i, :], N)
 
 
     c = constants.c.to("km/s").value

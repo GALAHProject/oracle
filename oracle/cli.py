@@ -9,8 +9,11 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 # Standard library.
 import argparse
+import cPickle as pickle
 import logging
+import os
 import sys
+from time import time
 
 # Third-party.
 import matplotlib.pyplot as plt
@@ -22,6 +25,15 @@ logger = logging.getLogger("oracle")
 
 # Usage: oracle estimate model.yaml <filenames>
 #        oracle estimate model.yaml -r <read_from_filename>
+
+
+def common_basename(filenames):
+    if isinstance(filenames, (str, )):
+        filenames = [filenames]
+    common_prefix, ext = os.path.splitext(os.path.commonprefix(
+        map(os.path.basename, filenames)))
+    common_prefix = common_prefix.rstrip("_-")
+    return common_prefix if len(common_prefix) > 0 else "source"
 
 def estimate(args):
     """ Estimate model parameters by cross-correlation against a grid. """
@@ -40,19 +52,29 @@ def estimate(args):
             "redshift": True,
             "continuum": 3,
             "continuum_mask": [
-                [4899, 4905],
+    #            [4899, 4905],
                 [7592, 7730]
             ],
             "cross_correlation_mask": [
                 [7500, 7730]
             ]
-        }})
+        },
+        "settings": {
+            "threads": 4
+        }
+        })
 
     successful, exceptions = 0, 0
     for i, filenames in enumerate(all_sources):
+        
+        basename = common_basename(filenames)
+        logger.info("Sources for #{0} (basename {1}): {2}".format(i + 1,
+            basename, ", ".join(filenames)))
+
+        t_init = time()
         try:
             data = map(oracle.specutils.Spectrum1D.load, filenames)
-            initial_theta, r_chi_sq, expected_dispersion, expected_flux = \
+            initial_theta, expected_dispersion, expected_flux = \
                 model.initial_theta(data, full_output=True)
 
         except:
@@ -63,26 +85,46 @@ def estimate(args):
 
         else:
             successful += 1
-            print("Initial chi-sq is {0:.2f} for theta: {1}".format(r_chi_sq,
-                initial_theta))
+            logger.info("Completed successfully in {0:.1f} seconds".format(
+                time() - t_init))
+
+            # Try and add v_helio?
+            try:
+                initial_theta["v_helio"] = data[0].v_helio
+            except KeyError:
+                logger.exception("Could not calculate heliocentric velocity "
+                    "correction for source #{}".format(i + 1))
+                initial_theta["v_helio"] = np.nan
+
+            logger.info("Initial model parameters for source #{0} is {1}".format(
+                i + 1, initial_theta))
+
+            # Save the initial theta information to somewhere.
+            output_filename = "initial-{}.pkl".format(basename)
+            with open(output_filename, "wb") as fp:
+                pickle.dump((initial_theta, expected_dispersion, expected_flux),
+                    fp, -1)
+            logger.info("Saved output to {0}".format(output_filename))
 
             if args.plotting:
+                plot_filename = "source-{}-initial.png".format(basename)
                 fig, axes = plt.subplots(len(data))
-                for j, (ax, data_spectrum) in enumerate(zip(axes, data)):
-                    ax.plot(data_spectrum.disp, data_spectrum.flux, c="k")
+                for j, (ax, channel) in enumerate(zip(axes, data)):
+                    ax.plot(channel.disp, channel.flux, c="k")
                     ylim = ax.get_ylim()
-                    ax.plot(expected_dispersion, expected_flux, c="b", zorder=-1)
-                    ax.set_xlim(data_spectrum.disp.min(), data_spectrum.disp.max())
+                    ax.plot(expected_dispersion, expected_flux, c="r", zorder=-1)
+                    ax.set_xlim(channel.disp.min(), channel.disp.max())
                     ax.set_ylim(ylim)
                     ax.set_ylabel("Counts")
 
                 ax.set_xlabel("Wavelength")
                 fig.tight_layout()
-                fig.savefig("source-{}.png".format(i+1))
+                fig.savefig(plot_filename)
+                logger.info("Saved figure to {0}".format(plot_filename))
                 plt.close("all")
 
-    print("{0} successful, {1} exceptions".format(successful, exceptions))
-    raise a
+    logger.info("{0} successful, {1} exceptions".format(successful, exceptions))
+    
 
 
 def parser(input_args=None):
