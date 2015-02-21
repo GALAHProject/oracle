@@ -419,9 +419,9 @@ class Model(object):
                         theta["v_rad"].append(v_rad)
                     else:
                         theta["v_rad"] = [v_rad]
-                else:
-                    # Measured radial velocity applies to this channel only
-                    theta["v_rad.{}".format(i)] = v_rad
+
+                # Either way, add in this channel velocity.
+                theta["v_rad.{}".format(i)] = v_rad
 
             closest_grid_points.append(highest_peak)
 
