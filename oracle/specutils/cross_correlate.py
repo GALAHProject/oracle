@@ -10,7 +10,8 @@ __all__ = ["cross_correlate", "cross_correlate_grid"]
 
 import numpy as np
 import multiprocessing
-
+import astropy.units as u
+from astropy import modeling, constants
 
 def cross_correlate(observed, template, wavelength_range=None):
     """
@@ -107,20 +108,39 @@ def cross_correlate(observed, template, wavelength_range=None):
     # Get height and redshift of best peak
     # TODO: Fit a Gaussian profile here instead, and get the z_err from the FWHM
     #       of the profile
-    h = ccf.max()
     
     # Scale the CCF
+    h = ccf.max()
     ccf -= ccf.min()
     ccf *= (h/ccf.max())
 
-    c = 299792.458 # km/s
-    z_best = z_array[ccf.argmax()]    
-    z_err = (np.ptp(z_array[np.where(ccf >= 0.5*h)])/2.35482)**2
+    initial_stddev = np.ptp(z_array[np.where(ccf >= 0.5*h)])
+
+    model = modeling.models.Gaussian1D(
+        mean=z_array[np.argmax(ccf)], amplitude=1,
+        stddev=0.05)
+
+    fitter = modeling.fitting.LevMarLSQFitter()
+
+    profile = fitter(model, z_array, ccf)
+
+    import matplotlib.pyplot as plt
+    plt.plot(z_array, ccf, 'k')
+    plt.plot(z_array, profile(z_array), 'r')
+
+    raise a
+
+
+
+    #c = 299792.458 # km/s
+    #z_best = z_array[ccf.argmax()]    
+    #z_err = /2.35482)**2
 
     return (z_best * c, z_err * c)
 
 
-def _ccf(apod_template_flux, template_flux_corr, N, index=None):
+def _ccf(z_array, apod_template_flux, template_flux_corr, N, index=None,
+    method="fast", **kwargs):
 
     denominator = np.sqrt(np.inner(apod_template_flux, apod_template_flux))
     flux_correlation = template_flux_corr / denominator 
@@ -131,6 +151,7 @@ def _ccf(apod_template_flux, template_flux_corr, N, index=None):
     ccf[:N/2] = correlation[N/2:]
     ccf[N/2:] = correlation[:N/2]
 
+
     # Get height and redshift of best peak
     h = ccf.max()
 
@@ -138,13 +159,41 @@ def _ccf(apod_template_flux, template_flux_corr, N, index=None):
     ccf -= ccf.min()
     ccf *= (h/ccf.max())
 
+
+    if method != "fast":
+        mean = ccf.argmax()
+
+        model = modeling.models.Gaussian1D(mean=mean, amplitude=h,
+            stddev=1)
+        model += modeling.models.Const1D()
+
+        fitter = modeling.fitting.LevMarLSQFitter()
+        
+        fit_sigma = kwargs.pop("__fit_sigma", 1.5)
+        x = np.arange(N)
+        # TODO revise this range?
+        use = (mean + 5 >= x) * (x >= mean - 5)
+        model.bounds["stddev_0"] = [0, 1.5]
+        profile = fitter(model, x[use], ccf[use])
+
+        mean, stddev, amplitude = profile.mean_0.value, \
+            profile.stddev_0.value * np.diff(z_array)[0], \
+            profile.amplitude_0.value + profile.amplitude_1.value
+
+    else:
+
+        stddev = np.ptp(z_array[np.where(ccf >= 0.5 * h)]/2.355)
+        mean, amplitude = ccf.argmax(), h
+
+    mean = np.interp(mean, np.arange(N), z_array)
+
     if index is not None:
-        return (index, ccf.argmax(), np.where(ccf >= 0.5 * h), h)
-    return (ccf.argmax(), np.where(ccf >= 0.5 * h), h)
+        return (index, mean, stddev, amplitude)
+    return (mean, stddev, amplitude)
 
 
 def cross_correlate_grid(template_dispersion, template_fluxes, observed_flux,
-    continuum_order=3, apodize=0.10, threads=1):
+    continuum_order=3, apodize=0.10, remeasure_best=True, threads=1):
 
     if template_dispersion.shape[0] != template_fluxes.shape[1]:
         raise ValueError("template dispersion must have size (N_pixels,) and "\
@@ -206,14 +255,13 @@ def cross_correlate_grid(template_dispersion, template_fluxes, observed_flux,
         processes = []
         pool = multiprocessing.Pool(threads)
         for i in xrange(N_models):
-            processes.append(pool.apply_async(_ccf, args=(
+            processes.append(pool.apply_async(_ccf, args=(z_array,
                 apod_template_flux[i, :], template_flux_corr[i, :], N, i)))
 
         for process in processes:
-            index, peak_index, err_index, h = process.get()
-            z[index] = z_array[peak_index]
-            z_err[index] = (np.ptp(z_array[err_index])/2.35482)**2
-            R[index] = h
+            result = process.get()
+            index = result[0]
+            z[index], z_err[index], R[index] = result[1:]
 
         pool.close()
         pool.join()
@@ -221,12 +269,20 @@ def cross_correlate_grid(template_dispersion, template_fluxes, observed_flux,
     else:
         # Thread this!
         for i in xrange(N_models):
+            peak_index, z[i], z_err[i], R[i] = _ccf(z_array,
+                apod_template_flux[i, :], template_flux_corr[i, :], N)
 
-            peak_index, err_index, h = _ccf(apod_template_flux[i, :],
-                template_flux_corr[i, :], N)
 
-            z[i] = z_array[peak_index]
-            z_err[i] = (np.ptp(z_array[err_index])/2.35482)**2
-            R[i] = h
+    c = constants.c.to("km/s").value
+    
+    # Should we precisely re-measure the best point?
+    if remeasure_best:
+        best = R.argmax()
 
-    return (z * 299792.458, z_err * 299792.458, R)
+        b_z, b_z_err, b_R = _ccf(z_array, apod_observed_flux,
+            template_flux_corr[best, :], N, None, method="slow")
+
+        z[best] = b_z
+        z_err[best] = b_z_err
+
+    return (z * c, z_err * c, R)

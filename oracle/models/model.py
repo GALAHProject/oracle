@@ -285,7 +285,7 @@ class Model(object):
 
 
 
-    def initial_theta(self, data, full_output=False, **kwargs):
+    def initial_theta(self, data, full_output=False, method="fast", **kwargs):
         """
         Return an initial guess of the model parameters theta using no prior
         information.
@@ -301,6 +301,10 @@ class Model(object):
             raise ValueError("data must be a list of Spectrum1D objects")
         if 1 > len(data):
             raise ValueError("no data provided")
+
+        method = method.lower()
+        if method not in ("slow", "fast"):
+            raise ValueError("method must be either 'fast' or 'slow'")
 
         data = sorted(data, key=lambda x: x.disp[0])
         parameters = self.parameters(data)
@@ -321,12 +325,11 @@ class Model(object):
         closest_grid_points = []
         chi_sqs = np.zeros(grid_points.size)
 
-        # [TODO] Andy you should parallelise this part
         for i, channel in enumerate(data):
 
             # Splice the wavelengths
-            indices = grid_dispersion.searchsorted([channel.disp[0],
-                channel.disp[-1]])
+            indices = grid_dispersion.searchsorted(
+                [channel.disp[0], channel.disp[-1]]) + [0, 1]
 
             # Temporarily transform the data to the model dispersion points
             # (This is far cheaper than the alternative, and is good enough for
@@ -334,13 +337,10 @@ class Model(object):
             rebinned_channel_disp = grid_dispersion[indices[0]:indices[1]]
             rebinned_channel_flux = np.interp(rebinned_channel_disp,
                 channel.disp, channel.flux, left=np.nan, right=np.nan)
-            rebinned_channel_ivar = np.interp(rebinned_channel_disp,
-                channel.disp, channel.ivariance, left=np.nan, right=np.nan)   
+            #rebinned_channel_ivar = np.interp(rebinned_channel_disp,
+            #    channel.disp, channel.ivariance, left=np.nan, right=np.nan)   
 
-            # Set below zero fluxes as nans
-            unphysical_fluxes = rebinned_channel_flux < 0
-            rebinned_channel_flux[unphysical_fluxes] = np.nan
-            rebinned_channel_ivar[unphysical_fluxes] = np.nan
+            rebinned_channel_flux[rebinned_channel_flux < 0] = np.nan
 
             # Get the continuum order
             order = self._continuum_order(i)
@@ -357,7 +357,7 @@ class Model(object):
                     ccf_disp = rebinned_channel_disp
                     ccf_flux = rebinned_channel_flux.copy()
                     
-                    # And interpolate over the small portions of non-useful pixels
+                    # Interpolate over the small portions of non-useful pixels
                     ccf_flux[ccf_mask] = np.interp(
                         ccf_disp[ccf_mask],
                         ccf_disp[~ccf_mask],
@@ -374,48 +374,43 @@ class Model(object):
                     ccf_li = [ccf_li, 0][ccf_li is None] 
                     ccf_ri = [ccf_ri, 0][ccf_ri is None]
 
+
                 else:
                     ccf_li, ccf_ri = 0, 0
                     ccf_disp = rebinned_channel_disp
                     ccf_flux = rebinned_channel_flux.copy()
+            
+                if method == "fast" and i > 0:
+                    logger.debug("Using previous point..")
+                    v_rads, v_errs, ccf_peaks = \
+                        specutils.cross_correlate.cross_correlate_grid(
+                            ccf_disp, np.array([grid_fluxes[highest_peak,
+                                indices[0]:indices[1]][ccf_li:ccf_ri]]),
+                            ccf_flux, continuum_order=order,
+                            threads=self.config["settings"]["threads"],
+                            remeasure_best=True)
+                    v_rad, v_err, ccf_peak = \
+                        v_rads[0], v_errs[0], ccf_peaks[0]
 
-                if i == 0:
-                    # If this is the first channel, then cross-correlate the
-                    # data against the entire grid
-                
+                else:
                     v_rads, v_errs, ccf_peaks = \
                         specutils.cross_correlate.cross_correlate_grid(
                             ccf_disp,
-                            grid_fluxes[:, indices[0]+ccf_li:indices[1]+ccf_ri],
+                            grid_fluxes[:, indices[0]:indices[1]][:, ccf_li:ccf_ri],
                             ccf_flux, continuum_order=order,
-                            threads=self.config["settings"]["threads"])
+                            threads=self.config["settings"]["threads"],
+                            remeasure_best=True)
 
                     # Identify the grid point with highest CCF peak
                     highest_peak = ccf_peaks.argmax()
                     v_rad, v_err, ccf_peak = (v_rads[highest_peak],
                         v_errs[highest_peak], ccf_peaks[highest_peak])
-                    logger.debug("Grid point with highest CCF peak in channel "\
-                        "{0} is {1} with v_rad = {2:.1f} km/s (+/- {3:.1f} km/"\
-                        "s) and R = {4:.3f}".format(i, utils.readable_dict(
-                            grid_points.dtype.names, grid_points[highest_peak]),
-                        v_rad, v_err, ccf_peak))
 
-                else:
-                    # The following times we just cross-correlate the data
-                    # against the best point from the grid the previous time
-
-                    v_rad, v_err, ccf_peak = \
-                        specutils.cross_correlate.cross_correlate_grid(
-                            ccf_disp, np.array([grid_fluxes[chi_sqs.argmin(),
-                                indices[0] + ccf_li:indices[1] + ccf_ri]]),
-                            ccf_flux, continuum_order=order)
-
-                    # We take the first item because there's only one grid point
-                    v_rad, v_err, ccf_peak = v_rad[0], v_err[0], ccf_peak[0]
-
-                logger.debug("CCF peak in channel {0} is {1} with v_rad = "\
-                    "{2:.1f} km/s (+/- {3:.1f} km/s)".format(i, ccf_peak, v_rad,
-                        v_err))
+                logger.debug("Grid point with highest CCF peak in channel "\
+                    "{0} is {1} with v_rad = {2:.1f} km/s (+/- {3:.1f} km/"\
+                    "s) and R = {4:.3f}".format(i, utils.readable_dict(
+                        grid_points.dtype.names, grid_points[highest_peak]),
+                    v_rad, v_err, ccf_peak))
 
                 if "v_rad" in parameters:
                     # Global, so add it to a list which we will use to take an
@@ -542,7 +537,8 @@ class Model(object):
 
         index = data.disp.searchsorted(wavelength)
         cindex = continuum.disp.searchsorted(wavelength)
-        continuum_at_wavelength = continuum if scalar_continuum else continuum.flux[cindex]
+        continuum_at_wavelength = continuum if scalar_continuum \
+            else continuum.flux[cindex]
 
         if initial_depth is None:
             initial_depth = 1. - data.flux[index]/continuum_at_wavelength
@@ -581,8 +577,6 @@ class Model(object):
 
         # Gaussian case
         def absorption_profile(wavelength, sigma, depth, continuum_sigma=0):
-            #return ndimage.gaussian_filter(continuum, sigma/np.diff(data.disp).mean())\
-            #    * (1 - depth * profiles.gaussian(wavelength, sigma, data.disp))
             if scalar_continuum:
                 c_ = continuum
 
