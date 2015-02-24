@@ -280,7 +280,7 @@ class Model(object):
         regions = np.array(regions)
         for start, end in regions * (1. + z):
             indices = dispersion.searchsorted([start, end])
-            mask[indices[0]:indices[1]] = fill_value
+            mask[indices[0]:indices[1] + 1] = fill_value
         return mask
 
 
@@ -337,8 +337,6 @@ class Model(object):
             rebinned_channel_disp = grid_dispersion[indices[0]:indices[1]]
             rebinned_channel_flux = np.interp(rebinned_channel_disp,
                 channel.disp, channel.flux, left=np.nan, right=np.nan)
-            #rebinned_channel_ivar = np.interp(rebinned_channel_disp,
-            #    channel.disp, channel.ivariance, left=np.nan, right=np.nan)   
 
             rebinned_channel_flux[rebinned_channel_flux < 0] = np.nan
 
@@ -372,7 +370,7 @@ class Model(object):
                     ccf_flux = ccf_flux[ccf_li:ccf_ri]
 
                     ccf_li = [ccf_li, 0][ccf_li is None] 
-                    ccf_ri = [ccf_ri, 0][ccf_ri is None]
+                    ccf_ri = [ccf_ri, None][ccf_ri is None]
 
 
                 else:
