@@ -34,5 +34,6 @@ def interpolator(kind="castelli/kurucz", **kwargs):
     elif kind[:9] == "stagger-r":
         return stagger_interp("stagger-2013-rosseland.pkl", **kwargs)
 
-    elif kind[:8] == "stagger-" and kind[9] in ("h", "g", "z"):
+    elif kind[:8] == "stagger-" and kind[8] in ("h", "g", "z"):
         return stagger_interp("stagger-2013-height.pkl", **kwargs)
+
