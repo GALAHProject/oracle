@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 class EqualibriaModel(Model):
 
     """
-    This class performs excitation and ionization balances in order to 
+    This class performs excitation and ionization balances in order to
     provide a point estimate of the stellar parameters.
     """
 
@@ -44,10 +44,10 @@ class EqualibriaModel(Model):
     def __init__(self, configuration, **kwargs):
         """
         Initialise an Equialibria Model class.
-        
+
         :param configuration:
             The path to the configuration file that contains settings for the
-            class, a dictionary describing the configuration, or a string 
+            class, a dictionary describing the configuration, or a string
             containing the configuration in a YAML-dump format. Only YAML-style
             formats are accepted.
 
@@ -207,7 +207,7 @@ class EqualibriaModel(Model):
             data_channel = data[data_index]
             pixels = np.zeros(data_channel.disp.size, dtype=bool)
             is_blended = np.zeros(data_channel.disp.size, dtype=bool)
-            
+
             comparison_regions = []
             _ = np.where(data_indices == data_index)[0]
             wavelengths = np.sort(transitions["wavelength"][_])
@@ -224,7 +224,7 @@ class EqualibriaModel(Model):
                 else:
                     # If so just extend the last region to cover this one.
                     comparison_regions[-1][1] = end
-                            
+
             # is_blended will be a masked array indicating whether a pixel needs
             # to be interpolated from the synthetic spectra.
 
@@ -234,7 +234,7 @@ class EqualibriaModel(Model):
                 # Save the data pixels for this region.
                 indices = data_channel.disp.searchsorted([start, end]) + [0, 1]
                 pixels.__setslice__(indices[0], indices[1], True)
-                
+
                 relevant_lines = \
                     (end >= self.atomic_transitions["wavelength"]) * \
                     (self.atomic_transitions["wavelength"] >= start)
@@ -268,7 +268,7 @@ class EqualibriaModel(Model):
 
                 # Mark these x-pixels as being blended with a background spec.
                 is_blended.__setslice__(indices[0], indices[1], True)
-                
+
                 # Synthesise an over-sampled spectrum.
                 x = data_channel.disp[indices[0]:indices[1]]
                 synth_pixel_size = np.diff(x).mean()/oversampling_rate
@@ -299,7 +299,7 @@ class EqualibriaModel(Model):
             synthetic_disp = np.array(synthetic_disp)
             synthetic_flux = np.array(synthetic_flux)
 
-            # Define the model.            
+            # Define the model.
             class StellarSpectrum(modeling.Fittable1DModel):
 
                 resolution = modeling.Parameter(default=20000)
@@ -331,7 +331,7 @@ class EqualibriaModel(Model):
                         synthetic_flux[synthetic_disp.searchsorted(wavelength)]
                 else:
                     depth = 1
-                
+
                 # TODO this is a bad approximation
                 amplitude = np.clip(depth - y[idx], 0, 1)
 
@@ -345,7 +345,7 @@ class EqualibriaModel(Model):
                 #model.tied["stddev_{}".format(n)] = lambda _: _.stddev_1 + \
                 #    _.resolution_0 * getattr(_, "mean_{}".format(n))
                 """
-            
+
                 if np.any(0.01 >= np.abs(np.array([4890.759, 4891.494]) - wavelengths[n-1])):
                     print("skipping on {}".format(n))
 
@@ -370,14 +370,14 @@ class EqualibriaModel(Model):
             model.bounds["resolution_0"] = [7500, 40000]
 
             fitted = fit(model, x, y)
-        
+
             np.sort(transitions["wavelength"][_])
 
             fig, ax = plt.subplots()
             ax.plot(x, y, c='k')
             ax.scatter(x, y, facecolor='k')
             ax.plot(synthetic_disp, synthetic_flux, "r:")
-            ax.plot(x, model(x), 'r-.')         
+            ax.plot(x, model(x), 'r-.')
 
             """
             model2 = np.ones(x.size, dtype=float)
@@ -394,10 +394,10 @@ class EqualibriaModel(Model):
             for wavelength in wavelengths:
                 ax.axvline(wavelength, c="#666666", zorder=-1)
 
-            
+
             ax.plot(x, fitted(x), c='r')
 
-    
+
             for j in range(1, len(wavelengths) + 1):
 
                 clean = self.atomic_transitions["clean"]
@@ -421,7 +421,7 @@ class EqualibriaModel(Model):
         self.atomic_transitions["abundance"][sensible] = \
             synthesis.moog.atomic_abundances(self.atomic_transitions[sensible],
                 photosphere, microturbulence=microturbulence)
-            
+
 
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots(3)
@@ -429,7 +429,7 @@ class EqualibriaModel(Model):
         # Add profile_* columns to the atomic_transitions table:
         # profile_stddev, profile_amplitude
         ok = np.isfinite(self.atomic_transitions["abundance"])
-        
+
         ax[0].scatter(self.atomic_transitions["excitation_potential"][ok],
             self.atomic_transitions["abundance"][ok], facecolor='k')
         ax[1].scatter(
@@ -452,7 +452,7 @@ class EqualibriaModel(Model):
         plt.show()
 
         raise a
-            
+
 
 
 
@@ -473,7 +473,7 @@ class EqualibriaModel(Model):
         :param effective_temperature: [sometimes optional]
             The effective temperature for the photosphere.
 
-            When there are nearby blending transitions, these lines need to be 
+            When there are nearby blending transitions, these lines need to be
             synthesised in order to accurately measure the actual transition we
             care about. Thus, if any blending (non-clean) transitions are within
             `wavelength_region` of a clean line then this parameter is required.
@@ -484,7 +484,7 @@ class EqualibriaModel(Model):
         :param surface_gravity: [sometimes optional]
             The surface gravity for the photosphere.
 
-            When there are nearby blending transitions, these lines need to be 
+            When there are nearby blending transitions, these lines need to be
             synthesised in order to accurately measure the actual transition we
             care about. Thus, if any blending (non-clean) transitions are within
             `wavelength_region` of a clean line then this parameter is required.
@@ -495,7 +495,7 @@ class EqualibriaModel(Model):
         :param metallicity: [sometimes optional]
             The scaled-solar metallicity for the photosphere.
 
-            When there are nearby blending transitions, these lines need to be 
+            When there are nearby blending transitions, these lines need to be
             synthesised in order to accurately measure the actual transition we
             care about. Thus, if any blending (non-clean) transitions are within
             `wavelength_region` of a clean line then this parameter is required.
@@ -507,7 +507,7 @@ class EqualibriaModel(Model):
             The microturbulence for the photosphere. This is not required for
             <3D> models.
 
-            When there are nearby blending transitions, these lines need to be 
+            When there are nearby blending transitions, these lines need to be
             synthesised in order to accurately measure the actual transition we
             care about. Thus, if any blending (non-clean) transitions are within
             `wavelength_region` of a clean line then this parameter is required.
@@ -524,7 +524,7 @@ class EqualibriaModel(Model):
 
         :param outlier_modeling: [optional]
             Detect inaccurate fits due to blending lines and account for them.
-            If enabled, then a poor fit is detected when the centroid of the 
+            If enabled, then a poor fit is detected when the centroid of the
             atomic transition is not within 5 per cent of the data, or if the
             profile FWHM has hit an upper boundary. When this happens the code
             will detect regions that are most discrepant, and attempt to fit
@@ -543,7 +543,7 @@ class EqualibriaModel(Model):
         if 1 > oversampling_rate:
             raise ValueError("oversampling rate must be a positive integer")
 
-        
+
         photosphere = None
         # Interpolate a photosphere if we have the information to do so.
         if None not in (effective_temperature, surface_gravity, metallicity):
@@ -579,7 +579,7 @@ class EqualibriaModel(Model):
         fit = modeling.fitting.LevMarLSQFitter()
         for i, (transition_index, transition, data_index) \
         in enumerate(zip(transition_indices, transitions, data_indices)):
-        
+
             if i < stopper:
                 continue
 
@@ -588,7 +588,7 @@ class EqualibriaModel(Model):
             # Look for nearby transitions within the wavelength region and
             # ignore this line.
             blending = wavelength_region >= \
-                np.abs(self.atomic_transitions["wavelength"] - wavelength) 
+                np.abs(self.atomic_transitions["wavelength"] - wavelength)
             blending[transition_index] = False
 
             # Slice the data +/- some region.
@@ -673,7 +673,7 @@ class EqualibriaModel(Model):
 
 
             fitted = fit(model, x, y)
-            
+
 
             # Any masks to apply?
             if plotting:
@@ -720,7 +720,7 @@ class EqualibriaModel(Model):
         self.atomic_transitions["abundance"][sensible] = \
             synthesis.moog.atomic_abundances(self.atomic_transitions[sensible],
                 photosphere, microturbulence=microturbulence)
-            
+
 
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots(3)
@@ -728,7 +728,7 @@ class EqualibriaModel(Model):
         # Add profile_* columns to the atomic_transitions table:
         # profile_stddev, profile_amplitude
         ok = np.isfinite(self.atomic_transitions["abundance"])
-        
+
         ax[0].scatter(self.atomic_transitions["excitation_potential"][ok],
             self.atomic_transitions["abundance"][ok], facecolor='k')
         ax[1].scatter(
@@ -773,7 +773,7 @@ class EqualibriaModel(Model):
         :param effective_temperature: [sometimes optional]
             The effective temperature for the photosphere.
 
-            When there are nearby blending transitions, these lines need to be 
+            When there are nearby blending transitions, these lines need to be
             synthesised in order to accurately measure the actual transition we
             care about. Thus, if any blending (non-clean) transitions are within
             `wavelength_region` of a clean line then this parameter is required.
@@ -784,7 +784,7 @@ class EqualibriaModel(Model):
         :param surface_gravity: [sometimes optional]
             The surface gravity for the photosphere.
 
-            When there are nearby blending transitions, these lines need to be 
+            When there are nearby blending transitions, these lines need to be
             synthesised in order to accurately measure the actual transition we
             care about. Thus, if any blending (non-clean) transitions are within
             `wavelength_region` of a clean line then this parameter is required.
@@ -795,7 +795,7 @@ class EqualibriaModel(Model):
         :param metallicity: [sometimes optional]
             The scaled-solar metallicity for the photosphere.
 
-            When there are nearby blending transitions, these lines need to be 
+            When there are nearby blending transitions, these lines need to be
             synthesised in order to accurately measure the actual transition we
             care about. Thus, if any blending (non-clean) transitions are within
             `wavelength_region` of a clean line then this parameter is required.
@@ -807,7 +807,7 @@ class EqualibriaModel(Model):
             The microturbulence for the photosphere. This is not required for
             <3D> models.
 
-            When there are nearby blending transitions, these lines need to be 
+            When there are nearby blending transitions, these lines need to be
             synthesised in order to accurately measure the actual transition we
             care about. Thus, if any blending (non-clean) transitions are within
             `wavelength_region` of a clean line then this parameter is required.
@@ -824,7 +824,7 @@ class EqualibriaModel(Model):
 
         :param outlier_modeling: [optional]
             Detect inaccurate fits due to blending lines and account for them.
-            If enabled, then a poor fit is detected when the centroid of the 
+            If enabled, then a poor fit is detected when the centroid of the
             atomic transition is not within 5 per cent of the data, or if the
             profile FWHM has hit an upper boundary. When this happens the code
             will detect regions that are most discrepant, and attempt to fit
@@ -911,7 +911,7 @@ class EqualibriaModel(Model):
         # Create additional columns in the atomic_transitions table if needed.
         if "profile_amplitude" not in self.atomic_transitions.dtype.names:
             self.atomic_transitions.add_column(table.Column(
-                name="profile_amplitude", 
+                name="profile_amplitude",
                 data=[np.nan] * len(self.atomic_transitions)))
         if "profile_stddev" not in self.atomic_transitions.dtype.names:
             self.atomic_transitions.add_column(table.Column(
@@ -926,13 +926,13 @@ class EqualibriaModel(Model):
         fitted_profiles = []
         for transition_index, transition, data_index \
         in zip(transition_indices, transitions, data_indices):
-        
+
             wavelength = transition["wavelength"]
 
             # Look for nearby transitions within the wavelength region and
             # ignore this line.
             blending = wavelength_region >= \
-                np.abs(self.atomic_transitions["wavelength"] - wavelength) 
+                np.abs(self.atomic_transitions["wavelength"] - wavelength)
             blending[transition_index] = False
 
             # Slice the data +/- some region.
@@ -943,16 +943,16 @@ class EqualibriaModel(Model):
                 ]) + [0, 1]
             x = spectrum.disp.__getslice__(*disp_indices)
             y = spectrum.flux.__getslice__(*disp_indices)
-            
+
             # Calculate an initial stddev value based on the x spacing.
             initial_stddev = 2 * 5 * np.diff(x).mean()
-            
+
             # Apply any custom mask.
             # TODO This should just remove the masked pixels from x and y,
             #      because setting them to NaN will break the fitter.
 
-            
-            # TODO the amplitude initial guess will have to be udpated in the 
+
+            # TODO the amplitude initial guess will have to be udpated in the
             #      presence of continuum.
 
             synthesised_spectra = {}
@@ -960,10 +960,10 @@ class EqualibriaModel(Model):
             initial_amplitude = 1.0 - y[_]
 
             # Any continuum?
-            continuum_order = self._continuum_order(data_index)
-            if continuum_order > -1:
+            continuum_degree = self._continuum_degree(data_index)
+            if continuum_degree > 0:
                 # TODO I specify order and astropy uses degree. Switch to degree!
-                #profile_init *= modeling.models.Polynomial1D(continuum_order + 1)
+                #profile_init *= modeling.models.Polynomial1D(continuum_degree + 1)
 
                 # Set initial estimates of continuum.
                 # TODO
@@ -1037,7 +1037,7 @@ class EqualibriaModel(Model):
 
                 # Fit the profile.
                 fitted = fitter(profile, x, y)
-                
+
                 # Break here if we have no more outlier modeling to do.
                 if not outlier_modeling or j > max_outlier_profiles: break
 
@@ -1121,7 +1121,7 @@ class EqualibriaModel(Model):
         # At this point should we consider re-fitting lines that are deviant
         # from the wavelength vs stddev plot
         for i, (x, y, synthesised_spectra, parameters) in enumerate(fitted_profiles):
-        
+
             fig, ax = plt.subplots()
             ax.plot(x,y,c='k')
             ax.plot(x, synthesised_spectra["initial_profile"], "r", lw=1.5, label="Initial profile")
@@ -1197,7 +1197,7 @@ class EqualibriaModel(Model):
         state_kwds["full_output"] = True
 
         sp_initial_theta = [initial_theta[p] for p in self._stellar_parameters]
-        
+
         # Were profiles measured, and where were they measured?
         profiles_measured = self.atomic_transitions.meta.get(
             "profiles_given_stellar_parameters", False)
@@ -1216,7 +1216,7 @@ class EqualibriaModel(Model):
         transitions = transitions[for_equalibria]
 
         # Measure the initial state and record them.
-        initial_state, info = utils.equalibrium_state(transitions, 
+        initial_state, info = utils.equalibrium_state(transitions,
             metallicity=sp_initial_theta[2], **state_kwds)
 
         transitions = transitions[info["~outliers"]]
@@ -1244,7 +1244,7 @@ class EqualibriaModel(Model):
             transitions = transitions[info["~outliers"]]
 
             # TODO: Save transitions table for future introspection.
-            
+
             # Remove outliers for future fits.
             logger.debug("State at {0}: {1} --> {2:.2e}".format(theta, state,
                 (state**2).sum()))
@@ -1286,7 +1286,7 @@ class EqualibriaModel(Model):
         if full_output:
             return (stellar_parameters, result)
         return stellar_parameters
-        
+
 
 
 def _rebinner(from_disp, to_disp, to_resolution, from_resolution=100000):

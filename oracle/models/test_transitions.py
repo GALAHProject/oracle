@@ -72,7 +72,7 @@ def atomic_transition():
             result = line.fit_profile(data, initial_theta=initial_theta,
                 constrain_parameters={"fwhm": [0, 1], "blending_fwhm": [0, 1],
                     "wavelength": [line.wavelength - 0.05, line.wavelength + 0.05]},
-                continuum_order=1, full_output=True)
+                continuum_degree=2, full_output=True)
         except ValueError:
             failed += 1
             continue

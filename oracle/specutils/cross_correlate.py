@@ -13,6 +13,7 @@ import multiprocessing
 import astropy.units as u
 from astropy import modeling, constants
 
+
 def cross_correlate(observed, template, wavelength_range=None):
     """
     Return a redshift by cross correlation of a template and observed spectra.
@@ -58,7 +59,7 @@ def cross_correlate(observed, template, wavelength_range=None):
         observed_flux = observed.flux
 
     template_flux = np.interp(dispersion, template.disp, template.flux,
-        left=1, right=1)
+                              left=1, right=1)
 
     # Be forgiving, although we shouldn't have to be.
     N = np.min(map(len, [dispersion, observed_flux, template_flux]))
@@ -73,11 +74,11 @@ def cross_correlate(observed, template, wavelength_range=None):
 
     assert len(dispersion) == len(observed_flux)
     assert len(observed_flux) == len(template_flux)
-    
+
     # Set up z array
     m = len(dispersion) / 2
     z_array = dispersion/dispersion[N/2] - 1.0
-    
+
     # Apodize edges
     edge_buffer = 0.1 * (dispersion[-1] - dispersion[0])
     low_w_indices = np.nonzero(dispersion < dispersion[0] + edge_buffer)[0]
@@ -104,11 +105,11 @@ def cross_correlate(observed, template, wavelength_range=None):
     ccf = np.zeros(N)
     ccf[:N/2] = correlation[N/2:]
     ccf[N/2:] = correlation[:N/2]
-    
+
     # Get height and redshift of best peak
     # TODO: Fit a Gaussian profile here instead, and get the z_err from the FWHM
     #       of the profile
-    
+
     # Scale the CCF
     h = ccf.max()
     ccf -= ccf.min()
@@ -133,24 +134,23 @@ def cross_correlate(observed, template, wavelength_range=None):
 
 
     #c = 299792.458 # km/s
-    #z_best = z_array[ccf.argmax()]    
+    #z_best = z_array[ccf.argmax()]
     #z_err = /2.35482)**2
 
     return (z_best * c, z_err * c)
 
 
 def _ccf(z_array, apod_template_flux, template_flux_corr, N, index=None,
-    method="fast", **kwargs):
+         method="fast", **kwargs):
 
     denominator = np.sqrt(np.inner(apod_template_flux, apod_template_flux))
-    flux_correlation = template_flux_corr / denominator 
+    flux_correlation = template_flux_corr / denominator
     correlation = np.fft.ifft(flux_correlation).real
 
     # Reflect about zero
     ccf = np.zeros(N)
     ccf[:N/2] = correlation[N/2:]
     ccf[N/2:] = correlation[:N/2]
-
 
     # Get height and redshift of best peak
     h = ccf.max()
@@ -159,16 +159,15 @@ def _ccf(z_array, apod_template_flux, template_flux_corr, N, index=None,
     ccf -= ccf.min()
     ccf *= (h/ccf.max())
 
-
     if method != "fast":
         mean = ccf.argmax()
 
         model = modeling.models.Gaussian1D(mean=mean, amplitude=h,
-            stddev=1)
+                                           stddev=1)
         model += modeling.models.Const1D()
 
         fitter = modeling.fitting.LevMarLSQFitter()
-        
+
         fit_sigma = kwargs.pop("__fit_sigma", 1.5)
         x = np.arange(N)
         # TODO revise this range?
@@ -193,18 +192,19 @@ def _ccf(z_array, apod_template_flux, template_flux_corr, N, index=None,
 
 
 def cross_correlate_grid(template_dispersion, template_fluxes, observed_flux,
-    continuum_order=3, apodize=0.10, remeasure_best=True, threads=1):
+                         continuum_degree=4, apodize=0.10, remeasure_best=True,
+                         threads=1):
 
     if template_dispersion.shape[0] != template_fluxes.shape[1]:
         raise ValueError("template dispersion must have size (N_pixels,) and "\
             "template fluxes must have size (N_models, N_pixels)")
     try:
-        continuum_order = int(continuum_order)
+        continuum_degree = int(continuum_degree + 1)
     except (TypeError, ValueError):
         raise TypeError("continuum order must be an integer-like object")
 
     assert 1 > apodize >= 0, "Apodisation fraction must be between 0 and 1"
-    
+
     N = template_dispersion.size
     N = N - 1 if N % 2 > 0 else N
     N_models = template_fluxes.shape[0]
@@ -219,8 +219,8 @@ def cross_correlate_grid(template_dispersion, template_fluxes, observed_flux,
             dispersion[~non_finite], observed_flux[~non_finite])
 
     # Normalise
-    if continuum_order >= 0:
-        coeffs = np.polyfit(dispersion, observed_flux, continuum_order)
+    if continuum_degree >= 1:
+        coeffs = np.polyfit(dispersion, observed_flux, continuum_degree)
         observed_flux /= np.polyval(coeffs, dispersion)
 
     # Scale the flux level to that the template intensities
@@ -274,7 +274,7 @@ def cross_correlate_grid(template_dispersion, template_fluxes, observed_flux,
 
 
     c = constants.c.to("km/s").value
-    
+
     # Should we precisely re-measure the best point?
     if remeasure_best:
         best = R.argmax()
