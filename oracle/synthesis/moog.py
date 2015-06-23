@@ -4,8 +4,8 @@
 
 from __future__ import absolute_import, print_function
 
-__all__ = ["atomic_abundances", "synthesise"]
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+__all__ = ["atomic_abundances", "synthesise"]
 
 import logging
 import multiprocessing
@@ -37,10 +37,15 @@ def _format_transitions(transitions):
     columns = ("wavelength", "species", "excitation_potential", "loggf",
         "C6???", "C4???", "equivalent_width")
 
+    if np.any((d["species"] % 1) > 0.15):
+        # [TODO] Maybe we should actually raise an exception here.
+        logger.warn("Species with high ionisation states (>1) detected!")
+
     transitions_arr = np.zeros((len(d), 7))
     for i, column in enumerate(columns):
         if column not in d.dtype.names: continue
         transitions_arr[:, i] = d[column]
+
     return np.asfortranarray(transitions_arr)
 
 
@@ -272,7 +277,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
     return (wavelengths, fluxes)
 
 
-def atomic_abundances(transitions, photosphere_information, microturbulence=None,
+def atomic_abundances(transitions, photosphere_information, microturbulence,
     photospheric_abundances=None, photosphere_kwargs=None, **kwargs):
     """
     Calculate atomic abundances from measured equivalent widths.
@@ -321,15 +326,6 @@ def atomic_abundances(transitions, photosphere_information, microturbulence=None
     modtype, photosphere_arr, metallicity = _format_photosphere(
         photosphere_information, photosphere_kwargs,
         interpolator=kwargs.pop("_interpolator", None))
-
-    # <3D> models do not require microturbulence.
-    if modtype == "STAGGER":
-        if microturbulence is not None:
-            logger.debug("Ignoring microturbulence ({0:.2f}) for {1} models"\
-                .format(microturbulence, modtype))
-            microturbulence = 0.
-    elif microturbulence is None:
-        raise ValueError("microturbulence is required for 1D models")
 
     # Prepare the transitions table.
     transitions = _format_transitions(transitions)
