@@ -29,4 +29,8 @@ def test_18sco():
             "kind": "MARCS"})
 
     differences = mini_moog_abundances - compiled_moog_abundances
+    print("Summary of differences (mean/median/std. dev./|max|): "
+        "{0:.3f} / {1:.3f} / {2:.3f} / {3:.3f}".format(
+            np.mean(differences), np.median(differences),
+            np.std(differences), np.abs(differences).max()))
     assert np.all(np.abs(differences) < 0.001)
