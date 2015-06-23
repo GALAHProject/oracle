@@ -1,10 +1,17 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-""" Ensure that Castelli/Kurucz and MARCS model atmospheres give similar results
-    for a single line. """
+"""
+Ensure that Castelli/Kurucz and MARCS model atmospheres give similar results for
+a single line.
+"""
+
+from __future__ import division, print_function
+
+__author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import numpy as np
-import oracle
-from oracle.atmospheres import marcs, castelli_kurucz
+from oracle import atmospheres, synthesis
 
 
 def test_for_GH_issue_14():
@@ -14,15 +21,17 @@ def test_for_GH_issue_14():
         names=("wavelength", "species", "excitation_potential", "loggf",
             "equivalent_width"))
 
-    m = marcs.Interpolator()
-    ck = castelli_kurucz.Interpolator()
-
+    m = atmospheres.interpolator(kind="marcs")
+    ck = atmospheres.interpolator(kind="castelli/kurucz")
 
     stellar_parameters, xi = (5777, 4.445, 0), 1.0
     dwarf_ck = ck.interpolate(*stellar_parameters)
     dwarf_marcs = m.interpolate(*stellar_parameters)
 
-    a_ck = oracle.synthesis.moog.atomic_abundances(line, dwarf_ck, microturbulence=xi)
-    a_m = oracle.synthesis.moog.atomic_abundances(line, dwarf_marcs, microturbulence=xi)
+    a_ck = synthesis.moog.atomic_abundances(line, dwarf_ck,
+        microturbulence=xi)
+    a_m = synthesis.moog.atomic_abundances(line, dwarf_marcs,
+        microturbulence=xi)
 
+    print(a_ck, a_m, np.mean(np.abs(a_ck - a_m)))
     assert np.all(np.abs(a_ck - a_m) < 0.05)
