@@ -224,6 +224,65 @@ class Spectrum1D(object):
 
 
     @classmethod
+    def load_GALAH(cls, filename, normalised=False, clean_edges=True, **kwargs):
+        """
+        Load a Spectrum1D object from the GALAH standardised FITS format.
+
+        :param filename:
+            The path of the filename to load.
+
+        :type filename:
+            str
+        """
+
+        clean_edges_limit = kwargs.pop("clean_edges_limit", 10)
+        
+        image = fits.open(filename, **kwargs)
+
+        data_ext = 0 if not normalised else 2
+
+        flux = image[data_ext].data
+        if flux.size == 0 and normalised:
+            raise ValueError("no normalised spectrum found")
+
+        variance = image[data_ext + 1].data
+
+        disp = image[data_ext].header["CRVAL1"] \
+            + (np.arange(flux.size) - image[data_ext].header.get("CRPIX1", 0)) \
+            * image[data_ext].header["CDELT1"]
+
+        header_columns = ["CCD", "WG6_HASH", "NAME", "RA", "DEC",
+            "PMRA", "PMDEC", "MAG", "DESCR", "FIBRE", "MOON_DEG", "V_HELIO"]
+
+        headers = dict(zip(header_columns, [image[0].header.get(k, None) \
+            for k in header_columns]))
+
+        if clean_edges:
+            # Look for really sharp changes at the edges of the spectrum
+            y = np.abs(np.diff(flux))
+            stds = (y - np.median(y))/np.std(y)
+
+            lhs = np.any(stds[:50] > clean_edges_limit)
+            if lhs:
+                lhs_index = np.argmax(stds[:50]) + 1
+            else:
+                lhs_index = 0
+
+            rhs = np.any(stds[-50:] > clean_edges_limit)
+            if rhs:
+                rhs_index = flux.size - np.argmax(stds[-50::][::-1]) - 1
+            else:
+                rhs_index = None
+
+            disp = disp[lhs_index:rhs_index]
+            flux = flux[lhs_index:rhs_index]
+            if variance is not None:
+                variance = variance[lhs_index:rhs_index]
+
+        return cls(disp, flux, variance=variance, headers=headers)
+
+
+    @classmethod
     def load(cls, filename, **kwargs):
         """Load a Spectrum1D from a given filename.
         
