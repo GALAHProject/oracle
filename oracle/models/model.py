@@ -43,7 +43,7 @@ class Model(object):
 
         :param configuration:
             The path to the configuration file that contains settings for the
-            class, a dictionary describing the configuration, or a string 
+            class, a dictionary describing the configuration, or a string
             containing the configuration in a YAML-dump format. Only YAML-style
             formats are accepted.
 
@@ -99,7 +99,7 @@ class Model(object):
     def parameters(self, data):
         """
         Return the model parameters for some data. The model configuration is
-        applicable for a large number of observed channels, so the number of 
+        applicable for a large number of observed channels, so the number of
         observed channels is required to determine the exact number of model
         parameters.
 
@@ -183,12 +183,12 @@ class Model(object):
         return (grid_points, grid_dispersion, grid_fluxes)
 
 
-    def _continuum_order(self, channel_index):
+    def _continuum_degree(self, channel_index):
         """
-        Parse the configuration and return the continuum order for some channel
+        Parse the configuration and return the continuum degree for some channel
         index.
         """
-        
+
         # If not provided, assume no continuum modelling.
         continuum = self.config["model"].get("continuum", -1)
         if continuum == -1 or continuum is False:
@@ -203,7 +203,7 @@ class Model(object):
             return continuum[channel_index]
 
         except (KeyError, TypeError):
-            logger.warn("Could not interpret continuum order for channel {0} "\
+            logger.warn("Could not interpret continuum degree for channel {0} "\
                 " ({1}), so returning -1".format(channel_index, continuum))
             return -1
 
@@ -213,19 +213,19 @@ class Model(object):
         Return the continuum at each dispersion point for the given channel.
         """
 
-        order = self._continuum_order(channel_index)
-        if 0 > order:
+        degree = self._continuum_degree(channel_index)
+        if 1 > degree:
             return np.ones(dispersion.size)
 
         coefficients = [theta["continuum.{0}.{1}".format(channel_index, i)] \
-            for i in range(order + 1)]
+            for i in range(degree + 1)]
 
         return np.polyval(coefficients[::-1], dispersion)
 
 
     @property
     def hash(self):
-        """ Return a MD5 hash of the YAML-dumped model configuration. """ 
+        """ Return a MD5 hash of the YAML-dumped model configuration. """
         return md5(yaml.dump(self.config).encode("utf-8")).hexdigest()
 
 
@@ -340,8 +340,8 @@ class Model(object):
 
             rebinned_channel_flux[rebinned_channel_flux < 0] = np.nan
 
-            # Get the continuum order
-            order = self._continuum_order(i)
+            # Get the continuum degree
+            degree = self._continuum_degree(i)
             ccf_mask = ~(self.mask(rebinned_channel_disp,
                 mask_key="cross_correlation_mask") \
                 * np.isfinite(rebinned_channel_flux))
@@ -354,14 +354,14 @@ class Model(object):
 
                     ccf_disp = rebinned_channel_disp
                     ccf_flux = rebinned_channel_flux.copy()
-                    
+
                     # Interpolate over the small portions of non-useful pixels
                     ccf_flux[ccf_mask] = np.interp(
                         ccf_disp[ccf_mask],
                         ccf_disp[~ccf_mask],
                         ccf_flux[~ccf_mask])
 
-                    # Slice edges that are *completely* ccf_masked            
+                    # Slice edges that are *completely* ccf_masked
                     changes = np.where(np.diff(ccf_mask))[0]
                     ccf_li = None if not ccf_mask[0]  else changes[0]  + 1
                     ccf_ri = None if not ccf_mask[-1] else changes[-1] - 1
@@ -369,7 +369,7 @@ class Model(object):
                     ccf_disp = ccf_disp[ccf_li:ccf_ri]
                     ccf_flux = ccf_flux[ccf_li:ccf_ri]
 
-                    ccf_li = [ccf_li, 0][ccf_li is None] 
+                    ccf_li = [ccf_li, 0][ccf_li is None]
                     ccf_ri = [ccf_ri, None][ccf_ri is None]
 
 
@@ -377,14 +377,14 @@ class Model(object):
                     ccf_li, ccf_ri = 0, 0
                     ccf_disp = rebinned_channel_disp
                     ccf_flux = rebinned_channel_flux.copy()
-            
+
                 if method == "fast" and i > 0:
                     logger.debug("Using previous point..")
                     v_rads, v_errs, ccf_peaks = \
                         specutils.cross_correlate.cross_correlate_grid(
                             ccf_disp, np.array([grid_fluxes[highest_peak,
                                 indices[0]:indices[1]][ccf_li:ccf_ri]]),
-                            ccf_flux, continuum_order=order,
+                            ccf_flux, continuum_degree=degree,
                             threads=self.config["settings"]["threads"],
                             remeasure_best=True)
                     v_rad, v_err, ccf_peak = \
@@ -395,7 +395,7 @@ class Model(object):
                         specutils.cross_correlate.cross_correlate_grid(
                             ccf_disp,
                             grid_fluxes[:, indices[0]:indices[1]][:, ccf_li:ccf_ri],
-                            ccf_flux, continuum_order=order,
+                            ccf_flux, continuum_degree=degree,
                             threads=self.config["settings"]["threads"],
                             remeasure_best=True)
 
@@ -431,7 +431,7 @@ class Model(object):
                 mask_key="continuum_mask") * np.isfinite(rebinned_channel_flux))
 
             # Calculate the best continuum coefficients.
-            if order >= 0:
+            if degree >= 1:
 
                 disp = rebinned_channel_disp[~continuum_mask]
 
@@ -451,7 +451,7 @@ class Model(object):
                 synthetic_flux = synthetic_flux[finite]
 
                 # Initial guess.
-                p0 = np.polyfit(disp, corrected_flux/synthetic_flux, order+1)
+                p0 = np.polyfit(disp, corrected_flux/synthetic_flux, degree+1)
 
                 # Optimize.
                 difference = lambda p: np.polyval(p, disp) * synthetic_flux \
@@ -628,7 +628,7 @@ class Model(object):
             initial_outlier_mu = np.median(data.flux[finite])
             initial_outlier_sigma = 1e-4
 
-            # approximate width of the line/approximate width covered by the 
+            # approximate width of the line/approximate width covered by the
             # input data
             initial_P = 1 - (2. * 5 * initial_sigma)/np.ptp(data.disp)
 
@@ -738,4 +738,4 @@ class Model(object):
 
 
 
-    
+

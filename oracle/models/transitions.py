@@ -109,8 +109,8 @@ class AtomicTransition(object):
         raise NotImplementedError
 
 
-    def fit_profile(self, data, initial_theta=None, kind="gaussian", 
-        continuum_order=None, continuum_regions=None, surrounding=1,
+    def fit_profile(self, data, initial_theta=None, kind="gaussian",
+        continuum_degree=None, continuum_regions=None, surrounding=1,
         exclude_outlier_transitions=False, constrain_parameters={"fwhm": [0, 0.5], "blending_fwhm": [0, 0.5]},
         synthesise_kwargs=None, optimise_kwargs=None, full_output=False,
         **kwargs):
@@ -169,8 +169,8 @@ class AtomicTransition(object):
         :type kind:
             str
 
-        :param continuum_order: [optional]
-            The order of the polynomial to use to fit the continuum. By default,
+        :param continuum_degree: [optional]
+            The degree of the polynomial to use to fit the continuum. By default,
             this option is set to None, meaning that no continuum is included.
             In this case the data are assumed to be continuum-normalised (e.g.,
             the absorption begins at unity). Setting this value to zero implies
@@ -185,7 +185,7 @@ class AtomicTransition(object):
             then the continuum will be fit to these regions only, and there will
             be no 'continuum.N' parameters in the profile fitting sequence.
 
-        :type continuum_order:
+        :type continuum_degree:
             int
 
         :param surrounding: [optional]
@@ -255,13 +255,13 @@ class AtomicTransition(object):
         if kind in ("voigt", "lorentzian"):
             raise NotImplementedError("sry gooby")
 
-        if continuum_order is not None:
+        if continuum_degree is not None:
             try:
-                continuum_order = int(continuum_order)
+                continuum_degree = int(continuum_degree + 1)
             except (ValueError, TypeError):
-                raise TypeError("continuum order must be an integer")
-            if continuum_order < 0:
-                raise ValueError("continuum order must be a positive integer")
+                raise TypeError("continuum degree must be an integer")
+            if continuum_degree < 0:
+                raise ValueError("continuum degree must be a positive integer")
 
         # Check that the continuum regions are valid
         if self.continuum_regions.size >= 2:
@@ -277,7 +277,7 @@ class AtomicTransition(object):
                         data.disp[0], data.disp[-1]))
 
         # Provide a warning about keyword mis-matches if necessary
-        if continuum_order is not None and self.continuum_regions.size >= 2 \
+        if continuum_degree is not None and self.continuum_regions.size >= 2 \
         and exclude_outlier_transitions:
             warnings.warn("Ignoring exclude_outlier_transitions keyword as "
                 "continuum regions have been explicitly specified by the "
@@ -342,9 +342,9 @@ class AtomicTransition(object):
             parameters.append("wavelength")
 
         # Continuum
-        if continuum_order is not None and 2 > self.continuum_regions.size:
+        if continuum_degree is not None and 2 > self.continuum_regions.size:
             parameters.extend(["continuum.{}".format(i) \
-                for i in range(continuum_order + 1)])
+                for i in range(continuum_degree + 1)])
 
         # Blending spectrum FWHM?
         stellar_parameter_keys = ("effective_temperature", "surface_gravity",
@@ -399,12 +399,12 @@ class AtomicTransition(object):
 
         # Estimate the continuum parameters
         # Possibilities:
-        # continuum_order is set to None
+        # continuum_degree is set to None
         # continuum_regions exists
         # exclude_outlier_transitions
         # coefficients provided in theta
 
-        # if continuum_order is set to None then that overwrites all: no continuum
+        # if continuum_degree is set to None then that overwrites all: no continuum
         # else:
 
         #   if continuum_regions exists then we will set our mask explicitly from
@@ -427,14 +427,14 @@ class AtomicTransition(object):
         # 5) Start the fitting using the masks we have established. Do we need
         #    to go back and re-estimate the continuum parameters?
 
-        # If the continuum_order is set to None then
-        if continuum_order is None:
+        # If the continuum_degree is set to None then
+        if continuum_degree is None:
             continuum_parameters = []
             continuum_coefficients = [1]
 
         else:
             continuum_parameters = ["continuum.{}".format(_) \
-                for _ in range(continuum_order + 1)]
+                for _ in range(continuum_degree + 1)]
 
             # Let's create a mask to help fit the continuum. By default we will
             # initially remove +/- 3sigma around the wavelength of interest,
@@ -446,7 +446,7 @@ class AtomicTransition(object):
                 self.wavelength + 3 * sigma
             ])
             continuum_mask[indices[0]:indices[1] + 1] = False
-            
+
             # If we have a blending flux then we will be using the data/blending
             # flux with the profile excluded
             if blending_spectrum is None:
@@ -482,7 +482,7 @@ class AtomicTransition(object):
                 continuum_mask *= mask
 
                 continuum_coefficients = np.polyfit(data.disp[continuum_mask],
-                    data_for_continuum_fit[continuum_mask], continuum_order + 1)
+                    data_for_continuum_fit[continuum_mask], continuum_degree + 2)
 
             else:
                 # If the values are provided by initial_theta, we will take
@@ -494,10 +494,11 @@ class AtomicTransition(object):
                 else:
                     # We need to estimate the continuum parameters.
                     continuum_coefficients = np.polyfit(data.disp[continuum_mask],
-                        data_for_continuum_fit[continuum_mask], continuum_order + 1)
+                        data_for_continuum_fit[continuum_mask],
+                        continuum_degree + 2)
 
                 # If exclude outlier transitions is enabled, then we should look
-                # for groups of deviating pixels and mask them accordingly 
+                # for groups of deviating pixels and mask them accordingly
                 # before we start the fitting process
                 if exclude_outlier_transitions:
 
@@ -545,7 +546,7 @@ class AtomicTransition(object):
                 self.wavelength)
             index = data.disp.searchsorted(self.wavelength)
             line_depth = 1 - data.flux[index]/continuum_at_wavelength
-            
+
             # Ensure the initial value is limited within a sensible range
             tolerance = kwargs.pop("initial_line_depth_tolerance", 1e-3)
             theta["line_depth"] = np.clip(line_depth, tolerance,
@@ -611,7 +612,7 @@ class AtomicTransition(object):
             # Constraints provided by the user
             for parameter, (lower, upper) in constrain_parameters.iteritems():
                 if parameter in xd and \
-                ((lower is not None and lower > xd[parameter]) 
+                ((lower is not None and lower > xd[parameter])
                 or (upper is not None and upper < xd[parameter])):
                     return invalid_return \
                         if not full_output else invalid_full_output_return
@@ -636,10 +637,10 @@ class AtomicTransition(object):
 
             continuum = fixed_continuum if "continuum.0" not in xd \
                 else np.polyval([xd["continuum.{}".format(i)] \
-                    for i in range(continuum_order + 1)],
+                    for i in range(continuum_degree + 2)],
                     data.disp)
 
-            # Put everything together 
+            # Put everything together
             model = blending_spectrum_flux * absorption_profile * continuum
 
             # Calculate the chi-squared value
@@ -666,7 +667,8 @@ class AtomicTransition(object):
                 else:
                     blending_spectrum_continuum = np.polyval(
                         continuum_coefficients if "continuum.0" not in xd \
-                        else [xd["continuum.{}".format(i)] for i in range(continuum_order + 1)],
+                        else [xd["continuum.{}".format(i)] for i in
+                            range(continuum_degree + 2)],
                         blending_spectrum.disp)
 
                     return_spectra.update({
@@ -676,7 +678,7 @@ class AtomicTransition(object):
                             continuum * blending_spectrum_flux),
                     })
 
-                
+
                 return (chi_sq, r_chi_sq, return_spectra)
             return chi_sq
 
@@ -709,7 +711,7 @@ class AtomicTransition(object):
         op_kwargs["ftol"] = 1e-5
         op_kwargs.setdefault("disp", False)
         #p1, cov_x, op_info, mesg, ier = op.leastsq(
-        
+
         p1, fopt, num_iter, num_funcalls, warnflag = op.fmin(
             minimisation_function, p0, **op_kwargs)
 
@@ -737,7 +739,7 @@ class AtomicTransition(object):
             "equivalent_width": self.equivalent_width
         })
         op_info.update(op_spectra)
-        
+
         self._profile = (optimal_theta, op_info)
 
         import matplotlib.pyplot as plt
@@ -836,6 +838,6 @@ def _parse_species(species):
         element = parse_element(species)
         atomic_number = int(species)
         ionisation_level = int(10 * (species - atomic_number)) + 1
-        
+
     return (element, atomic_number, ionisation_level, species)
-        
+
