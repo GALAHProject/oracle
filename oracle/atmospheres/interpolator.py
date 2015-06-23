@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Interpolate model atmospheres (MARCS only, at this stage) """
+""" Interpolate model atmospheres. """
 
 from __future__ import division, absolute_import, print_function
 
@@ -18,6 +18,8 @@ import astropy.table
 import numpy as np
 import scipy.interpolate as interpolate
 from scipy import __version__ as scipy_version
+
+from .atmosphere import Atmosphere
 
 major, minor = map(int, str(scipy_version).split(".")[:2])
 has_scipy_requirements = (major > 0 or minor >= 14)
@@ -114,7 +116,7 @@ class BaseInterpolator(object):
             dict(zip(self.stellar_parameters.dtype.names, stellar_parameters))
         units = meta.pop("photospheric_units", None)
 
-        photosphere = astropy.table.Table(data=quantities, meta=meta,
+        photosphere = Atmosphere(data=quantities, meta=meta,
             names=self.photospheric_quantities)
         if units is not None:
             for name, unit in zip(self.photospheric_quantities, units):
@@ -238,11 +240,11 @@ def resample_photosphere(opacities, photosphere, opacity_index):
     for i in range(n_quantities):
         if i == opacity_index: continue
         # Create spline function.
-        tck = \
+        tk = \
             interpolate.splrep(photosphere[:, opacity_index], photosphere[:, i])
 
         # Evaluate photospheric quantities at the new opacities
-        resampled_photosphere[:, i] = interpolate.splev(opacities.flatten(), tck)
+        resampled_photosphere[:, i] = interpolate.splev(opacities.flatten(), tk)
 
     # Update photosphere with new opacities
     resampled_photosphere[:, opacity_index] = opacities
