@@ -33,9 +33,9 @@ c*****halt if M.E. wasn't done or didn't include this species
       else
          if (neq .eq. 0) then
             lscreen = lscreen + 2
-            write (array,1001) iabatom
-            call prinfo (lscreen)
-c            stop
+            if (debug .gt. 0.0) write (array,1001) iabatom
+c            call prinfo (lscreen)
+            stop
          endif
          call sunder(atom1(lim1obs),ia,ib)
          iaa = ia
@@ -45,9 +45,9 @@ c            stop
          enddo
          if (molflag .eq. 0) then
             lscreen = lscreen + 2
-            write (array,1002) iabatom
-            call prinfo (lscreen)
-c            stop
+            if (debug .gt. 0.0) write (array,1002) iabatom
+c            call prinfo (lscreen)
+            stop
          endif
          molflag = 1
 
@@ -62,18 +62,17 @@ c*****if molecule is a hydride, the non-H element will be varied
 
 c*****for other molecules, the user specifies which element will be varied
          else
-            print *, "don't know what element to vary in ", ibatom
-            print *, "stahp"
-c            stop
-c            write (array,1003) iabatom
-c            nchars = 56
+            if (debug .gt. 0.0) write (array,1003) iabatom
+            nchars = 56
+            if (debug .gt. 0.0) print *, "need manual input; die"
+            stop
 c            call getnum (nchars,ikount+1,xnum,shortnum)
 c            iabatom = int(xnum+0.0001)
-c         
-c            if (iabatom.ne.ia .and. iabatom.ne.ib) then
-c               write (array,1003)
-c               stop
-c            endif
+         
+            if (iabatom.ne.ia .and. iabatom.ne.ib) then
+               if (debug .gt. 0.0) write (array,1003)
+               stop
+            endif
          endif
          return
       endif

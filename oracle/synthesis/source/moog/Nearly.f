@@ -149,8 +149,6 @@ c*****finally, compute line opacities at line centers
      .                    (wave1(j)*t(i))))/factoriso
          enddo
          strength(j) = kapnu0(j,jtau5)
-c         print *, "strength", j, strength(j), jtau5, j
-c         print *, "KAPREF", kapref
       enddo
 
 

@@ -38,13 +38,6 @@ c     P(Ti) = p(Ti) + p(Ti+) + p(TiO)
      .   60808.0,   812.0,   822.0,
      .    89*0.0/
 
-c      do i=1,110
-c      smallmollist(1:21) = 
-c     .      [  1.1,     6.1,     7.1,     8.1,    12.1,    22.1,
-c     .       101.0,   106.0,   107.0,   108.0,   112.0,   606.0,
-c     .       607.0,   608.0,   707.0,   708.0,   808.0, 10108.0,
-c     .     60808.0,   812.0,   822.0]
-
 
 c*****Here is the default large list of ions and molecules.
 c     P(H)  = p(H) + p(H+) + 2p(H_2) + p(CH) + p(NH) + p(OH) + p(MgH) + p(AlH)

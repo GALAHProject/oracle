@@ -337,14 +337,14 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
     if not safe_mode: 
         code, output = moog.abundances(metallicity, microturbulence,
             photosphere_arr, photospheric_abundances, transitions,
-            modtype_=modtype, debug_=debug)
+            in_modtype=modtype, in_debug=debug)
         return output
 
     else:
         print("IN SAFE MODE")
         p = multiprocessing.Process(target=moog.abundances, args=(metallicity,
             microturbulence, photosphere_arr, photospheric_abundances,
-            transitions), kwargs={"modtype_": modtype, "debug_": debug})
+            transitions), kwargs={"in_modtype": modtype, "in_debug": debug})
         p.start()
         p.join(10)
         if p.is_alive():
@@ -357,7 +357,7 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
         # So. Slow. But now that we know this will work...
         code, output = moog.abundances(metallicity, microturbulence,
             photosphere_arr, photospheric_abundances, transitions,
-            modtype_=modtype, debug_=debug)
+            in_modtype=modtype, in_debug=debug)
         return output
 
 

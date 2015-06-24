@@ -13,18 +13,15 @@ c******************************************************************************
       include 'Mol.com'
       include 'Pstuff.com'
 
-
   
       lim2 = lim1
       ncurve = 1
-c      print *, "RECEIVED ABUNDIN", abundin
+
 
 c*****find the c-o-g gf that matches the observed RW
       gf1(ncurve) = gf(lim1)
-c      print *, "gf1(ncurve)", ncurve, lim1, gf(lim1), wave1(lim1)
       rwlgobs = dlog10(width(lim1)/wave1(lim1))
       gfobs = gftab(ntabtot)
-c      print *, "ntabtot", ntabtot, gfobs, width(lim1), rwlgobs
       do i=2,ntabtot
          if (rwtab(i) .gt. rwlgobs) then
             gfobs = gftab(i-1) + (gftab(i)-gftab(i-1))*
@@ -54,7 +51,6 @@ c*****for strong lines, the iterations are slowed down by using the
 c*****square root of the proposed gf shift.
 20    error = (w(ncurve)-width(lim1))/width(lim1)
       ratio = 10.**(gfobs-gfcal)
-c      print *, "error, ratio", error, ratio
       ncurve = ncurve + 1
       if (dabs(error) .ge. 0.0015 .and. ncurve .lt. 20) then
          rwlcomp = dlog10(w(ncurve-1)/wave1(lim1))
@@ -75,7 +71,7 @@ c      print *, "error, ratio", error, ratio
 
 c*****if the observed and computed RWs are close, do a final gf adjustment
 c*****and finish with one more line recomputation
-      if ((ncurve .eq. 30) .and. (debug .gt. 0)) then
+      if (ncurve .eq. 30 .and. debug .gt. 0) then
          write (nf1out,1001)
          write (nf2out,1001)
       endif
@@ -87,11 +83,8 @@ c*****and finish with one more line recomputation
       widout(lim1) = w(ncurve)
       wid1comp(lim1) = w(1)
       diff = dlog10(gf1(ncurve)/gf(lim1))
-c      print *, "gf1(ncurve)", ncurve, lim1, gf1(ncurve), gf(lim1)
-c      print *, "ABUNDIN WAS ", abundin
       abundout(lim1) = abundin + diff
-c      print *, "ABUNDOUT IS NOW", abundin, diff, abundout(lim1)
-      if ((ncurve .ne. 1) .and. (debug .gt. 0)) then
+      if (ncurve .ne. 1 .and. debug .gt. 0) then
          write (nf1out,1002) ncurve
       endif
 

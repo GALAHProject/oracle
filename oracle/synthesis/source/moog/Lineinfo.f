@@ -22,6 +22,7 @@ c******************************************************************************
       data ifresh /0/
       data ion/' I  ', ' II ', ' III'/
 
+      if (debug .gt. 0) print *, "nlines in LineInfo is ", nlines
 
       go to (1,2,3), number
 
@@ -35,25 +36,25 @@ c     linprintopt>=2 outputs ionization potentials, charges, masses,
 c                            reduced masses for molecules, 
 c     linprintopt>=3 outputs partition functions
 c     lineprintop =4 outputs line-center opacities
-c      write (*,1001) nlines
-c      if (linprintopt .ge. 2) write (*,1002)
+      if (debug .gt. 0.0) write (nf1out,1001) nlines
+      if (debug .gt. 0.0) write (nf1out,1002)
       do j=1,nlines
          ich = idint(charge(j) + 0.1)
          iatom = idint(atom1(j))
          loggf = dlog10(gf(j))
          logstrength = dlog10(strength(j))
-         if (iatom .lt. 100) then
+         if (iatom .lt. 100 .and. debug .gt. 0.0) then
             if (iunits .eq. 1) then
-c               write (*,1003) j, 1.d-4*wave1(j), names(iatom),
-c     .           ion(ich), atom1(j), e(j,1), loggf, damptype(j), 
-c     .           logstrength, 1000.*width(j)
+               write (nf1out,1003) j, 1.d-4*wave1(j), names(iatom),
+     .           ion(ich), atom1(j), e(j,1), loggf, damptype(j), 
+     .           logstrength, 1000.*width(j)
             else
-c               write (*,1004) j, wave1(j), names(iatom),
-c     .           ion(ich), atom1(j), e(j,1), loggf, damptype(j),
-c     .           logstrength, 1000.*width(j)
+               write (nf1out,1004) j, wave1(j), names(iatom),
+     .           ion(ich), atom1(j), e(j,1), loggf, damptype(j),
+     .           logstrength, 1000.*width(j)
             endif
-c            if (linprintopt .ge. 2) write (*,1005) 
-c     .                 (chi(j,k),k=1,3), charge(j), amass(j), rdmass(j)
+            write (nf1out,1005) 
+     .                 (chi(j,k),k=1,3), charge(j), amass(j), rdmass(j)
          else
             call sunder (atom1(j),ia,ib)
             if (ia .eq. 1) then
@@ -64,73 +65,79 @@ c     .                 (chi(j,k),k=1,3), charge(j), amass(j), rdmass(j)
             leftovr = idint(10000.*(atom1(j)-iatom)+0.1)
             if (ia .lt. 10) then
                read (names(ia),1006) name
-c               write (molname,1007) name,names(ib),leftovr
-c            else
-c               write (molname,1008) names(ia),names(ib),leftovr
+               if (debug .gt. 0.0) 
+     .           write (molname,1007) name,names(ib),leftovr
+            else
+               if (debug .gt. 0.0) write (molname,1008)
+     .           names(ia),names(ib),leftovr
             endif
-c            if (iunits .eq. 1) then
-c               write (*,1009) j, 1.d-4*wave1(j), molname, 
-c     .           atom1(j), e(j,1), gf(j), damptype(j), logstrength,
-c     .           1000.*width(j)
-c            else
-c               write (*,1010) j, wave1(j), molname, 
-c     .           atom1(j), e(j,1), gf(j), damptype(j), logstrength,
-c     .           1000.*width(j)
-c            endif
-c            if (linprintopt .ge. 2) write (*,1005) 
-c     .                 (chi(j,k),k=1,3), charge(j), amass(j), rdmass(j)
+            if (debug .gt. 0.0) then 
+              if (iunits .eq. 1) then
+                 write (nf1out,1009) j, 1.d-4*wave1(j), molname, 
+     .             atom1(j), e(j,1), gf(j), damptype(j), logstrength,
+     .             1000.*width(j)
+              else
+                 write (nf1out,1010) j, wave1(j), molname, 
+     .             atom1(j), e(j,1), gf(j), damptype(j), logstrength,
+     .             1000.*width(j)
+              endif
+              write (nf1out,1005) 
+     .                 (chi(j,k),k=1,3), charge(j), amass(j), rdmass(j)
+            endif
          endif
       enddo    
-      if (start.ne.0.0 .or. sstop.ne.0.0) then
-c         if (iunits .eq. 1) then
-c            write (*,1011) oldstart,oldstop,oldstep,olddelta
-c         else 
-c            write (*,1012) start,sstop,step,delta  
-c         endif
-c      if (rwlow .ne. 0.) write (*,1013) rwlow, rwhigh, rwstep
+      if (start.ne.0.0 .or. sstop.ne.0.0 .and. debug .gt. 0.0) then
+         if (iunits .eq. 1) then
+            write (nf1out,1011) oldstart,oldstop,oldstep,olddelta
+         else 
+            write (nf1out,1012) start,sstop,step,delta  
+         endif
+      if (rwlow .ne. 0. .and. debug .gt. 0.0) 
+     .  write (nf1out,1013) rwlow, rwhigh, rwstep
       endif  
-      if (linprintopt .ge. 3) then
-c         write (*,1014)
+      if (debug .gt. 0.0 .and. linprintopt .ge. 3) then
+         write (nf1out,1014)
          do j=1,95
             if (elem(j) .ne. 0.) then
                iatom = int(elem(j))
-c               write (*,1015) iatom, names(iatom), xam(j),
-c     .                            xchi1(j), xchi2(j), xchi3(j)
-c               do k=1,4
-c                  write (*,1016) k-1,(u(j,k,i),i=1,ntau)   
-c               enddo
+               write (nf1out,1015) iatom, names(iatom), xam(j),
+     .                            xchi1(j), xchi2(j), xchi3(j)
+               do k=1,4
+                  write (nf1out,1016) k-1,(u(j,k,i),i=1,ntau)   
+               enddo
             endif
          enddo
       endif
-c      if (linprintopt .ge. 4) then
-c         write (*,1001)
-c         do j=1,nlines
-c            write (*,1002) j,(kapnu0(j,i),i=1,ntau)
-c         enddo
-c      endif
+      if (debug .gt. 0.0 .and. linprintopt .ge. 4) then
+         write (nf1out,1001)
+         do j=1,nlines
+            write (nf1out,1002) j,(kapnu0(j,i),i=1,ntau)
+         enddo
+      endif
       return
 
 
 c*****here the STRONG line data are output; MOOG assumes that no
 c     molecular line can possibly be in this category
-2     do j=nlines+1,nlines+nstrong
+2     if (debug .gt. 0.0) write (nf1out,2001) nstrong
+      do j=nlines+1,nlines+nstrong
          ich = idint(charge(j) + 0.1)
          iatom = idint(atom1(j))
          loggf = dlog10(gf(j))
          logstrength = dlog10(strength(j))
-         if (iatom .lt. 100) then
+         if (iatom .lt. 100 .and. debug .gt. 0.0) then
             if (iunits .eq. 1) then
-               write (*,1003) j-nlines,1.d-4*wave1(j),names(iatom),
+               write (nf1out,1003) j-nlines,1.d-4*wave1(j),names(iatom),
      .                             ion(ich), atom1(j), e(j,1), gf(j),
      .                             damptype(j), logstrength
             else
-               write (*,1004) j-nlines, wave1(j),names(iatom),
+               write (nf1out,1004) j-nlines, wave1(j),names(iatom),
      .                             ion(ich), atom1(j), e(j,1), gf(j), 
      .                             damptype(j), logstrength
             endif
          else
-            write (*,2004) iatom
-c            stop
+            if (debug .gt. 0.0) write (*,2004) iatom
+            stop
          endif
       enddo
       printstrong = 1
@@ -140,7 +147,7 @@ c            stop
 c*****results of force-fitting EW to yield abundances are output here
 c     look here also for the calls to the trend line calculations
 3     if (ifresh .eq.0) then
-c         write (*,3001) linitle,moditle
+         if (debug .gt. 0.0) write (nf2out,3001) linitle,moditle
          ifresh = 1
       endif
       if (cogatom .eq. 0.) then
@@ -149,20 +156,19 @@ c         write (*,3001) linitle,moditle
          iatom = idint(cogatom)
       endif
       xab = dlog10(xabund(iatom)) + 12.
-c      print *, "THE XAB IS ", xab, array
       ich = idint(charge(lim1obs) + 0.1)
       if (atom1(lim1obs) .lt. 100.) then
-c         if (debug .gt. 0)
-c   .         write (array,3002) names(iatom), ion(ich) ,xab
+         if (debug .gt. 0.0) 
+     .     write (array,3002) names(iatom),ion(ich),xab
          line = 1
-         call prinfo (line)
-c         if (debug .gt. 0) write (*,*)
-c         if (debug .gt. 0) 
-c   .        write (*,3002) names(iatom), ion(ich), xab
-c         if (debug .gt. 0) write (array,3003)
+c         call prinfo (line)
+         if (debug .gt. 0.0) write (nf2out,*)
+         if (debug .gt. 0.0) 
+     .     write (nf2out,3002) names(iatom),ion(ich),xab
+         if (debug .gt. 0.0) write (array,3003)
          line = 2
-         call prinfo (line)
-c         if (debug .gt. 0) write (*,3003)
+c         call prinfo (line)
+         if (debug .gt. 0.0) write (nf2out,3003)
       else
          call sunder (atom1(lim1obs),ia,ib)
          if (ia .eq. 1) then
@@ -173,29 +179,24 @@ c         if (debug .gt. 0) write (*,3003)
          leftovr = idint(10000.*(atom1(lim1obs)-iatom)+0.1)
          if (ia .lt. 10) then
             read (names(ia),1006) name
-c            if (debug .gt. 0)
-c   .            write (molname,1007) name,names(ib)
+            if (debug .gt. 0.0) write (molname,1007) name,names(ib)
          else
-c            if (debug .gt. 0)
-c   .            write (molname,1008) names(ia),names(ib)
+            if (debug .gt. 0.0)
+     .        write (molname,1008) names(ia),names(ib)
          endif
-c         if (debug .gt. 0) write (array,3004) molname,xab
+         if (debug .gt. 0.0) write (array,3004) molname,xab
          line = 1
-         call prinfo (line)
-c         if (debug .gt. 0) then 
-c           write (*,*)
-c           write (*,3004) molname,xab
-c           write (array,3005) names(iabatom)
-c         endif  
+c         call prinfo (line)
+         if (debug .gt. 0.0) write (nf2out,*)
+         if (debug .gt. 0.0) write (nf2out,3004) molname,xab
+         if (debug .gt. 0.0) write (array,3005) names(iabatom)
          line = 2
-         call prinfo (line)
-c         if (debug .gt. 0) then 
-c           write (*,3005) names(iabatom)
-c           write (array,3006)
-c         endif
+c         call prinfo (line)
+         if (debug .gt. 0.0) write (nf2out,3005) names(iabatom)
+         if (debug .gt. 0.0) write (array,3006)
          line = 3
-         call prinfo (line)
-c         if (debug .gt. 0) write (*,3006)
+c         call prinfo (line)
+         if (debug .gt. 0.0) write (nf2out,3006)
       endif
       do l=lim1obs,lim2obs
          if (abundout(l) .ne. 999.99) then
@@ -205,65 +206,75 @@ c         if (debug .gt. 0) write (*,3006)
          endif
          ew = 1000.*width(l)
          rw = dlog10(width(l)/wave1(l))
-c         if (debug .gt. 0) then 
-c         write (array,3007) wave1(l), atom1(l), e(l,1), dlog10(gf(l)),
-c     .         ew, rw, abundout(l), diff
-c          endif
+         if (debug .gt. 0.0) 
+     .      write (array,3007) wave1(l), atom1(l), e(l,1), 
+     .         dlog10(gf(l)), ew, rw, abundout(l), diff
          if (errmess(1:9) .ne. 'stopinfo!') then
             line = line + 1
-            call prinfo (line)
+c            call prinfo (line)
          endif
-c         write (*,3007) wave1(l), atom1(l), e(l,1), dlog10(gf(l)),
-c     .         ew, rw, abundout(l), diff
+         if (debug .gt. 0.0) 
+     .     write (nf2out,3007) wave1(l), atom1(l), e(l,1), 
+     .         dlog10(gf(l)), ew, rw, abundout(l), diff
       enddo
-c      write (array,3008) average, deviate, kount
+      if (debug .gt. 0.0) write (array,3008) average, deviate, kount
       line = line + 1
-      if (errmess(1:9) .ne. 'stopinfo!') call prinfo (line)
-c      write (*,3008) average, deviate, kount
+c      if (errmess(1:9) .ne. 'stopinfo!') call prinfo (line)
+      if (debug .gt. 0.0) write (nf2out,3008) average, deviate, kount
       if (kount .gt. 2 .and. deltaep .gt. 1.5) then
-c         write (array,3009) xxm1, xxb1, xxr1 
+         if (debug .gt. 0.0) write (array,3009) xxm1, xxb1, xxr1 
          if (errmess(1:9) .ne. 'stopinfo!') then
             line = line + 1
-            call prinfo (line)
+c            call prinfo (line)
          endif
-c         write (*,3009) xxm1, xxb1, xxr1
+         if (debug .gt. 0.0) write (nf2out,3009) xxm1, xxb1, xxr1
       else
-c         write (array,*) 'No statistics done for E.P. trends' 
+         if (debug .gt. 0.0) 
+     .     write (array,*) 'No statistics done for E.P. trends' 
          if (errmess(1:9) .ne. 'stopinfo!') then
             line = line + 1
-            call prinfo (line)
+c            call prinfo (line)
          endif
-c         write (*,*) 'No statistics done for E.P. trends' 
+         if (debug .gt. 0.0) 
+     .     write (nf2out,*) 'No statistics done for E.P. trends' 
       endif
       if (kount .gt. 2 .and. deltarw .gt. 0.5) then
-c         write (array,3010) xxm2, xxb2, xxr2   
+         if (debug .gt. 0.0) 
+     .     write (array,3010) xxm2, xxb2, xxr2   
          if (errmess(1:9) .ne. 'stopinfo!') then
             line = line + 1
-            call prinfo (line)
+c            call prinfo (line)
          endif
-c         write (*,3010) xxm2, xxb2, xxr2   
+         if (debug .gt. 0.0) 
+     .     write (nf2out,3010) xxm2, xxb2, xxr2   
       else
-c         write (array,*) 'No statistics done for R.W. trends' 
+         if (debug .gt. 0.0) 
+     .     write (array,*) 'No statistics done for R.W. trends' 
          if (errmess(1:9) .ne. 'stopinfo!') then
             line = line + 1
-            call prinfo (line)
+c            call prinfo (line)
          endif
-c         write (*,*) 'No statistics done for R.W. trends' 
+         if (debug .gt. 0.0) 
+     .     write (nf2out,*) 'No statistics done for R.W. trends' 
       endif
       if (kount .gt. 2 .and. deltawv .gt. 500.) then
-         write (array,3011) xxm3, xxb3, xxr3
+         if (debug .gt. 0.0) 
+     .     write (array,3011) xxm3, xxb3, xxr3
          if (errmess(1:9) .ne. 'stopinfo!') then
             line = line + 1
-            call prinfo (line)
+c            call prinfo (line)
          endif
-c         write (*,3011) xxm3, xxb3, xxr3
+         if (debug .gt. 0.0) 
+     .     write (nf2out,3011) xxm3, xxb3, xxr3
       else
-c         write (array,*) 'No statistics done for wavelength trends'
+         if (debug .gt. 0.0) 
+     .     write (array,*) 'No statistics done for wavelength trends'
          if (errmess(1:9) .ne. 'stopinfo!') then
             line = line + 1
-            call prinfo (line)
+c            call prinfo (line)
          endif
-c         write (*,*) 'No statistics done for wavelength trends'
+         if (debug .gt. 0.0) 
+     .     write (nf2out,*) 'No statistics done for wavelength trends'
       endif
       return
 

@@ -104,8 +104,8 @@ c            stop
 c         endif
 c      endif
 
-      nlines = 0 + nlines_absolute
-      nstrong = 0 + nstrong_absolute
+c      nlines = 0 + nlines_absolute
+c      nstrong = 0 + nstrong_absolute
 
 c      print *, "inlines says number of lines is ", nlines, nstrong
 
@@ -132,7 +132,7 @@ c         Check the charge
              print *, "strong line charge greater than 3"
              print *, "A", wave1(j), iatom, charge(j), gf(j)
              print *, "stahp"
-c             stop
+             stop
           endif
         enddo
       endif
@@ -154,7 +154,7 @@ c             stop
               print *, "line charge greater than 3"
               print *, "B", wave1(j), iatom, charge(j), gf(j)
               print *, "stahp"
-c              stop
+              stop
            endif
         enddo
       endif
@@ -256,7 +256,7 @@ c*****here are the calculations specific to molecular lines
             if (ia .gt. ib) then
 c               write (*,1010) ia,ib
                print *, "stahp ia, ib", ia, ib
-c               stop
+               stop
             endif
             if (atom10-int(atom10) .le. 0.0) then
                amass(j) = xam(ia) + xam(ib)    
@@ -271,7 +271,7 @@ c               stop
      .             mas2.le.0.0) then
 c                  write (*,1011) mas1, mas2
                   print *, "stahp mas1, mas2", mas1, mas2
-c                  stop
+                  stop
                endif
                amass(j) = mas1 + mas2
             endif
@@ -286,7 +286,7 @@ c     does not read one in
                   endif
                 enddo
                 if (debug .gt. 0) write (*,1013) atom1(j)
-c                stop
+                stop
             endif
 390         rdmass(j) = mas1*mas2/amass(j)
             chi(j,1) = 0.

@@ -1,45 +1,64 @@
 
-      function abundances(mh_, vturb_,
-     .   photospheric_structure_, photospheric_abundances,
-     .   transitions_, modtype_, debug_, output, ntau_, 
-     .   ncols_, natoms_, nlines_)
+      function abundances(in_metallicity, in_xi,
+     .   in_photosphere, in_logepsilon_abundances,
+     .   in_transitions, in_modtype, in_debug, output, in_ntau, 
+     .   in_ncols, in_natoms, in_nlines)
 
       implicit real*8 (a-h,o-z)
-      real*8, intent(in) :: mh_, vturb_
-      real*8, dimension(ntau_, ncols_), intent(in) ::
-     .   photospheric_structure_
-      real*8, dimension(natoms_, 2), intent(in) ::
-     .   photospheric_abundances
-      real*8, dimension(nlines_, 7), intent(in) :: transitions_
-      character*10, intent(in) :: modtype_
-      integer, optional :: debug_
+      real*8, intent(in) :: in_metallicity, in_xi
+      real*8, dimension(in_ntau, in_ncols), intent(in) ::
+     .   in_photosphere
+      real*8, dimension(in_natoms, 2), intent(in) ::
+     .   in_logepsilon_abundances
+      real*8, dimension(in_nlines, 7), intent(in) :: in_transitions
+      character*10, intent(in) :: in_modtype
+      integer, optional :: in_debug
 
-      real*8, dimension(nlines_), intent(out) :: output
-
-
-c      if (.not. present(debug_)) then
-c         debug_ = 0
-c      endif
-
-c      real*8, dimension(:), intent(inout) :: abundances
-c      real*8, dimension(nstrong_, 7), intent(in):: strong_transitions_
-
-c      real*8, dimension(nlines_, 1), intent(inout) :: line_abundances
-
-
-c      real*8, dimension(1, 7) :: strong_transitions_
+      real*8, dimension(in_nlines), intent(out) :: output
 
    
       include 'Atmos.com'
       include 'Linex.com'
+      include 'Dummy.com'
       include 'Mol.com'
       include 'Pstuff.com'
+      include 'Dampdat.com'
+
+cc      include 'Factor.com' 
 
 
+c     Params crap. Can probably be removed eventually.
+      nfmodel =  0 
+      nflines =  0
+      nfslines = 0
+      nfobs =    0
+      nftable =  0
+      modprintopt  = 2
+      molopt       = 2
+      linprintopt  = 2
+      fluxintopt   = 0
+      plotopt      = 0
+      dampingopt   = 1
+      specfileopt  = 0
+      linfileopt   = 0
+      iunits       = 0
+      itru         = 0
+      iscale       = 0
+      iraf         = 0
+      histoyes     = 0
+      byteswap     = 0
+      deviations   = 0
+      scatopt      = 0
+      gfstyle      = 0
+      maxshift     = 0
+      dostrong     = 0
+      fudge = -1.0
 
-      include 'Factor.com' 
-c      include 'Obspars.com'
-c      include 'Multistar.com'
+
+      dummy1(:) = 0.
+      dummy2(:) = 0.
+      dummy3(:) = 0.
+      dummy4(:) = 0.
 
 
 
@@ -52,7 +71,7 @@ c      include 'Multistar.com'
       nhtot(:) = 0.0 
       numdens(:,:,:) = 0.0 
       molweight(:) = 0.0 
-      vturb(:) = 0.0 
+
       scont(:) = 0.0 
       kapref(:) = 0.0 
       kaplam(:) = 0.0 
@@ -105,56 +124,31 @@ c      include 'Multistar.com'
 
 
 c     fails after this.
-      pmol(:) = 0.0
-      xmol(:,:) = 0.0
-      xamol(:,:) = 0.0
-      xatom(:) = 0.0
-      patom(:) = 0.0
-      amol(:) = 0.0
-c      print *, "smallmollist", smallmollist(1), largemollist(1)
-c      print *, "const", datmol(1,1), const(1,1)
-c      smallmollist(:) = 0.0
-c      largemollist(:) = 0.0
-c      datmol(:,:) = 0.0
-c      const(:,:) = 0.0
+cc      pmol(:) = 0.0
+cc      xmol(:,:) = 0.0
+cc      xamol(:,:) = 0.0
+cc      xatom(:) = 0.0
+cc      patom(:) = 0.0
+cc      amol(:) = 0.0
+cc      smallmollist(:) = 0.0
+cc      largemollist(:) = 0.0
+cc      datmol(:,:) = 0.0
+cc      const(:,:) = 0.0
 
 
-c     Params crap. Can probably be removed eventually.
-      nfmodel =  0 
-      nflines =  0
-      nfslines = 0
-      nfobs =    0
-      nftable =  0
-      modprintopt  = 1
-      molopt       = 1
-      linprintopt  = 1
-      fluxintopt   = 0
-      plotopt      = 0
-      dampingopt   = 1
-      specfileopt  = 0
-      linfileopt   = 0
-      iunits       = 0
-      itru         = 0
-      iscale       = 0
-      nlines       = 0
-      iraf         = 0
-      histoyes     = 0
-      byteswap     = 0
-      deviations   = 0
-      scatopt      = 0
-      gfstyle      = 0
-      maxshift     = 0
-      dostrong     = 0
-      molset       = 1
-      fudge = -1.0
+
+
+
+
+
 
 
 c  INITIALIZE SOME VARIABLES: spectrum run parameters
-c      oldstart = 0.
-c      start = 0.
-c      sstop = 0.
-c      step = 0.
-c      delta = 0.
+      oldstart = 0.
+      start = 0.
+      sstop = 0.
+      step = 0.
+      delta = 0.
       cogatom = 0.
       contnorm = 1.0
 
@@ -169,113 +163,92 @@ c  INITIALIZE SOME VARIABLES: line limit parameters
       lim2 = 0
 
 c      May need to initialise these later:
-      numpecatom = 0
-      numatomsyn = 0
-      newnumpecatom = 0
-      newnumatomsyn = 0
-      ninetynineflag = 0
-      pec(:) = 0
-      newpec(:) = 0
-      abfactor(:) = 0
-      pecabund(:, :) = 0
-      newpecabund(:, :) = 0.
-      numiso = 0
-      numisosyn = 0
-      newnumiso = 0
-      newnumisosyn = 0
-      isotope(:) = 0.0
-      newisotope(:) = 0.0
-      isoabund(:,:) = 0.0
-      newisoabund(:,:) = 0.0
+c      numpecatom = 0
+c      numatomsyn = 0
+c      newnumpecatom = 0
+c      newnumatomsyn = 0
+c      ninetynineflag = 0
+c      pec(:) = 0
+c      newpec(:) = 0
+c      abfactor(:) = 0
+c      pecabund(:, :) = 0
+c      newpecabund(:, :) = 0.
+c      numiso = 0
+c      numisosyn = 0
+c      newnumiso = 0
+c      newnumisosyn = 0
+c      isotope(:) = 0.0
+c      newisotope(:) = 0.0
+c      isoabund(:,:) = 0.0
+c      newisoabund(:,:) = 0.0
+
+c*****open data files carried with the source code: Barklem UV damping
+c      nfbarklem = 35
+c      num = 60
+c      call getcount (num,moogpath)
+c      if (moogpath(num:num) .ne. '/') then
+c         num = num + 1
+c         moogpath(num:num) = '/'
+c      endif
+c      fbarklem(1:num) = moogpath(1:num)
+c      fbarklem(num+1:num+11) = 'Barklem.dat'
+      nfbarklem = 35
+      open (nfbarklem,file="$DATA_DIR/Barklem.dat")
+
+ 
+c      nfbarklemUV = 36
+c      num = 60
+c      call getcount (num,moogpath)
+c      if (moogpath(num:num) .ne. '/') then
+c         num = num + 1
+c         moogpath(num:num) = '/'
+c      endif
+c      fbarklemUV(1:num) = moogpath(1:num)
+c      fbarklemUV(num+1:num+13) = 'BarklemUV.dat'
+      nfbarklemUV = 36
+      open (nfbarklemUV,file="$DATA_DIR/BarklemUV.dat")
 
 
 
 
+c     Pass information to the global variables
+      debug = in_debug
 
+      modtype = in_modtype
+      ntau = in_ntau
+      vturb(1) = in_xi
 
+      moditle = 'atmosphere comment'
+      
+      natoms = in_natoms
+      abscale = in_metallicity
+      
+      nstrong = 0
+      nlines = 0 + int(in_nlines)
+      
 
-
-
-
-
-
-
-      modtype = modtype_
-
-
-c      print *, "teff_ etc", teff_, logg_, mh_, vturb_
-c      print *, "photospheric_struct", photospheric_structure_
-c      print *, "photospheric_abundances", photospheric_abundances_
-c      print *, "transitions_", transitions_
-c      print *, "ntau_", ntau_, ncols_, natoms_, nlines_
-c
-c      print *, "ntau_ ncols_ natoms_ nlines_", ntau_, ncols_,
-c     .   natoms_, nlines_
-
-c      i = nlines_ + nstrong_
-c      allocate(temp_line_abundances(1:i))
-
-      debug = debug_
       control = 'abfind  '
       silent = 'y'
       smterm = 'x11'
       smt1 = 'x11'
       smt2 = 'x11'
-   
-      nstrong = 0
-      transitions(:nlines_, :) = transitions_
-c      if (nstrong .gt. 0) then
-c         strong_transitions(:nstrong_, :) = strong_transitions_
-c      endif
+
+      do i=1,natoms
+         element(i) = in_logepsilon_abundances(i, 1)
+         logepsilon(i) = in_logepsilon_abundances(i, 2)
+      enddo
+
+      photospheric_structure(:in_ntau, :in_ncols) = in_photosphere
+
+
+      call inmodel
+
+
+      transitions(:in_nlines, :) = in_transitions
 
 c     MOOG plays with these. So let's keep absolute reference values
-      nlines_absolute = 0 + nlines_
-      nstrong_absolute = 0 + nstrong
-
-      vturb_absolute = vturb_
-c      print *, "input vturb", vturb_, vturb_absolute
       
-
-      logepsilon_abundances(:natoms_, :) = photospheric_abundances
-      photospheric_structure(:ntau_, :ncols_) = photospheric_structure_
-
-c     These should not change...
-      ntau = ntau_
-      moditle = 'atmosphere comment'
-      natoms = natoms_
-      abscale = mh_
-
-
-
-c*****open the files for standard output and summary abundances
-c      nf1out = 20
-c      lscreen = 4
-c      array = 'STANDARD OUTPUT'
-c      nchars = 15
-c      call infile ('output ',nf1out,'formatted  ',0,nchars,
-c     .             f1out,lscreen)
-c      nf2out = 21
-c      lscreen = lscreen + 2
-c      array = 'SUMMARY ABUNDANCE OUTPUT'
-c      nchars = 24
-c      call infile ('output ',nf2out,'formatted  ',0,nchars,
-c     .             f2out,lscreen)
-c      nf5out = 26
-c      lscreen = lscreen + 2
-c      array = 'POSTSCRIPT PLOT OUTPUT'
-c      nchars = 22
-c      call infile ('output ',nf5out,'formatted  ',0,nchars,
-c     .             f5out,lscreen)
-
-
-c*****open and read the model atmosphere
-c      array = 'THE MODEL ATMOSPHERE'
-c      nchars = 20
-c 102   nfmodel = 30
-c      lscreen = lscreen + 2
-c      call infile ('input  ',nfmodel,'formatted  ',0,nchars,
-c     .             fmodel,lscreen)
-      call inmodel
+      
 
 
 c*****open and read the line list file; get ready for the line calculations
@@ -292,13 +265,13 @@ c     table, read the linelist, etc.
 c      print *, "doing fake line", nlines
 c      print *, "vturb", vturb(:ntau)
 
+
+      mode = 0
 100   call fakeline
 
-c      print *, "calling inlines(1)"
-      call inlines (1)
-c      print *, "number of lines now", nlines, nstrong
-c      print *, "and the absolute value says", nlines_absolute, nstrong_absolute
-c      print *, "and the input value says", nlines_, nstrong_
+      nstrong = 0
+      nlines = 0 + int(in_nlines)
+      call inlines (1) 
       call eqlib
       call nearly (1)
  
@@ -307,20 +280,17 @@ c*****set some parameters
       mode = 2
       cogatom = 0.
       lim1line = 0
-
+ 
 
 c*****find the range of lines of a species
 5     call linlimit
       if (lim1line .lt. 0) then
 c         call finish (0)
-c         print *, "finishing"
+         if (debug .gt. 0) print *, "finishing"
          return
       endif
       lim1obs = lim1line
       lim2obs = lim2line
-      lim2line = 0 + nlines_
-c      print *, "lim1line, lim2line", lim1line, lim2line
-
 
 c*****find out whether molecular equilibrium is involved in the species
       call molquery
@@ -329,16 +299,11 @@ c*****find out whether molecular equilibrium is involved in the species
 c*****force each abundance of a species member to predict the 
 c     line equivalent width; here is the code for ordinary species
       if (molflag .eq. 0) then
-c         print *, "IBATOM", iabatom, dlog10(xabund(iabatom)) + 12.0
          abundin =  dlog10(xabund(iabatom)) + 12.0
-c         print *, "ABUNDIN IS GOING TO BE", abundin
          do lim1=lim1line,lim2line
             call lineabund(abundin)
          enddo
-c         print *, "CALLING STATS NOW--------------------"
-c         print *, "array", array
 c         call stats
-c         print *, "CALLLLING LINE INFO NOW--------------"
          call lineinfo (3)
       else
 
@@ -359,25 +324,25 @@ c         call stats
      .       int(atom1(lim1line)+0.0001).eq.8) then
             if (iternumber .lt. 6) then
                if (dabs(average-abundin) .gt. 0.02) then
-c                  print *, "UPDATING FROM MOL EXQUILIB"
                   xabund(iabatom) = 10.**(average-12.)
                   iternumber = iternumber + 1
                   call eqlib
                   call nearly (2)
                   go to 10
                else
-c                  write (array,1001) iternumber
+                  if (debug .gt. 0) write (array,1001) iternumber
                    ikount=kount+14
-c                  nchars = 53
+                  nchars = 53
 c                  call putasci (nchars,ikount)
                endif
             else
-c               write (array,1003) molecule, dlog10(abundin),
-c     .                            dlog10(average)
+               if (debug .gt. 0) 
+     .             write (array,1003) molecule, dlog10(abundin),
+     .                            dlog10(average)
 c               lscreen = lscreen + 2
 c               call prinfo (lscreen)
                print *, "molecule!"
-c               stop
+               stop
             endif
          endif
       endif
@@ -410,9 +375,12 @@ c            lim2obs = 0
 c            go to 102
 c         endif
 c      endif
-
- 
-             
+   
+      if (debug .gt. 0) print *, "abundances", abundout(1:10)
+      output = abundout(1:nlines)
+       
+      choice = 'y'
+      nchars = 0
 c*****quit, or go on to another species?
 c      if (silent .eq. 'y') then
 c         choice = 'y'
@@ -423,27 +391,19 @@ c         nchars = 28
 c         call getasci (nchars,maxline)
 c         choice = chinfo(1:1)
 c      endif
-c      if (choice.eq.'y' .or. nchars.le.0) then
-c         if (mode .eq. 2) then
-c            go to 5
-c         else
+      if (choice.eq.'y' .or. nchars.le.0) then
+         if (mode .eq. 2) then
+            go to 5
+         else
 c            call finish (0)
-c            return
-c         endif
-c      else
+            return
+         endif
+      else
 c         call finish (0)
-c         return
-c      endif
-c       j = SUM(photospheric_structure(1,:))
-c       call finish(0)
-c       print *, "finishing"
-c       print *, "abundances", abundout(:nlines)
+         return
+      endif
 
-       output = abundout(1:nlines)
-c       abundances = abundout(:nlines)
-c       what = abundout(:nlines)
-
-       return
+      return
 
 c*****format statements
 1001  format ('THIS REQUIRED', i2,' ITERATIONS WITH MOLECULAR ',

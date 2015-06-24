@@ -19,8 +19,6 @@ c     the line profile
 
 c*****get started; calculate an initial step size; wavestep only is 
 c*****used in synpop
-c      print *, "imode", imode, jtau5
-c      print *, "OK", wave1(lim1), dopp(lim1,jtau5)
       if (imode .eq. 0) gf1(ncurve) = gf(lim1)                          
       dellam(1) = 0.                                                    
       if (wavestep .eq. 0.) then
@@ -30,8 +28,6 @@ c      print *, "OK", wave1(lim1), dopp(lim1,jtau5)
          st1 = wavestep
       endif
       storig = st1
-c      print *, "INITIAL STEP SIZE", st1, wavestep, lim1
-c      print *, "jtau5", st1, jtau5
 
 
 c*****calculate continuous opacity and intensity/flux at line wavelength 
@@ -39,37 +35,32 @@ c*****calculate continuous opacity and intensity/flux at line wavelength
       if (abs(wave-waveold) .gt. 30.) then
          waveold = wave
          call opacit(2,wave)     
-c         if (imode.ne.2 .and. debug .gt. 0) 
-c     .      write(*,1002) wave,(kaplam(i),i=1,ntau)
+         if (imode.ne.2 .and. modprintopt.ge.2 .and. debug .gt. 0) 
+     .      write(nf1out,1002) wave,(kaplam(i),i=1,ntau)
          call cdcalc(1)
          first = 0.4343*cd(1)
          flux = rinteg(xref,cd,dummy1,ntau,first)
-         if (debug .gt. 0) then
+         if (imode .ne. 2 .and. debug .gt. 0) then
             if (iunits .eq. 1) then
-               write (*,1003) 1.d-4*wave,flux
+               write (nf1out,1003) 1.d-4*wave,flux
             else
-               write (*,1004) wave,flux
+               write (nf1out,1004) wave,flux
             endif
          endif
       endif
-c      print *, "WAVE FLUX", wave, first, flux, wavestep
 
 
 c*****check the wavelength step size; expand/contract as necessary
       if (wavestep .eq. 0.) then
          wave = wave1(lim1)
          call taukap
-
-c        print *, "OPTICAL DEPTHS", taunu
-c        stop
          call cdcalc(2)
          first = 0.4343*cd(1)
          d(1) = rinteg(xref,cd,dummy1,ntau,first)
          do k=1,30
-c            print *, "k wave", k, lim1, wave, st1
-            if (k .eq. 30 .and. debug .gt. 0) then
-               write (*,1010) wave
-c               stop (1010)
+            if (k .eq. 30) then
+               if (debug .gt. 0) write (*,1010) wave
+               stop
             endif
             wave = wave1(lim1) + 5.*st1
             call taukap
@@ -82,8 +73,9 @@ c               stop (1010)
             elseif (d2d1 .le. 0.6) then
                st1 = st1/1.2
             elseif (d2d1.gt.0.60 .and. d2d1.lt.0.80) then
-               if (debug .gt. 0) write (*,1001) lim1,
-     .                           1000.*width(lim1), storig, st1, k
+               if (imode .ne. 2 .and. debug .gt. 0) 
+     .           write (nf1out,1001) lim1, 1000.*width(lim1),
+     .             storig, st1, k
                exit
             elseif (d2d1 .ge. 0.80) then
                st1 = st1*1.6
@@ -94,9 +86,6 @@ c               stop (1010)
          enddo
       endif
 
-c      print *, "@#$@#$@#$$$$$$$$$$$$$$$$$$$$$$$$$$$"
-c      print *, "wave", wave, d(1), d(2), st1, first
-    
 
 c*****calculate wavelength dependent line quantities, and the line depth
 c     until the depth is very small in the line wing
@@ -118,14 +107,13 @@ c     until the depth is very small in the line wing
             do i=1,ntau
                if (cdmean .lt. cd(i)) exit
             enddo
-
             if (debug .gt. 0) 
-     .         write (*,1005) lim1, cdmean, i, xref(i)
+     .        write (nf1out,1005) lim1, cdmean, i, xref(i)
             do i=1,ntau
                if (taunu(i)+taulam(i) .ge. 1.) exit
             enddo
-            if (debug .gt. 0)
-     .          write (*,1006) lim1, i, dlog10(tauref(i)),
+            if (debug .gt. 0) 
+     .         write (nf1out,1006) lim1, i, dlog10(tauref(i)),
      .                          dlog10(taulam(i)), dlog10(taunu(i))
          endif
          if (d(n)/d(1) .lt. 0.0050) then
@@ -133,8 +121,8 @@ c     until the depth is very small in the line wing
             exit
          endif
          if (n .eq. maxsteps) then 
-            if (d(n).gt.0.001 .and. debug.gt.0) then
-               if (debug .gt. 0) write (*,1007)
+            if (d(n).gt.0.001 .and. imode.ne.2) then
+               if (debug .gt. 0) write (nf1out,1007)
                ndepths = maxsteps 
             endif
          endif
@@ -142,7 +130,8 @@ c     until the depth is very small in the line wing
 
 
 c*****finish the calculation                                            
-      if (debug .gt. 0) write (*,1008) (d(j),j=1,ndepths)
+      if (imode .ne. 2 .and. debug .gt. 0)
+     .  write (nf1out,1008) (d(j),j=1,ndepths)
       do n=2,ndepths
          d(ndepths+n-1) = d(n)
       enddo
@@ -156,19 +145,14 @@ c*****finish the calculation
          dellam(n) = dellam(n-1) + st1
       enddo
       first = 2*dellam(ndep)*d(ndep)
-c      print *, "first", first, ndep, d(ndep), dellam(ndep)
-c      print *, "================================"
-c      print *, "W IN ONELINE", w
-c      print *, "================================"
-
       w(ncurve) = rinteg(dellam,d,dinteg,ndep,first) 
       if (imode .ne. 2) then
          ew = 1000.0*w(ncurve)
          gflog = dlog10(gf1(ncurve))
          rwlog = dlog10(w(ncurve)/wave1(lim1))
-c         if (debug .gt. 0)
-c    .        write (*,1009) wave1(lim1), ew, rwlog,
-c    .           gf1(ncurve), gflog
+         if (debug .gt. 0) 
+     .     write (nf1out,1009) wave1(lim1), ew, rwlog, gf1(ncurve),
+     .        gflog
       endif
       return                                                            
 

@@ -18,12 +18,10 @@ c*****set up the parameters
       wstop = 10.**(rwhigh)*wave1(lim1)
       gf1(ncurve) = gf(lim1)
 
-      
-
+ 
 c*****increment the log(gf) value backward by rwstep and redo the calculations 
 c     until the end (rwlow) is reached
 31    call oneline (2)
-c      print *, "OK CHECKING ", w(ncurve), wstart
       if (w(ncurve) .gt. wstart) then
          gf1(ncurve) = gf1(ncurve)/dec
          do i=1,ntau
@@ -31,10 +29,6 @@ c      print *, "OK CHECKING ", w(ncurve), wstart
          enddo
          go to 31
       endif
-c      print *, "==============================="
-c      print *, "END KAPPA", kapnu0(lim1, :)
-c      print *, "==============================="
- 
       go to 61
  
 
@@ -52,8 +46,8 @@ c     until the end (rwhigh) is reached
  
 
 c*****end the computations with a summary print
-      if (debug .gt. 0 .and. lim1 .eq. 1)
-     .   write (*,1001) moditle
+c      if (nf2out .ne. 0 .and. lim1 .eq. 1)
+c     .   write (nf2out,1001) moditle
       do i=1,ncurve
          w(i) = dlog10(w(i)/wave1(lim1))
          gf1(i) = dlog10(gf1(i))
@@ -61,12 +55,14 @@ c*****end the computations with a summary print
       iatom = atom1(lim1)
       if(iatom .ge. 100) iatom = 1
       abund = dlog10(xabund(iatom)) + 12.
-      if (debug .gt. 0) then
-        write (*,1002) wave1(lim1),atom1(lim1),e(lim1,1),
-     .                    abund,ncurve
-        write (*,1002) wave1(lim1),atom1(lim1),e(lim1,1),
-     .           abund,ncurve
-        write (*,1003) (gf1(i),w(i),i=1,ncurve)
+
+      if (debug .gt. 0.0) then
+        write (nf1out,1002) wave1(lim1),atom1(lim1),e(lim1,1),
+     .         abund,ncurve
+        write (nf1out,1003) (gf1(i),w(i),i=1,ncurve)
+        write (nf1out,1002) wave1(lim1),atom1(lim1),e(lim1,1),
+     .         abund,ncurve
+        write (nf1out,1003) (gf1(i),w(i),i=1,ncurve)
       endif
       return
 
