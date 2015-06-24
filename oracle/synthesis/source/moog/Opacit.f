@@ -14,26 +14,24 @@ c******************************************************************************
 
 
 c*****initialization                                                        
-      freq = 2.997925d18/waveop
+      freq = 2.997925d18/waveop 
       freqlg = dlog(freq)
-      evhkt(:) = 0.0
       do i = 1,ntau
          hkt = 6.6256d-27/(1.38054d-16*t(i))
          evhkt(i) = dexp(-freq*hkt)
       enddo
-
-c      do i=1,ntau
-       aH1(:) =      1.d-99
-       aHminus(:) =  1.d-99
-       aHeminus(:) = 1.d-99
-       aC1(:) =      1.d-99
-       aMg1(:) =     1.d-99
-       aMg2(:) =     1.d-99
-       aAl1(:) =     1.d-99
-       aSi1(:) =     1.d-99
-       aSi2(:) =     1.d-99
-       aFe1(:) =     1.d-99
-c      enddo
+      do i=1,ntau
+         aH1(i) =      1.d-99
+         aHminus(i) =  1.d-99
+         aHeminus(i) = 1.d-99
+         aC1(i) =      1.d-99
+         aMg1(i) =     1.d-99
+         aMg2(i) =     1.d-99
+         aAl1(i) =     1.d-99
+         aSi1(i) =     1.d-99
+         aSi2(i) =     1.d-99
+         aFe1(i) =     1.d-99
+      enddo
 
 
 c*****compute the opacities
@@ -60,28 +58,21 @@ c*****sum up all the opacities
      .                  aSi2(i) + aFe1(i)
          kaplamsca(i) = sigH(i) + sigH2(i) + sigHe(i) + sigel(i)
          kaplam(i)    = kaplamabs(i) + kaplamsca(i)
-c         stop   
       enddo
-c      print *, "OPACIT SUM", aH1(1), aHminus(1), aHeminus(1), 
-c     .      aC1(1), aMg1(1), aMg2(1), aAl1(1), aSi1(1), aSi2(1),
-c     .      aFe1(1), sigH(1), sigH2(1), sigHe(1), sigel(1)
-c      print *, "MODEOP", modeop
 
-c      print *, "kaplam", kaplam(60)
-      
 
 c*****write out the opacities
-      if (debug .gt. 0) then
-         write (*,1001) waveop
+      if (debug .gt. 0.0) then
+         write (nf1out,1001) waveop
          do i=1,ntau
-            write (*,1002) i, nint(t(i)), dlog10(kaplam(i)),
+            write (nf1out,1002) i, nint(t(i)), dlog10(kaplam(i)),
      .      dlog10(aH1(i)), dlog10(aHminus(i)), dlog10(sigH(i)), 
      .      dlog10(aHeminus(i)), dlog10(sigHe(i)), dlog10(sigel(i)),
      .      dlog10(sigH2(i))
          enddo
-         write (*,1003) waveop
+         write (nf1out,1003) waveop
          do i=1,ntau
-            write (*,1002) i, nint(t(i)), dlog10(kaplam(i)),
+            write (nf1out,1002) i, nint(t(i)), dlog10(kaplam(i)),
      .      dlog10(aC1(i)),  dlog10(aMg1(i)), dlog10(aMg2(i)), 
      .      dlog10(aAl1(i)), dlog10(aSi1(i)), dlog10(aSi2(i)), 
      .      dlog10(aFe1(i))
@@ -95,8 +86,8 @@ c     this is a pure fudge factor, so experiment with care
          do i=1,ntau
             kaplam(i) = kaplam(i)*((fudge*10000)/t(i))
             if (i .eq. 1) then
-               write(*,1005)
-               write(*,1006) fudge
+               write(nf1out,1005)
+               write(nf1out,1006) fudge
             endif
          enddo
       endif
@@ -113,7 +104,7 @@ c*****compute an optical depth array at this wavelength, and exit
          do i=2,ntau
             taulam(i) = taulam(i-1) + taulam(i)
          enddo
-         if (debug .gt. 0) write(*,1004) (taulam(i),i=1,ntau)
+         if (debug .gt. 0.0) write(nf1out,1004) (taulam(i),i=1,ntau)
          return
       endif
 
@@ -122,9 +113,6 @@ c*****here is the assignment of opacities kaplam to kapref; exit normally
       do i=1,ntau
          kapref(i) = kaplam(i)
       enddo
-
-c      print *, "KAPREF IS ", kapref
-c      stop
       if(modprintopt .lt. 2) return
 
 
@@ -140,7 +128,9 @@ c     then exit normally
       do i=2,ntau
          taucheck(i) = taucheck(i-1) + taucheck(i)
       enddo
-      if (debug .gt. 0) write (*,1004) (taucheck(i),i=1,ntau)
+      if (debug .gt. 0.0) then
+        write (nf1out,1004) (taucheck(i),i=1,ntau)
+      endif
       return
 
 

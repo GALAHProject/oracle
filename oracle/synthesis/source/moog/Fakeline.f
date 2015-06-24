@@ -40,30 +40,10 @@ c*****here we use a real Fe I line because it has Barklem damping data
          damptype(1) = 'NEXTGEN'
       endif
 
-c This is the old fake line data:
-c      wave1(1) = 5000.0
-c      atom1(1) = 26.0
-c      e(1,1)    = 2.00
-c      gf(1)    = 1.0e-3
-c      iatom = atom1(1)
-c      charge(1) = 1.0
-c      e(1,2) =  e(1,1) + 1.239d+4/wave1(1)
-c      amass(1) = xam(iatom)
-c      chi(1,1) = xchi1(iatom)
-c      chi(1,2) = xchi2(iatom)
-c      chi(1,3) = xchi3(iatom)
-c      if     (dampingopt .eq. 0) then
-c         damptype(1) = 'UNSLDc6'
-c      elseif (dampingopt .eq. 1) then
-c         damptype(1) = 'UNSLDc6'
-c      elseif (dampingopt .eq. 2) then
-c         damptype(1) = 'BLKWLc6'
-c      else
-c         damptype(1) = 'NEXTGEN'
-c      endif
 
 c*****do the partition function
       call partfn (atom1(1),int(atom1(1)+0.001))
+
 
 c*****now calculate the dependent quantities, such as doppler parameters,
 c     damping constant, line opacity at line center
@@ -73,7 +53,6 @@ c     damping constant, line opacity at line center
       idump = nf2out
       nf2out = 0
       call nearly (3)
-
 
 
 c*****setting some counting parameters and do a curve-of-growth

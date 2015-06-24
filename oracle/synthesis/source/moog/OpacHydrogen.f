@@ -22,7 +22,6 @@ c******************************************************************************
       data modcount/0/
 
 c  set up some data upon first entrance with a new model atmosphere
-c      print *, "MODELNUM/MODCOUNT", modelnum, modcount
       if (modelnum .ne. modcount) then
          modcount = modelnum
          do i=1,ntau
@@ -30,7 +29,6 @@ c      print *, "MODELNUM/MODCOUNT", modelnum, modcount
                xn2 = dfloat(n*n)
                bolt(i,n) = dexp(-13.595*(1.-1./xn2)/tkev(i))*2.*
      .                     xn2*numdens(1,1,i)/u(1,1,i)
-c               print *, "SUP ",i,n,xn2,u(1,1,i),numdens(1,1,i)
             enddo
             freet(i) = ne(i)*numdens(1,2,i)/u(1,2,i)/dsqrt(t(i))
             xr = numdens(1,1,i)/u(1,1,i)*(2./2./13.595)*tkev(i)
@@ -39,13 +37,9 @@ c               print *, "SUP ",i,n,xn2,u(1,1,i),numdens(1,1,i)
          enddo
       endif
 
-c      print *, "BOLT SUM", SUM(bolt), SUM(freet), xr, SUM(boltex),
-c     .   SUM(exlim) 
-
       do n=1,8
          cont(n) = coulx(n,freq,1.d0)
       enddo
-c      print *, "tkev", freq, tkev
 
       freq3 = freq**3
       cfree = 3.6919d8/freq3
@@ -53,19 +47,15 @@ c      print *, "tkev", freq, tkev
       do i=1,ntau
          ex = boltex(i)
          if (freq .lt. 4.05933d13) ex = exlim(i)/evhkt(i)
-         h = (cont(7)*bolt(i,7) + cont8*bolt(i,8) + 
+         h = (cont(7)*bolt(i,7) + cont(8)*bolt(i,8) + 
      .       (ex - exlim(i))*c + 
      .       coulff(1,tlog(i),freq)*freet(i)*cfree)*(1.-evhkt(i))
-c         print *, "h first", h, cont(7), bolt(i, 7), c, cfree
          do n=1,6
             h = h + cont(n)*bolt(i,n)*(1.-evhkt(i))
-c            print *, "h then", n, h
          enddo
-
          aH1(i) = h
       enddo
 
-c      print *, "AH1", aH1(1)
       return
       end
 

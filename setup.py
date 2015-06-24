@@ -37,7 +37,7 @@ moog = Extension(name = "oracle.synthesis._mini_moog",
     sources = ["oracle/synthesis/source/moog/{}".format(each) for each in [
         "MyAbfind.f", "Partfn.f", "Sunder.f", "Eqlib.f", "Nearly.f","Discov.f",
         "Invert.f", "Gammabark.f", "Damping.f", "Lineinfo.f", "Opacit.f",
-        "Blankstring.f", "Prinfo.f", "Opacmetals.f", "Synspec.f", "Cdcalc.f",
+        "Blankstring.f", "Opacmetals.f", "Synspec.f", "Cdcalc.f",
         "Linlimit.f", "Taukap.f", "Jexpint.f", "Partnew.f", "Opacscat.f",
         "OpacHelium.f", "OpacHydrogen.f", "Opaccouls.f", "Rinteg.f", 
         "Trudamp.f", "Ucalc.f", "Voigt.f", "Fakeline.f", "Curve.f",

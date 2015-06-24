@@ -20,15 +20,8 @@ c*****compute the total line opacity at each depth
             kapnu(i) = kapnu(i) + kapnu0(j,i)*voigt(a(j,i),v)
          enddo                                     
 
-
-c         print *, "KAPNU_1", kapnu
-c         print *, "TAUREF_1", tauref(i), kapref(i)
-
          dummy1(i) = tauref(i)*kapnu(i)/(0.4343*kapref(i))
-
-         
-c         print *, "DUMMY1", dummy1
-
+                                                       
 c*****do the same for the strong lines
          if (dostrong .gt. 0) then
             do j=nlines+1,nlines+nstrong
@@ -39,25 +32,16 @@ c*****do the same for the strong lines
          endif
 
          dummy1(i) = tauref(i)*kapnu(i)/(0.4343*kapref(i))
-
-c         print *, "DUMMY1__", dummy1
-c         stop
       enddo      
 
 c*****compute the optical depths                                            
-c      print *, "TAUREF(1) KAPNU(1) KAPREF(1)", tauref(1), kapnu(1),
-c     .   kapref(1)
-      
       first = tauref(1)*kapnu(1)/kapref(1)
-
       dummy1(1) = rinteg(xref,dummy1,taunu,ntau,0.)      
-c      print *, "DUMMY1_AGAIN", dummy1(1)
       taunu(1) = first
       do i=2,ntau                                                     
          taunu(i) = taunu(i-1) + taunu(i)                  
       enddo
 
-c      stop
 
       return                                              
       end                                                

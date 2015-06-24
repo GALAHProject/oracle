@@ -12,7 +12,6 @@ c******************************************************************************
       include 'Factor.com'
       include 'Dummy.com'
       include 'Pstuff.com'
-      real*8 element(95), logepsilon(95)
       real*8 kaprefmass(100)
       real*8 bmol(110)
       character list*80, list2*70
@@ -20,32 +19,29 @@ c******************************************************************************
 
 
 c*****Read in the key word to define the model type
+      wavref = 5000.0
       modelnum = modelnum + 1
 c      rewind nfmodel
-c      read (nfmodel,2001) modtype
-c      write (nf1out,1010) modtype
-c      if (modtype .eq. 'begn      ' .or.  modtype .eq. 'BEGN      ') 
-c     .   write (nf1out,1011)
+cc      read (nfmodel,2001) modtype
+cc      write (nf1out,1010) modtype
+cc      if (modtype .eq. 'begn      ' .or.  modtype .eq. 'BEGN      ') 
+cc     .   write (nf1out,1011)
 
 
 c*****Read a comment line (usually describing the model)
-c      read (nfmodel,2002) moditle
+cc      read (nfmodel,2002) moditle
 
 
 c*****Read the number of depth points
-c      read (nfmodel,2002) list
-c      list2 = list(11:)
-c      read (list2,*) ntau
-c      if (ntau .gt. 100) then
-c         write (array,1012)
-c         call prinfo (10)
-c         stop
-c      endif
+cc      read (nfmodel,2002) list
+cc      list2 = list(11:)
+cc      read (list2,*) ntau
+      if (ntau .gt. 100) then
+         if (debug .gt. 0) write (array,1012)
+cc         call prinfo (10)
+         stop
+      endif
 
-
-      wavref = 5000.0
-
-c      print *, "WERRRRRRR"
       if (modtype .eq. 'WEBMARCS') then
          do i=1,ntau
             tauref(i) = photospheric_structure(i, 1)
@@ -63,16 +59,10 @@ c      print *, "WERRRRRRR"
             ne(i) = photospheric_structure(i, 4)
             kaprefmass(i) = photospheric_structure(i, 5)
          enddo
+      else
+         write (*,1001)
+         stop
       endif
-c            rhox(i),t(i),pgas(i),ne(i),kaprefmass(i)
-      
-c      print *, "kaprefmas", rhox(1)
-
-c      print *, "t(:ntau)", t(:ntau)
-c         do i=1,ntau
-c            read (nfmodel,*) k, dummy1(k), tauref(i), dummy2(k), t(i),
-c     .                       ne(i), pgas(i)
-c         enddo
 
 
 c*****EITHER: Read in a model from the output of the experimental new
@@ -80,93 +70,91 @@ c     MARCS code.  This modtype is called "NEWMARCS".  On each line
 c     the numbers are:
 c     tau(5000), t, pe, pgas, rho,  model microtrubulent velocity,
 c     and mean opacity (cm^2/gm) at the reference wavelength (5000A).
-c      print *, "assuming WEBMARCS models for the moment"
-
-c      if (modtype .eq. 'NEWMARCS  ') then
-c         read (nfmodel,*) wavref    
-c         do i=1,ntau
-c            read (nfmodel,*) tauref(i),t(i),ne(i),pgas(i),rho(i),
-c     .                         vturb(1),kaprefmass(i)
-c         enddo
+cc      if (modtype .eq. 'NEWMARCS  ') then
+cc         read (nfmodel,*) wavref    
+cc         do i=1,ntau
+cc            read (nfmodel,*) tauref(i),t(i),ne(i),pgas(i),rho(i),
+cc     .                         vturb(1),kaprefmass(i)
+cc         enddo
 c*****OR: Read in a model from the output of the on-line new
 c     MARCS code.  This modtype is called "WEBMARCS".  On each line
 c     the numbers are:
 c     layer number (not needed), log{tau(Rosseland)} (not needed),
 c     log{tau(5000)}, depth, t, pe, pgas, prad (not read in) and
 c     pturb (not read in)
-c      elseif (modtype .eq. 'WEBMARCS') then
-c         read (nfmodel,*) wavref
-c         do i=1,ntau
-c            read (nfmodel,*) k, dummy1(k), tauref(i), dummy2(k), t(i),
-c     .                       ne(i), pgas(i)
-c         enddo
+cc      elseif (modtype .eq. 'WEBMARCS') then
+cc         read (nfmodel,*) wavref
+cc         do i=1,ntau
+cc            read (nfmodel,*) k, dummy1(k), tauref(i), dummy2(k), t(i),
+cc     .                       ne(i), pgas(i)
+cc         enddo
 c*****OR: Read in a model from an alternative form of on-line new
 c     MARCS code.  This modtype is called "WEB2MARC".  On each line
 c     the numbers are:
 c     atmospheric layer number (not needed), log{tau(5000)}, t, 
 c     log(Pe), log(Pgas), rhox
-c      elseif (modtype .eq. 'WEB2MARC') then
-c         read (nfmodel,*) wavref
-c         do i=1,ntau
-c            read (nfmodel,*) k,tauref(i),t(i),ne(i),pgas(i),rhox(i)
-c         enddo
+cc      elseif (modtype .eq. 'WEB2MARC') then
+cc         read (nfmodel,*) wavref
+cc         do i=1,ntau
+cc            read (nfmodel,*) k,tauref(i),t(i),ne(i),pgas(i),rhox(i)
+cc         enddo
 c     OR: Read in a model from the output of the ATLAS code.  This
 c     modtype is called "KURUCZ".  On each line the numbers are:
 c     rhox, t, pgas, ne, and Rosseland mean opacity (cm^2/gm), and
 c     two numbers not used by MOOG.  
-c      elseif (modtype .eq. 'KURUCZ    ') then
-c         do i=1,ntau
-c            read (nfmodel,*) rhox(i),t(i),pgas(i),ne(i),kaprefmass(i)
-c         enddo
+cc      elseif (modtype .eq. 'KURUCZ    ') then
+cc         do i=1,ntau
+cc            read (nfmodel,*) rhox(i),t(i),pgas(i),ne(i),kaprefmass(i)
+cc         enddo
 c     OR: Read in a model from the output of the NEXTGEN code.  This
 c     modtype is called "NEXTGEN".  These models have tau scaled at a 
 c     specific wavelength that is read in before the model. MOOG will 
 c     need to generate the opacities internally.On each line the numbers 
 c     are: tau, t, pgas, pe, density, mean molecular weight, two numbers
 c     not used by MOOG, and Rosseland mean opacity (cm^2/gm).
-c      elseif (modtype .eq. 'NEXTGEN   ') then
-c         read (nfmodel,*) wavref
-c         do i=1,ntau
-c            read (nfmodel,*) tauref(i),t(i),pgas(i),ne(i), rho(i),  
-c     .                       molweight(i), x2, x3, kaprefmass(i)
-c         enddo
+cc      elseif (modtype .eq. 'NEXTGEN   ') then
+cc         read (nfmodel,*) wavref
+cc         do i=1,ntau
+cc            read (nfmodel,*) tauref(i),t(i),pgas(i),ne(i), rho(i),  
+cc     .                       molweight(i), x2, x3, kaprefmass(i)
+cc         enddo
 c     OR: Read in a model from the output of the MARCS code.  This modtype
 c     type is called "BEGN".  On each line the numbers are:
 c     tauross, t, log(pg), log(pe), mol weight, and kappaross.
-c      elseif (modtype .eq. 'BEGN      ') then
-c         do i=1,ntau
-c            read (nfmodel,*) tauref(i),t(i),pgas(i),ne(i),
-c     .                          molweight(i),  kaprefmass(i)
-c         enddo
+cc      elseif (modtype .eq. 'BEGN      ') then
+cc         do i=1,ntau
+cc            read (nfmodel,*) tauref(i),t(i),pgas(i),ne(i),
+cc     .                          molweight(i),  kaprefmass(i)
+cc         enddo
 c     OR: Read in a model generated from ATLAS, but without accompanying
 c     opacities.  MOOG will need to generate the opacities internally,
 c     using a reference wavelength that it reads in before the model.
-c      elseif (modtype .eq. 'KURTYPE') then
-c         read (nfmodel,*) wavref    
-c         do i=1,ntau
-c            read (nfmodel,*) rhox(i),t(i),pgas(i),ne(i)
-c         enddo
+cc      elseif (modtype .eq. 'KURTYPE') then
+cc         read (nfmodel,*) wavref    
+cc         do i=1,ntau
+cc            read (nfmodel,*) rhox(i),t(i),pgas(i),ne(i)
+cc         enddo
 c     OR: Read in a model generated from ATLAS, with output generated
 c     in Padova.  The columns are in somewhat different order than normal
-c      elseif (modtype .eq. 'KUR-PADOVA') then
-c         read (nfmodel,*) wavref
-c         do i=1,ntau
-c            read (nfmodel,*) tauref(i),t(i),kaprefmass(i),
-c     .                         ne(i),pgas(i),rho(i)
-c         enddo
+cc      elseif (modtype .eq. 'KUR-PADOVA') then
+cc         read (nfmodel,*) wavref
+cc         do i=1,ntau
+cc            read (nfmodel,*) tauref(i),t(i),kaprefmass(i),
+cc     .                         ne(i),pgas(i),rho(i)
+cc         enddo
 c     OR: Read in a generic model that has a tau scale at a specific 
 c     wavelength that is read in before the model.  
 c     MOOG will need to generate the opacities internally.
-c      elseif (modtype .eq. 'GENERIC   ') then
-c         read (nfmodel,*) wavref    
-c         do i=1,ntau
-c            read (nfmodel,*) tauref(i),t(i),pgas(i),ne(i)
-c         enddo
+cc      elseif (modtype .eq. 'GENERIC   ') then
+cc         read (nfmodel,*) wavref    
+cc         do i=1,ntau
+cc            read (nfmodel,*) tauref(i),t(i),pgas(i),ne(i)
+cc         enddo
 c     OR: quit in utter confusion if those model types are not specified
-c      else
-c         write (*,1001)
-c         stop
-c      endif
+cc      else
+cc         write (*,1001)
+cc         stop
+cc      endif
 
 
 c*****Compute other convenient forms of the temperatures
@@ -211,65 +199,52 @@ c*****compute the atomic partition functions
 c*****Read the microturbulence (either a single value to apply to 
 c     all layers, or a value for each of the ntau layers). 
 c     Conversion to cm/sec from km/sec is done if needed
-c      print *, "single microturbulence value allowed", ntau, vturb_absolute
-      do i=1,ntau
-         vturb(i) = vturb_absolute
+cc      read (nfmodel,2003) (vturb(i),i=1,6)
+cc      if (vturb(2) .ne. 0.) then
+cc         read (nfmodel,2003) (vturb(i),i=7,ntau) 
+cc      else
+cc         do i=2,ntau                                                    
+cc            vturb(i) = vturb(1)
+cc         enddo
+cc      endif
+      do i=2,ntau
+         vturb(i) = vturb(1)
       enddo
 
-
-c      read (nfmodel,2003) (vturb(i),i=1,6)
-c      if (vturb(2) .ne. 0.) then
-c         read (nfmodel,2003) (vturb(i),i=7,ntau) 
-c      else
-c         do i=2,ntau                                                    
-c            vturb(i) = vturb(1)
-c         enddo
-c      endif
       if (vturb(1) .lt. 100.) then
-c         write (moditle(55:62),1008) vturb(1)
+         if (debug .gt. 0) write (moditle(55:62),1008) vturb(1)
          do i=1,ntau
             vturb(i) = 1.0e5*vturb(i)
          enddo
+      else
+         if (debug .gt. 0) write (moditle(55:62),1008) vturb(1)/1.0e5
       endif
-
-c      print *, "vturb at ", vturb(:ntau)
-c      else
-c         write (moditle(55:62),1008) vturb(1)/1.0e5
-c      endif
 
 
 c*****Read in the abundance data, storing the original abundances in xabu
 c*****The abundances not read in explicity are taken from the default
 c*****solar ones contained in array xsolar.
-c      read (nfmodel,2002) list
-c      list2 = list(11:)
-c      read (list2,*) natoms,abscale
-c      write (moditle(63:73),1009) abscale
-c      if(natoms .ne. 0) 
-c     .         read (nfmodel,*) (element(i),logepsilon(i),i=1,natoms) 
-      do i=1,natoms
-         element(i) = logepsilon_abundances(i, 1)
-         logepsilon(i) = logepsilon_abundances(i, 2)
-      enddo
+cc      read (nfmodel,2002) list
+cc      list2 = list(11:)
+cc      read (list2,*) natoms,abscale
+cc      write (moditle(63:73),1009) abscale
+cc      if(natoms .ne. 0) 
+cc     .         read (nfmodel,*) (element(i),logepsilon(i),i=1,natoms) 
+cc    (The element, logepsilon arrays are entered in MyAbfind now.)
 
       xhyd = 10.0**xsolar(1)
       xabund(1) = 1.0
       xabund(2) = 10.0**xsolar(2)/xhyd
-      do i=3,95                  
-c         print *, "solar", i, xsolar(i), abscale, xsolar(1)                  
-c         print *, "updating i with ", i, 10.0**(xsolar(i)+abscale)/xhyd
+      do i=3,95                                                      
          xabund(i) = 10.0**(xsolar(i)+abscale)/xhyd
          xabu(i) = xabund(i)
       enddo
       if (natoms .ne. 0) then
-         do i=1,natoms       
-c            print *, "doing more ", i, natoms, logepsilon(i)                                         
+         do i=1,natoms                                                  
             xabund(idint(element(i))) = 10.0**logepsilon(i)/xhyd
             xabu(idint(element(i))) = 10.0**logepsilon(i)/xhyd
          enddo
       endif
-
-c      print *, "calc molecular weight"
 
 c*****Compute the mean molecular weight, ignoring molecule formation
 c     in this approximation (maybe make more general some day?)
@@ -281,9 +256,9 @@ c     in this approximation (maybe make more general some day?)
       enddo
       wtmol = wtnum/(xam(1)*wtden)
       nomolweight = 0
-c      if (modtype .eq. 'BEGN      ' .or. modtype .eq. 'NEXTGEN   ') then
-c         nomolweight = 1
-c      endif
+cc      if (modtype .eq. 'BEGN      ' .or. modtype .eq. 'NEXTGEN   ') then
+cc         nomolweight = 1
+cc      endif
       if (nomolweight .ne. 1) then
          do i=1,ntau
              molweight(i) = wtmol
@@ -298,7 +273,6 @@ c*****Compute the density
       endif
 
 
-c      print *, "calculating density of hydrogen"
 c*****Calculate the fictitious number density of hydrogen
 c     Note:  ph = (-b1 + dsqrt(b1*b1 - 4.0*a1*c1))/(2.0*a1)
       iatom = 1
@@ -339,39 +313,39 @@ c*****Set up the default molecule list
             amol(i) = largemollist(i)
          enddo
       else
-c         array = 'molset = 0 or 1 only; I quit!'
-c         print *, "molset = 0 or 1 only; stahp"
-c         call putasci (29,6)
+         array = 'molset = 0 or 1 only; I quit!'
+         print *, array
+cc         call putasci (29,6)
          stop
       endif
 
 
 c*****Read in the names of additional molecules to be used in 
 c     molecular equilibrium if needed.
-c      read (nfmodel,2002,end=101) list
-c      list2 = list(11:)
-c      read (list2,*) moremol
-c      print *, "ignoring additional molecules", nmol, moremol, SUM(amol)
-c      print *, "SMALLMOLLIST SUM", SUM(smallmollist)
-c      if (moremol .ne. 0) then
-c         read (nfmodel,*) (bmol(i),i=1,moremol)
-c         append = 1
-c         do k=1,moremol
-c            do l=1,nmol
-c               if (nint(bmol(k)) .eq. nint(amol(l))) 
-c     .         append = 0  
-c            enddo
-c            if (append .eq. 1) then 
-c               nmol = nmol + 1
-c               amol(nmol) = bmol(k)
-c            endif
-c            append = 1
-c         enddo  
-c      endif
+      if (debug .gt. 0) print *, "IGNORING ATMOSPHERE MOLECULES"
+cc      read (nfmodel,2002,end=101) list
+cc      list2 = list(11:)
+cc      read (list2,*) moremol
+cc      if (moremol .ne. 0) then
+cc         read (nfmodel,*) (bmol(i),i=1,moremol)
+cc         append = 1
+cc         do k=1,moremol
+cc            do l=1,nmol
+cc               if (nint(bmol(k)) .eq. nint(amol(l))) 
+cc     .         append = 0  
+cc            enddo
+cc            if (append .eq. 1) then 
+cc               nmol = nmol + 1
+cc               amol(nmol) = bmol(k)
+cc            endif
+cc            append = 1
+cc         enddo  
+cc      endif
 
 
 c*****do the general molecular equilibrium
-101   call eqlib
+cc101   call eqlib
+      call eqlib
 
 
 c     In the number density array "numdens", the elements denoted by
@@ -380,7 +354,6 @@ c     lines; at present these are the only ones needed for continuous
 c     opacities
 c     
       do i=1,ntau
-c         print *, "SETTING NUMDENS(1,1,i) AS", numdens(1,1,i)
          numdens(1,1,i) = xamol(1,i)                                    H I
          numdens(1,2,i) = xmol(1,i)                                     H II
          numdens(2,1,i) = xamol(2,i)                                    He I
@@ -401,13 +374,15 @@ c         print *, "SETTING NUMDENS(1,1,i) AS", numdens(1,1,i)
 
 
 c*****SPECIAL NEEDS: for NEWMARCS models, to convert kaprefs to our units
-      if (modtype .eq. 'NEWMARCS  ') then
-         do i=1,ntau
-            kapref(i) = kaprefmass(i)*rho(i)
-         enddo
+cc      if (modtype .eq. 'NEWMARCS  ') then
+cc         do i=1,ntau
+cc            kapref(i) = kaprefmass(i)*rho(i)
+cc         enddo
 c     SPECIAL NEEDS: for KURUCZ models, to create the optical depth array,
 c     and to convert kaprefs to our units
-      elseif (modtype .eq. 'KURUCZ   ') then
+cc      elseif (modtype .eq. 'KURUCZ    ') then
+      if (modtype .eq. 'KURUCZ    ') then
+         if (debug .gt. 0) print *, "doing special needs"
          first = rhox(1)*kaprefmass(1)
          tottau = rinteg(rhox,kaprefmass,tauref,ntau,first) 
          tauref(1) = first
@@ -418,45 +393,39 @@ c     and to convert kaprefs to our units
             kapref(i) = kaprefmass(i)*rho(i)
          enddo
 c     SPECIAL NEEDS: for NEXTGEN models, to convert kaprefs to our units
-      elseif (modtype .eq. 'NEXTGEN   ') then
-         do i=1,ntau                                                    
-            kapref(i) = kaprefmass(i)*rho(i)
-         enddo
+cc      elseif (modtype .eq. 'NEXTGEN   ') then
+cc         do i=1,ntau                                                    
+cc            kapref(i) = kaprefmass(i)*rho(i)
+cc         enddo
 c     SPECIAL NEEDS: for BEGN models, to convert kaprefs to our units
-      elseif (modtype .eq. 'BEGN      ') then
-         do i=1,ntau                                                    
-            kapref(i) = kaprefmass(i)*rho(i)
-         enddo
+cc      elseif (modtype .eq. 'BEGN      ') then
+cc         do i=1,ntau                                                    
+cc            kapref(i) = kaprefmass(i)*rho(i)
+cc         enddo
 c     SPECIAL NEEDS: for KURTYPE models, to create internal kaprefs,
 c     and to compute taurefs from the kaprefs converted to mass units
-      elseif (modtype .eq. 'KURTYPE   ') then
-         call opacit (1,wavref)
-         do i=1,ntau                                                    
-            kaprefmass(i) = kapref(i)/rho(i)
-         enddo
-         first = rhox(1)*kaprefmass(1)
-         tottau = rinteg(rhox,kaprefmass,tauref,ntau,first) 
-         tauref(1) = first
-         do i=2,ntau
-            tauref(i) = tauref(i-1) + tauref(i)
-         enddo
+cc      elseif (modtype .eq. 'KURTYPE   ') then
+cc         call opacit (1,wavref)
+cc         do i=1,ntau                                                    
+cc            kaprefmass(i) = kapref(i)/rho(i)
+cc         enddo
+cc         first = rhox(1)*kaprefmass(1)
+cc         tottau = rinteg(rhox,kaprefmass,tauref,ntau,first) 
+cc         tauref(1) = first
+cc         do i=2,ntau
+cc            tauref(i) = tauref(i-1) + tauref(i)
+cc         enddo
 c     SPECIAL NEEDS: for NEWMARCS models, to convert kaprefs to our units
-      elseif (modtype .eq. 'KUR-PADOVA') then
-         do i=1,ntau
-            kapref(i) = kaprefmass(i)*rho(i)
-         enddo
-      else
-         first = 0.0
-         tottau = 0.0
-         kaprefmass(:) = 0.0
-         call opacit(1, wavref)
-      endif
-
+cc      elseif (modtype .eq. 'KUR-PADOVA') then
+cc         do i=1,ntau
+cc            kapref(i) = kaprefmass(i)*rho(i)
+cc         enddo
 c     SPECIAL NEEDS: for generic models, to create internal kaprefs,
-c      elseif (modtype .eq. 'GENERIC   ' .or.
-c     .        modtype .eq. 'WEBMARCS  ' .or.
-c     .        modtype .eq. 'WEB2MARC  ') then
-c         call opacit (1,wavref)
+      elseif (modtype .eq. 'GENERIC   ' .or.
+     .        modtype .eq. 'WEBMARCS  ' .or.
+     .        modtype .eq. 'WEB2MARC  ') then
+         call opacit (1,wavref)
+      endif
 
 
 c*****Convert from logarithmic optical depth scales, or vice versa.
@@ -472,27 +441,25 @@ c     xref will contain the log of the tauref
          enddo
       endif
 
-c      print *, "xref", xref(1), tauref(1)
 
 c*****Write information to output files
-c      if (modprintopt .lt. 1) return
-c      write (nf1out,1002) moditle
-c      do i=1,ntau
-c         dummy1(i) = dlog10(pgas(i))
-c         dummy2(i) = dlog10(ne(i)*1.38054d-16*t(i))
-c      enddo
-      if (debug .eq. 1) then
-         write (nf1out,1003) wavref,(i,xref(i),tauref(i),t(i),dummy1(i),
+      if (modprintopt .lt. 1 .or. debug .lt. 1) return
+      write (nf1out,1002) moditle
+      do i=1,ntau
+         dummy1(i) = dlog10(pgas(i))
+         dummy2(i) = dlog10(ne(i)*1.38054d-16*t(i))
+      enddo
+      write (nf1out,1003) wavref,(i,xref(i),tauref(i),t(i),dummy1(i),
      .                    pgas(i),dummy2(i),ne(i),vturb(i),i=1,ntau)
-      endif
-c      write (nf1out,1004)
-c      do i=1,95
-c         dummy1(i) = dlog10(xabund(i)) + 12.0
-c      enddo
-c      write (nf1out,1005) (names(i),i,dummy1(i),i=1,95)
-c      write (nf1out,1006) modprintopt, molopt, linprintopt, fluxintopt
-c      write (nf1out,1007) (kapref(i),i=1,ntau)
+      write (nf1out,1004)
+      do i=1,95
+         dummy1(i) = dlog10(xabund(i)) + 12.0
+      enddo
+      write (nf1out,1005) (names(i),i,dummy1(i),i=1,95)
+      write (nf1out,1006) modprintopt, molopt, linprintopt, fluxintopt
+      write (nf1out,1007) (kapref(i),i=1,ntau)
       return
+
 
 c*****format statements
 2001  format (a10)
@@ -525,5 +492,4 @@ c*****format statements
 
 
       end
-
 

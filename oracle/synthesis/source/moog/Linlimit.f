@@ -10,7 +10,6 @@ c******************************************************************************
       include 'Linex.com'
       include 'Pstuff.com'
 
-c      print *, "called linlimit"
 
       lineflag = 0
 c*****for single-line computations, the line rage is the whole line set;
@@ -62,17 +61,14 @@ c     linelist limits, the synthesis aborts with a message;
       elseif (mode .eq. 3) then
          wavelo = wave - delta
          wavehi = wave + delta
-c         print *, "wavelo/hi", wavelo, wavehi, delta, wave1(1),
-c     .      wave1(nlines)
-c         print *, "wavelo, wavehi", wave, wavelo, wavehi
 c        requested synthesis too far from linelist limits
-         if (wavehi .lt. wave1(1)-10.0) then
-            write (*,1004)
-c            stop
+         if     (wavehi .lt. wave1(1)-10.0) then
+            if (debug .gt. 0.0) write (*,1004)
+            stop
          elseif (wavelo .gt. wave1(nlines)+10.0 .and.
      .           nlines+nstrong .lt. 2500) then
-            write (*,1005)
-c            stop
+            if (debug .gt. 0.0) write (*,1005)
+            stop
          endif
 c        blank synthesis at start or end of requested wavelength range
          if     (wavehi .lt. wave1(1)) then
@@ -122,12 +118,13 @@ c     lines in a particular blend
       elseif (mode .eq. 4) then
          if (lim1line .eq. 0) lim1line = 1
          if (group(lim1line) .ne. 0.) then
-c            write (array,1001)
+            if (debug .gt. 0.0) then
+              write (array,1001)
+              write (array,1002)
+            endif
 c            call prinfo (10)
-c            write (array,1002)
 c            call prinfo (11)
-            print *, "stahpping"
-c            stop
+            stop
          endif
          if (lim1line .eq. nlines) then
             lim2line = lim1line
@@ -142,10 +139,9 @@ c            stop
          endif
          return
       else
-c         write (array,1003) mode
+         if (debug .gt. 0.0) write (array,1003) mode
 c         call prinfo (10)
-         print *, "staaaaahpping"
-c         stop
+         stop
       endif
 
 

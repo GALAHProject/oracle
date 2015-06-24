@@ -8,6 +8,7 @@ c     "kapnu0" are often over-written with plotting data,
 c     so leave them alone or suffer unspeakable programming tortures.
 c******************************************************************************
 
+      real*8       element(95), logepsilon(95)
       real*8       a(2500,100), dopp(2500,100), kapnu0(2500,100)
       real*8       gf(2500), wave1(2500), atom1(2500), e(2500,2),
      .             chi(2500,3), amass(2500), charge(2500), d0(2500),
@@ -28,11 +29,11 @@ c******************************************************************************
      .             lim1, lim2, mode, nlines, nstrong, ndepths, ncurve,
      .             lim1line, lim2line, n1marker, ntabtot, 
      .             iabatom, iaa, ibb,
-     .             nlines_absolute, nstrong_absolute,
      .             nkount
       character*7  damptype(2500)
 
-      common/linex/a, dopp, kapnu0,   
+      common/linex/a, dopp, kapnu0, 
+     .             element, logepsilon,   
      .             gf, wave1, atom1, e,
      .             chi, amass, charge, d0,
      .             dampnum, gf1, width, 
@@ -51,7 +52,6 @@ c******************************************************************************
      .             lim1, lim2, mode, nlines, nstrong, ndepths, ncurve,
      .             lim1line, lim2line, n1marker, ntabtot,
      .             iabatom, iaa, ibb,
-     .             nlines_absolute, nstrong_absolute,
      .             nkount, computed_wls, computed_fluxes
       common/lindamp/damptype
 
