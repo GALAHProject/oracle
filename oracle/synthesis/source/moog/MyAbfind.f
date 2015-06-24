@@ -19,8 +19,11 @@
    
       include 'Atmos.com'
       include 'Linex.com'
-cc      include 'Mol.com'
+      include 'Dummy.com'
+      include 'Mol.com'
       include 'Pstuff.com'
+      include 'Dampdat.com'
+
 cc      include 'Factor.com' 
 
 
@@ -30,9 +33,9 @@ c     Params crap. Can probably be removed eventually.
       nfslines = 0
       nfobs =    0
       nftable =  0
-      modprintopt  = 1
-      molopt       = 1
-      linprintopt  = 1
+      modprintopt  = 2
+      molopt       = 2
+      linprintopt  = 2
       fluxintopt   = 0
       plotopt      = 0
       dampingopt   = 1
@@ -51,6 +54,11 @@ c     Params crap. Can probably be removed eventually.
       dostrong     = 0
       fudge = -1.0
 
+
+      dummy1(:) = 0.
+      dummy2(:) = 0.
+      dummy3(:) = 0.
+      dummy4(:) = 0.
 
 
 
@@ -116,7 +124,6 @@ c     Params crap. Can probably be removed eventually.
 
 
 c     fails after this.
-cc      molset       = 1
 cc      pmol(:) = 0.0
 cc      xmol(:,:) = 0.0
 cc      xamol(:,:) = 0.0
@@ -127,6 +134,7 @@ cc      smallmollist(:) = 0.0
 cc      largemollist(:) = 0.0
 cc      datmol(:,:) = 0.0
 cc      const(:,:) = 0.0
+
 
 
 
@@ -173,6 +181,34 @@ c      isotope(:) = 0.0
 c      newisotope(:) = 0.0
 c      isoabund(:,:) = 0.0
 c      newisoabund(:,:) = 0.0
+
+c*****open data files carried with the source code: Barklem UV damping
+c      nfbarklem = 35
+c      num = 60
+c      call getcount (num,moogpath)
+c      if (moogpath(num:num) .ne. '/') then
+c         num = num + 1
+c         moogpath(num:num) = '/'
+c      endif
+c      fbarklem(1:num) = moogpath(1:num)
+c      fbarklem(num+1:num+11) = 'Barklem.dat'
+      nfbarklem = 35
+      open (nfbarklem,file="/Users/arc/Barklem.dat")
+
+ 
+c      nfbarklemUV = 36
+c      num = 60
+c      call getcount (num,moogpath)
+c      if (moogpath(num:num) .ne. '/') then
+c         num = num + 1
+c         moogpath(num:num) = '/'
+c      endif
+c      fbarklemUV(1:num) = moogpath(1:num)
+c      fbarklemUV(num+1:num+13) = 'BarklemUV.dat'
+      nfbarklemUV = 36
+      open (nfbarklemUV,file="/Users/arc/BarklemUV.dat")
+
+
 
 
 c     Pass information to the global variables

@@ -151,7 +151,8 @@ c*****finish the calculation
          gflog = dlog10(gf1(ncurve))
          rwlog = dlog10(w(ncurve)/wave1(lim1))
          if (debug .gt. 0) 
-     .     write (nf1out,1009) wave1(lim1), ew, rwlog, gf1(ncurve), gflog
+     .     write (nf1out,1009) wave1(lim1), ew, rwlog, gf1(ncurve),
+     .        gflog
       endif
       return                                                            
 
