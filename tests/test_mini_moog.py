@@ -17,6 +17,9 @@ line_list_filename = "18sco-line-abundances.txt"
 
 
 def test_18sco(start=0, N=None, debug=True):
+    """
+    Make sure we get the same abundances as the compiled MOOG version for 18Sco.
+    """
 
     line_list = np.core.records.fromarrays(np.loadtxt(line_list_filename,
         usecols=(0, 1, 2, 3, 4)).T, names=("wavelength", "species", 
@@ -42,3 +45,25 @@ def test_18sco(start=0, N=None, debug=True):
             np.mean(differences), np.median(differences),
             np.std(differences), np.abs(differences).max()))
     assert np.all(np.abs(differences) < 0.005)
+
+
+def test_repeated_moog_calls(debug=False, rtol=1e-05, atol=1e-08):
+    """
+    Make the same MOOG call 100 times and make sure that we get the exact
+    same abundances each time.
+    """
+
+    line_list = np.core.records.fromarrays(np.loadtxt(line_list_filename,
+        usecols=(0, 1, 2, 3, 4)).T, names=("wavelength", "species", 
+        "excitation_potential", "loggf", "equivalent_width"))
+
+    first_abundances = oracle.synthesis.moog.atomic_abundances(
+        line_list, [5810, 4.44, 0.03], microturbulence=1.07,
+        photosphere_kwargs={"kind": "MARCS"}, debug=debug)
+
+    for i in range(100):
+        nth_abundances = oracle.synthesis.moog.atomic_abundances(
+            line_list, [5810, 4.44, 0.03], microturbulence=1.07,
+            photosphere_kwargs={"kind": "MARCS"}, debug=debug)
+
+        assert np.allclose(first_abundances, nth_abundances, rtol, atol)
