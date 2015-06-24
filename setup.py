@@ -47,23 +47,24 @@ if not os.path.exists(data_path):
     os.mkdir(data_path)
 
 # Copy the Barklem files over.
-shutil.copyfile("oracle/synthesis/source/moog/Barklem.dat",
-    os.path.join(data_path, "Barklem.dat"))
-shutil.copyfile("oracle/synthesis/source/moog/BarklemUV.dat",
-    os.path.join(data_path, "BarklemUV.dat"))
+shutil.copyfile(os.path.abspath("oracle/synthesis/source/moog/Barklem.dat"),
+    os.path.abspath(os.path.join(data_path, "Barklem.dat")))
+shutil.copyfile(os.path.abspath("oracle/synthesis/source/moog/BarklemUV.dat"),
+    os.path.abspath(os.path.join(data_path, "BarklemUV.dat")))
 
 filenames = ["MyAbfind.f"]
 for filename in filenames:
 
     # Create a backup of the functional driver file.
-    shutil.copyfile("oracle/synthesis/source/moog/{}".format(filename),
-        "oracle/synthesis/source/moog/{}.backup".format(filename))
+    shutil.copyfile(
+        os.path.abspath("oracle/synthesis/source/moog/{}".format(filename)),
+        os.path.abspath("oracle/synthesis/source/moog/{}.backup".format(filename)))
 
     # Update the file with the hard-coded path.
-    with open("oracle/synthesis/source/moog/{}".format(filename), "r") as fp:
+    with open(os.path.abspath("oracle/synthesis/source/moog/{}".format(filename)), "r") as fp:
         contents = fp.read()
 
-    with open("oracle/synthesis/source/moog/{}".format(filename), "w+") as fp:
+    with open(os.path.abspath("oracle/synthesis/source/moog/{}".format(filename)), "w+") as fp:
         fp.write(contents.replace("$DATA_DIR", data_path))
 
 
@@ -151,15 +152,15 @@ try:
     # Replace the backup Fortran files.
     for filename in filenames:
         shutil.copyfile(
-            "oracle/synthesis/source/moog/{}.backup".format(filename),
-            "oracle/synthesis/source/moog/{}".format(filename))
-        os.remove("oracle/synthesis/source/moog/{}.backup".format(filename))
+            os.path.abspath("oracle/synthesis/source/moog/{}.backup".format(filename)),
+            os.path.abspath("oracle/synthesis/source/moog/{}".format(filename)))
+        os.remove(os.path.abspath("oracle/synthesis/source/moog/{}.backup".format(filename)))
 
 except:
     # Replace the backup Fortran files.
     for filename in filenames:
         shutil.copyfile(
-            "oracle/synthesis/source/moog/{}.backup".format(filename),
-            "oracle/synthesis/source/moog/{}".format(filename))
-        os.remove("oracle/synthesis/source/moog/{}.backup".format(filename))
+            os.path.abspath("oracle/synthesis/source/moog/{}.backup".format(filename)),
+            os.path.abspath("oracle/synthesis/source/moog/{}".format(filename)))
+        os.remove(os.path.abspath("oracle/synthesis/source/moog/{}.backup".format(filename)))
     raise
