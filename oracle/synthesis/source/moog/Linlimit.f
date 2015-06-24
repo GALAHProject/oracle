@@ -10,8 +10,6 @@ c******************************************************************************
       include 'Linex.com'
       include 'Pstuff.com'
 
-      print *, "nlines/mode in Linlimit is ", nlines, mode
-
       lineflag = 0
 c*****for single-line computations, the line rage is the whole line set;
 c     this will be called from "ewfind"

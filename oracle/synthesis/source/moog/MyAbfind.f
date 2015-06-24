@@ -19,7 +19,7 @@
    
       include 'Atmos.com'
       include 'Linex.com'
-      include 'Mol.com'
+cc      include 'Mol.com'
       include 'Pstuff.com'
 cc      include 'Factor.com' 
 
@@ -49,7 +49,6 @@ c     Params crap. Can probably be removed eventually.
       gfstyle      = 0
       maxshift     = 0
       dostrong     = 0
-      molset       = 1
       fudge = -1.0
 
 
@@ -117,16 +116,17 @@ c     Params crap. Can probably be removed eventually.
 
 
 c     fails after this.
-      pmol(:) = 0.0
-      xmol(:,:) = 0.0
-      xamol(:,:) = 0.0
-      xatom(:) = 0.0
-      patom(:) = 0.0
-      amol(:) = 0.0
-      smallmollist(:) = 0.0
-      largemollist(:) = 0.0
-      datmol(:,:) = 0.0
-      const(:,:) = 0.0
+cc      molset       = 1
+cc      pmol(:) = 0.0
+cc      xmol(:,:) = 0.0
+cc      xamol(:,:) = 0.0
+cc      xatom(:) = 0.0
+cc      patom(:) = 0.0
+cc      amol(:) = 0.0
+cc      smallmollist(:) = 0.0
+cc      largemollist(:) = 0.0
+cc      datmol(:,:) = 0.0
+cc      const(:,:) = 0.0
 
 
 

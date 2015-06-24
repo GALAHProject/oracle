@@ -133,6 +133,7 @@ C  Bell and Berrington (1987, J.Phys.B, 20, 801-806)
       data (xhmin(i),i=1,100)/100*0.0/
       data modcount,istart/ 0,0/
          
+      if (debug .gt. 0) print *, "istart in OpacHydrogen/opacHminus", istart
 c  fill some arrays once and for all
       if (istart .eq. 0) then
          istart = 1
@@ -161,7 +162,11 @@ c  main opacity computation yielding "aHminus"
       do itheta=1,11
          call linter (wfflog,fflog(1,itheta),22,wavelog,fftlog,1)
          fftt(itheta) = dexp(fftlog)/thetaff(itheta)*5040.*1.380658E-16
+         if (debug .gt. 0) 
+     .      print *, "freq/thetaff", freq, dexp(fftlog), thetaff(itheta)
       enddo
+      
+
       hminbf = 0.
       if (freq  .gt.  1.82365d14) 
      .              maxwave = map1(wbf,bf,85,wave,hminbf,1) 
