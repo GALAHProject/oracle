@@ -37,7 +37,7 @@ class Model(object):
         }
     }
 
-    def __init__(self, configuration, validate=True):
+    def __init__(self, configuration=None, validate=True):
         """
         A general class to probabilistically model stellar spectra.
 
@@ -50,6 +50,9 @@ class Model(object):
         :type configuration:
             str or dict
         """
+
+        if configuration is None:
+            configuration = {}
 
         if isinstance(configuration, dict):
             self.config = utils.update_recursively(self._default_config,
