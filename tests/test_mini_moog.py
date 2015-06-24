@@ -16,17 +16,17 @@ import oracle
 line_list_filename = "18sco-line-abundances.txt"
 
 
-def test_18sco():
+def test_18sco(N=None):
 
     line_list = np.core.records.fromarrays(np.loadtxt(line_list_filename,
         usecols=(0, 1, 2, 3, 4)).T, names=("wavelength", "species", 
-        "excitation_potential", "loggf", "equivalent_width"))
+        "excitation_potential", "loggf", "equivalent_width"))[:N]
 
-    compiled_moog_abundances = np.loadtxt(line_list_filename, usecols=(6, ))
+    compiled_moog_abundances = np.loadtxt(line_list_filename, usecols=(6, ))[:N]
 
-    mini_moog_abundances = oracle.synthesis.moog.atomic_abundances(line_list,
-        [5810, 4.44, 0.03], microturbulence=1.07, photosphere_kwargs={
-            "kind": "MARCS"})
+    mini_moog_abundances = oracle.synthesis.moog.atomic_abundances(
+        line_list, [5810, 4.44, 0.03], microturbulence=1.07,
+        photosphere_kwargs={"kind": "MARCS"}, debug=True)
 
     differences = mini_moog_abundances - compiled_moog_abundances
     print("Summary of differences (mean/median/std. dev./|max|): "
