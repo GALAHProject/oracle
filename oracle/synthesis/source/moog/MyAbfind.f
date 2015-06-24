@@ -188,7 +188,7 @@ c     Pass information to the global variables
       abscale = in_metallicity
       
       nstrong = 0
-      nlines = in_nlines
+      nlines = 0 + int(in_nlines)
       
 
       control = 'abfind  '
@@ -229,8 +229,13 @@ c     table, read the linelist, etc.
 c      print *, "doing fake line", nlines
 c      print *, "vturb", vturb(:ntau)
 
+
+      mode = 0
 100   call fakeline
-      call inlines (1)
+
+      nstrong = 0
+      nlines = 0 + int(in_nlines)
+      call inlines (1) 
       call eqlib
       call nearly (1)
  
@@ -239,7 +244,7 @@ c*****set some parameters
       mode = 2
       cogatom = 0.
       lim1line = 0
-
+ 
 
 c*****find the range of lines of a species
 5     call linlimit
@@ -334,9 +339,10 @@ c            lim2obs = 0
 c            go to 102
 c         endif
 c      endif
-
+   
+      if (debug .gt. 0) print *, "abundances", abundout(1:10)
       output = abundout(1:nlines)
- 
+       
       choice = 'y'
       nchars = 0
 c*****quit, or go on to another species?

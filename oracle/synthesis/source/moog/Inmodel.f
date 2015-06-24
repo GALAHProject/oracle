@@ -442,6 +442,9 @@ c     xref will contain the log of the tauref
       endif
 
 
+      if (debug .gt. 0) print *, "nlines in Inmodel is ", nlines
+
+
 c*****Write information to output files
       if (modprintopt .lt. 1 .or. debug .lt. 1) return
       write (nf1out,1002) moditle

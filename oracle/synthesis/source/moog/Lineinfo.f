@@ -22,6 +22,7 @@ c******************************************************************************
       data ifresh /0/
       data ion/' I  ', ' II ', ' III'/
 
+      if (debug .gt. 0) print *, "nlines in LineInfo is ", nlines
 
       go to (1,2,3), number
 
