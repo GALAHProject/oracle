@@ -9,6 +9,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import logging
 import numpy as np
+from time import time
 from scipy import stats, sparse, ndimage, optimize as op
 from astropy import (modeling, table, units as u)
 
@@ -193,7 +194,7 @@ class EqualibriaModel(Model):
 
     def estimate_stellar_parameters(self, spectra=None, transitions=None,
         initial_theta=None, transition_solver=None, sigma_clip=2.0, clips=1,
-        fixed=None, **kwargs):
+        fixed=None, full_output=False, **kwargs):
         """
         Can provide either data=[spectra] or measured atomic transitions
         """
@@ -302,10 +303,10 @@ class EqualibriaModel(Model):
         op_fmin_kwds.update(kwargs.pop("op_fmin_kwargs", {}))
         op_fmin_kwds["full_output"] = True
 
-        iteration = 0
+        iteration, t_init = 0, time()
         
         while True:
-            x, info_dict, ier, msg = op.fsolve(
+            x, info_dict, ier, mesg = op.fsolve(
                 objective_function, initial_theta, **op_fsolve_kwds)
 
             # If the fsolve optimisation fails, we should try again.
@@ -313,7 +314,7 @@ class EqualibriaModel(Model):
                 logger.warn(
                     "Initial optimisation failed with the message below. Now "\
                     "attempting a dumber, more robust optimisation. Error: {}"\
-                    .format(msg))
+                    .format(mesg))
 
                 y = lambda x, **k: (objective_function(x, **k)**2).sum()
                 x, fopt, n_iter, funcalls, warnflag = op.fmin(y, x, 
@@ -326,6 +327,7 @@ class EqualibriaModel(Model):
                 else:
                     logger.info("Nelder-Mead optimisation completed successfully")
             else:
+                fopt, n_iter, funcalls, warnflag = np.nan, 0, 0, -1
                 logger.info("fsolve optimisation completed successfully")
 
             # Update the number of iterations.
@@ -355,35 +357,59 @@ class EqualibriaModel(Model):
                 # Update the initial theta with the optimised result.
                 initial_theta = x.copy()
 
+                if not np.any(outlier):
+                    logger.info("Optimisation complete.")
+                    break
+
             else:
                 logger.info("Optimisation complete.")
                 break
 
+        optimisation_info = {
+            "fsolve": {
+                "nfev": info_dict["nfev"],
+                "njev": info_dict["njev"],
+                "fvec": info_dict["fvec"],
+                "fjac": info_dict["fjac"],
+                "r":    info_dict["r"],
+                "qtf":  info_dict["qtf"],
+                "ier":  ier,
+                "mesg": mesg,
+                "kwds": op_fsolve_kwds
+            },
+            "fmin": {
+                "fopt": fopt,
+                "niter": n_iter,
+                "funcalls": funcalls,
+                "warnflag": warnflag,
+                "kwds": op_fmin_kwds
+            },
+            "clipping_iterations": iteration,
+            "time_taken": time() - t_init
+        }
+
         # Note, remember final_abundances will have size of sum(acceptable) !!
         final_state, final_abundances, info = objective_function(x, True)
 
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots(2)
+        # Create an abundance *table*
+        all_abundances = np.nan * np.ones(len(transitions))
+        all_abundances[acceptable] = final_abundances
 
-        ionised = (transitions["species"][acceptable] % 1 > 0.05)
+        results_table = table.Table(transitions.copy())
+        results_table.add_column(table.Column(
+            name="log_eps", data=np.round(all_abundances, 3)))
+        results_table.add_column(table.Column(
+            name="outlier", data=~acceptable, dtype=bool))
 
-        ax[0].scatter(transitions["excitation_potential"][acceptable][ionised], final_abundances[ionised])
+        if full_output:
+            sampled_theta = np.array(sampled_theta)
+            sampled_state_sums = np.array(sampled_state_sums)
 
-        ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"])[acceptable][ionised],
-            final_abundances[ionised])
+            return (x, results_table, final_state, sampled_theta,
+                sampled_state_sums, optimisation_info)
 
-        ax[0].scatter(transitions["excitation_potential"][acceptable][~ionised], final_abundances[~ionised],
-            facecolor="r")
-        ax[1].scatter(np.log(transitions["equivalent_width"]/transitions["wavelength"])[acceptable][~ionised],
-            final_abundances[~ionised], facecolor="r")
+        return (x, results_table, final_state)
 
-        fig, ax = plt.subplots(1)
-
-        sampled_theta = np.array(sampled_theta)
-        ax.scatter(sampled_theta[:,0], sampled_theta[:,2], c=sampled_state_sums)
-
-
-        raise a
 
 
     def estimate_stellar_parameters_old(self, data, initial_theta=None,
