@@ -193,7 +193,7 @@ c      endif
 c      fbarklem(1:num) = moogpath(1:num)
 c      fbarklem(num+1:num+11) = 'Barklem.dat'
       nfbarklem = 35
-      open (nfbarklem,file="/Users/arc/Barklem.dat")
+      open (nfbarklem,file="$DATA_DIR/Barklem.dat")
 
  
 c      nfbarklemUV = 36
@@ -206,7 +206,7 @@ c      endif
 c      fbarklemUV(1:num) = moogpath(1:num)
 c      fbarklemUV(num+1:num+13) = 'BarklemUV.dat'
       nfbarklemUV = 36
-      open (nfbarklemUV,file="/Users/arc/BarklemUV.dat")
+      open (nfbarklemUV,file="$DATA_DIR/BarklemUV.dat")
 
 
 
