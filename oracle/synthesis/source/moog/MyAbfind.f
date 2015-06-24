@@ -15,8 +15,7 @@
       integer, optional :: in_debug
 
       real*8, dimension(in_nlines), intent(out) :: output
-
-   
+  
       include 'Atmos.com'
       include 'Linex.com'
       include 'Dummy.com'

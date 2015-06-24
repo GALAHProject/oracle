@@ -14,7 +14,14 @@ import numpy as np
 from astropy.table import Table
 
 import oracle.atmospheres
+
+class MOOGException(Exception):
+    def __call__(self, status="MOOG fell over unexpectedly"):
+        raise self.__class__(status)
+
 from . import _mini_moog as moog
+moog.f2pystop = MOOGException()
+
 
 logger = logging.getLogger("oracle")
 
