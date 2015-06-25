@@ -26,11 +26,16 @@ class Converged(BaseException):
 
 def equalibrium_state(transitions, log_eps, metallicity,
     excitation_regression_species=None, ionisation_state_species=None,
-    abundance_state_species=None, rew_regression_species=None):
+    abundance_state_species=None, rew_regression_species=None,
+    relative_weighting_behaviour="total"):
     """
     Calculate the equalibrium state for the atomic transitions and abundances
     provided.
     """
+
+    if relative_weighting_behaviour not in ("num_neutral", "num_ionised",
+        "total", "minimum_species"):
+        raise ValueError("relative weighting behaviour not known")
 
     finite = np.isfinite(log_eps)
 
@@ -88,7 +93,8 @@ def equalibrium_state(transitions, log_eps, metallicity,
     elements = set(map(int, species))   
     multiple_ionising_elements = len(elements) > 1 
     if multiple_ionising_elements:
-        logger.debug("Calculating relative weight for ionisation state.")
+        logger.debug("Calculating relative weight for ionisation state using {}"
+            " number of lines.".format(relative_weighting_behaviour))
 
     relative_weights = np.zeros(len(elements))
     element_ionisation_state = np.zeros(len(elements))
@@ -98,21 +104,41 @@ def equalibrium_state(transitions, log_eps, metallicity,
         ionised_log_eps, ionised_N = species_abundances.get(
             float(element) + 0.1, (np.nan, 0))
 
-        # Weight by the least number of lines (e.g., either ionised or neutral).
-        relative_weights[i] = min([neutral_N, ionised_N])
         element_ionisation_state[i] = neutral_log_eps - ionised_log_eps
 
         if multiple_ionising_elements:
-            logger.debug("Ionisation state of {0} is {1:.3f} dex ({2} neutral "\
-                "{3} ionised lines)".format(element, element_ionisation_state[i],
-                neutral_N, ionised_N))
+            logger.debug("Ionisation state of {0} is {1:.3f} dex ({2} neutral,"\
+                " {3} ionised lines)".format(
+                    element, element_ionisation_state[i], neutral_N, ionised_N))
 
-    relative_weights /= relative_weights.sum()
+        if neutral_N == 0 or ionised_N == 0:
+            # Relative weights default to zero.
+            logger.info("Skipping element {} because of missing lines".format(
+                element))
+            continue
+
+        if relative_weighting_behaviour == "minimum_species":
+            # Weight by the least number of lines present in either species.
+            relative_weights[i] = min([neutral_N, ionised_N])
+
+        elif relative_weighting_behaviour == "num_ionised":
+            # Weight by the number of ionised lines present.
+            relative_weights[i] = ionised_N
+
+        elif relative_weighting_behaviour == "num_neutral":
+            # Weight by the number of neutral lines present.
+            relative_weights[i] = neutral_N
+
+        elif relative_weighting_behaviour == "total":
+            # Weight by the total number of lines present.
+            relative_weights[i] = neutral_N + ionised_N
+
     ionisation_state = (element_ionisation_state * relative_weights).sum() \
-        / len(elements)
+        / relative_weights.sum()
     if multiple_ionising_elements:
         logger.debug("Final ionisation state is {0:.3f} dex (neutral-ionised)"\
             .format(ionisation_state))
+
 
     # Calculate the final state.
     state = np.array([
@@ -199,7 +225,7 @@ class EqualibriaModel(Model):
 
     def estimate_stellar_parameters(self, spectra=None, transitions=None,
         initial_theta=None, transition_solver=None, sigma_clip=2.0, clips=1,
-        state_tolerance=1e-8, fixed=None, full_output=False, **kwargs):
+        state_tolerance=1e-8, parameter_limits=None, fixed=None, full_output=False, **kwargs):
         """
         Can provide either data=[spectra] or measured atomic transitions
         """
@@ -231,7 +257,14 @@ class EqualibriaModel(Model):
             # original:
             initial_theta = [4500, 1.5, 2.0, -1.5]
             initial_theta = [5750, 1.0, 4.5, 0.]
-            
+        
+        if parameter_limits is None:
+            parameter_limits = {
+                "effective_temperature": [3000, 8000],
+                "surface_gravity": [0, 5],
+                "xi": [0, 5],
+                "metallicity": [-5, 0.5]
+            }
         debug = kwargs.pop("debug", False)
         equalibrium_state_kwds = kwargs.pop("equalibrium_state", {})
 
@@ -245,20 +278,34 @@ class EqualibriaModel(Model):
 
             global acceptable, sampled_theta, sampled_state_sums
 
-            logger.debug("Stellar parameters: {}".format(theta))
+            # Total disaster recovery:
+            if (len(sampled_state_sums) > 100 \
+                and not np.any(np.isfinite(sampled_state_sums[-100:]))):
+                raise ValueError("last hundred sampled thetas returned NaNs")
 
-            _exception_response = np.nan * np.ones(len(theta))
-            _exception_full_response = (_exception_response,
-                np.nan * acceptable.sum(), {})
+            def invalid_value():
+                _exception_response = np.nan * np.ones(len(theta))
+                _exception_full_response = (_exception_response,
+                    np.nan * acceptable.sum(), {})
+                sampled_theta.append(theta)
+                sampled_state_sums.append(np.nan)
 
-            #effective_temperature, surface_gravity, metallicity, xi = theta
-            effective_temperature, xi, surface_gravity, metallicity =  theta
-
-            if np.any(~np.isfinite(theta)) \
-            or not (8000 >= effective_temperature >= 3000) \
-            or 0 > xi:
                 return _exception_full_response \
-                    if full_output else _exception_response
+                    if full_output else _exception_response 
+
+            logger.debug("Stellar parameters: {}".format(theta))
+            if np.any(~np.isfinite(theta)):
+                return invalid_value()
+
+            names = \
+                ("effective_temperature", "xi", "surface_gravity", "metallicity")
+            effective_temperature, xi, surface_gravity, metallicity = theta
+
+            for name, _ in zip(names, theta):
+                if name in parameter_limits:
+                    lower, upper = parameter_limits[name]
+                    if not (upper >= _ >= lower):
+                        return invalid_value()
 
             try:
                 photosphere = self._atmosphere_interpolator(
@@ -324,12 +371,17 @@ class EqualibriaModel(Model):
             except Converged as e:
                 logger.info("Stopped optimisation function because convergence "
                     "has been absolutely achieved.")
-                
+
                 # e.args contains (theta, state, total_state)
                 x = np.array(e.args[0])
                 ier, mesg = 1, "Optimisation absolutely converged."
                 info_dict = dict(zip(
                     ("nfev", "njev", "fvec", "fjac", "r", "qtf"), [np.nan] * 6))
+
+            except:
+                logger.exception("Unrecoverable exception occurred during the "
+                    "optimisation:")
+                return ([np.nan] * 4, None, [np.nan] * 4)
 
             # If the fsolve optimisation fails, we should try again.
             if ier != 1:
@@ -350,6 +402,11 @@ class EqualibriaModel(Model):
                     x = np.array(e.args[0])
                     fopt = np.array(e.args[2])
                     n_iter, funcalls, warnflag = -1, -1, 0
+
+                except:
+                    logger.exception("Unrecoverable exception occurred during "
+                        "the optimisation:")
+                    return ([np.nan] * 4, None, [np.nan] * 4)
 
                 if warnflag != 0:
                     logger.warn([
