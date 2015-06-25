@@ -9,6 +9,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import logging
 import numpy as np
+from time import time
 from scipy import stats, sparse, ndimage, optimize as op
 from astropy import (modeling, table, units as u)
 
@@ -18,6 +19,148 @@ from oracle.models import Model, utils
 logger = logging.getLogger("oracle")
 
 import matplotlib.pyplot as plt
+
+
+class Converged(BaseException):
+    pass
+
+def equalibrium_state(transitions, log_eps, metallicity,
+    excitation_regression_species=None, ionisation_state_species=None,
+    abundance_state_species=None, rew_regression_species=None,
+    relative_weighting_behaviour="total"):
+    """
+    Calculate the equalibrium state for the atomic transitions and abundances
+    provided.
+    """
+
+    if relative_weighting_behaviour not in ("num_neutral", "num_ionised",
+        "total", "minimum_species"):
+        raise ValueError("relative weighting behaviour not known")
+
+    finite = np.isfinite(log_eps)
+
+    def match_species(species):
+        if species is None:
+            return np.ones(len(transitions), dtype=bool)
+        return np.array([each in species for each in transitions["species"]])
+
+    # Scale the log_eps abundances to the expected relative values.
+    expected_log_eps \
+        = metallicity + atmospheres.solar_abundance(transitions["species"])
+
+    # We will fit the regression lines to the scaled-solar difference.
+    log_eps_differences = log_eps - expected_log_eps
+
+    # Which lines will be used to calculate the slope with excitation potential
+    # and abundance?
+    mask = match_species(excitation_regression_species) * finite
+
+    # Calculate the slope with excitation potential and abundance.
+    exc_slope, exc_offset, exc_r_value, exc_p_value, exc_stderr \
+        = stats.linregress(x=transitions["excitation_potential"][mask],
+            y=log_eps_differences[mask])
+
+    # Calculate the slope with reduced equivalent width and line abundance.
+    mask = match_species(rew_regression_species) * finite
+    rew = np.log(transitions["equivalent_width"] / transitions["wavelength"])
+    rew_slope, rew_offset, rew_r_value, rew_p_value, rew_stderr \
+        = stats.linregress(x=rew[mask], y=log_eps_differences[mask])
+
+    # Calculate the abundance state.
+    mask = match_species(abundance_state_species) * finite
+    abundance_state = np.nanmedian(log_eps_differences[mask])
+
+    # Calculate the ionisation state.
+    # Each set of single and ionised species gives us an indication to what the
+    # ionisation state of the system is. When we have many Fe lines but only 1
+    # Ti 1 + 2 set, or vice versa, we should average each set.
+    species = set(transitions["species"])
+    if ionisation_state_species is not None:
+        species = species.intersection(abundance_state_species)
+
+    if 2 > len(species):
+        logger.warn("Only one species found ({}); ionisation state is unknown"\
+            .format(list(species)[0]))
+
+    #assert len(species) > 1 # Need at least X I and X II
+
+    # For each species and ionisation state, calculate the abundance.
+    species_abundances = {}
+    for each in sorted(species):
+        mask = match_species([each]) * finite
+        values = log_eps_differences[mask]
+
+        N = np.isfinite(values).sum()
+        species_abundances[each] = [np.nanmedian(values), N]
+
+    # If we have many different elements, create some weighted average.
+    elements = set(map(int, species))   
+    multiple_ionising_elements = len(elements) > 1 
+    if multiple_ionising_elements:
+        logger.debug("Calculating relative weight for ionisation state using {}"
+            " number of lines.".format(relative_weighting_behaviour))
+
+    relative_weights = np.zeros(len(elements))
+    element_ionisation_state = np.zeros(len(elements))
+    for i, element in enumerate(elements):
+        neutral_log_eps, neutral_N = species_abundances.get(
+            float(element), (np.nan, 0))
+        ionised_log_eps, ionised_N = species_abundances.get(
+            float(element) + 0.1, (np.nan, 0))
+
+        element_ionisation_state[i] = neutral_log_eps - ionised_log_eps
+
+        if multiple_ionising_elements:
+            logger.debug("Ionisation state of {0} is {1:.3f} dex ({2} neutral,"\
+                " {3} ionised lines)".format(
+                    element, element_ionisation_state[i], neutral_N, ionised_N))
+
+        if neutral_N == 0 or ionised_N == 0:
+            # Relative weights default to zero.
+            logger.info("Skipping element {} because of missing lines".format(
+                element))
+            continue
+
+        if relative_weighting_behaviour == "minimum_species":
+            # Weight by the least number of lines present in either species.
+            relative_weights[i] = min([neutral_N, ionised_N])
+
+        elif relative_weighting_behaviour == "num_ionised":
+            # Weight by the number of ionised lines present.
+            relative_weights[i] = ionised_N
+
+        elif relative_weighting_behaviour == "num_neutral":
+            # Weight by the number of neutral lines present.
+            relative_weights[i] = neutral_N
+
+        elif relative_weighting_behaviour == "total":
+            # Weight by the total number of lines present.
+            relative_weights[i] = neutral_N + ionised_N
+
+    ionisation_state = np.nansum(element_ionisation_state * relative_weights) \
+        / relative_weights.sum()
+    if multiple_ionising_elements:
+        logger.debug("Final ionisation state is {0:.3f} dex (neutral-ionised)"\
+            .format(ionisation_state))
+
+    # Calculate the final state.
+    state = np.array([
+        exc_slope,
+        ionisation_state,
+        abundance_state,
+        rew_slope
+    ])
+
+    state = np.array([
+        exc_slope,
+        rew_slope,
+        0.1 * ionisation_state,
+        0.1 * abundance_state,
+    ])
+
+
+    # TODO: Include an info dictionary.
+    return (state, None)
 
 
 
@@ -34,14 +177,17 @@ class EqualibriaModel(Model):
             "redshift": True,
             "instrumental_resolution": True,
             "continuum": False,
-            "profile_function": "gaussian"
+            "profile_function": "gaussian",
+            "atmosphere": {
+                "kind": "marcs"
+            }
         },
         "settings": {
             "threads": 1
         }
     }
 
-    def __init__(self, configuration, **kwargs):
+    def __init__(self, configuration=None, **kwargs):
         """
         Initialise an Equialibria Model class.
 
@@ -58,11 +204,11 @@ class EqualibriaModel(Model):
         super(EqualibriaModel, self).__init__(configuration)
 
         # Initialise the atomic transitions.
-        self.atomic_transitions = self._initialise_atomic_transitions()
+        #self.atomic_transitions = self._initialise_atomic_transitions()
 
         # Initiate an atmosphere interpolator.
-        atmosphere_kwds = self.config["model"].get("atmosphere_kwargs", {})
-        self._interpolator = atmospheres.interpolator(**atmosphere_kwds)
+        self._atmosphere_interpolator = atmospheres.interpolator(
+            **self.config["model"].get("atmosphere", {}))
         return None
 
 
@@ -79,1090 +225,295 @@ class EqualibriaModel(Model):
         self.__dict__ = state.copy()
 
 
-    def _initialise_atomic_transitions(self):
+
+    def estimate_stellar_parameters(self, spectra=None, transitions=None,
+        initial_theta=None, transition_solver=None, sigma_clip=2.0, clips=1,
+        state_tolerance=1e-8, parameter_limits=None, fixed=None, full_output=False, **kwargs):
         """
-        Load the atomic transition information from the configuration.
+        Can provide either data=[spectra] or measured atomic transitions
         """
 
-        # Load atomic transitions.
-        filename = self.config["model"].get("atomic_transitions_filename", None)
-        if filename is not None:
-            format = self.config["model"].get("atomic_transitions_format", None)
+        # if it's data=[spectra], then the initial_theta may need to include vrad, continuum etc,
+
+        # if it's data=[transitions], then we can really start from anywhere, because it is just teff, logg.
+
+        if spectra is None and transitions is None:
+            raise ValueError("give at least spectra or transitions")
+
+        if spectra is not None:
+            raise NotImplementedError
+
+
+        assert transitions is not None
+        assert fixed is None
+
+        if initial_theta is None:
+            # Assume whatever value.
+            initial_theta = {
+                "effective_temperature": 5750,
+                "surface_gravity": 4.5,
+                "metallicity": 0.,
+                "xi": 1.0
+            }
+
+            initial_theta = [5750, 1.0, 4.5, 0.]
+            # original:
+            initial_theta = [4500, 1.5, 2.0, -1.5]
+            initial_theta = [5750, 1.0, 4.5, 0.]
+        
+        if parameter_limits is None:
+            parameter_limits = {
+                "effective_temperature": [3000, 8000],
+                "surface_gravity": [0, 5],
+                "xi": [0, 5],
+                "metallicity": [-5, 0.5]
+            }
+        debug = kwargs.pop("debug", False)
+        equalibrium_state_kwds = kwargs.pop("equalibrium_state", {})
+
+        global acceptable, sampled_theta, sampled_state_sums
+
+        sampled_theta = []
+        sampled_state_sums = []
+        acceptable = np.ones(len(transitions), dtype=bool)
+
+        def objective_function(theta, full_output=False):
+
+            global acceptable, sampled_theta, sampled_state_sums
+
+            # Total disaster recovery:
+            if (len(sampled_state_sums) > 100 \
+                and not np.any(np.isfinite(sampled_state_sums[-100:]))):
+                raise ValueError("last hundred sampled thetas returned NaNs")
+
+            _exception_response = np.nan * np.ones(len(theta))
+            _exception_full_response = (_exception_response,
+                np.nan * acceptable.sum(), {})
+                
+            def invalid_value():
+                sampled_theta.append(theta)
+                sampled_state_sums.append(np.nan)
+
+                return _exception_full_response \
+                    if full_output else _exception_response 
+
+            logger.debug("Stellar parameters: {}".format(theta))
+            if np.any(~np.isfinite(theta)):
+                return invalid_value()
+
+            names = \
+                ("effective_temperature", "xi", "surface_gravity", "metallicity")
+            effective_temperature, xi, surface_gravity, metallicity = theta
+
+            for name, _ in zip(names, theta):
+                if name in parameter_limits:
+                    lower, upper = parameter_limits[name]
+                    if not (upper >= _ >= lower):
+                        return invalid_value()
+
             try:
-                atomic_transitions = \
-                    table.Table.read(filename, format=format)
+                photosphere = self._atmosphere_interpolator(
+                    effective_temperature, surface_gravity, metallicity)
+                atomic_abundances = synthesis.moog.atomic_abundances(
+                    transitions[acceptable], photosphere, microturbulence=xi,
+                    debug=debug)
+
             except:
-                raise ValueError("failed to load atomic transitions filename "
-                    "from {} -- try specifying `atomic_transitions_format` in "
-                    "the model configuration".format(filename))
-
-            # Delete the reference to the filename in the config, because if we
-            # don't then we will run into pickling problems.
-            del self.config["model"]["atomic_transitions_filename"]
-
-        else:
-            # Must be giving them individually.
-            transitions = self.config["model"].get("atomic_transitions", None)
-            if transitions is None:
-                raise ValueError("no atomic transitions found")
-            atomic_transitions = table.Table(data=transitions)
-
-            # Delete the reference to the transitions in the config, because if
-            # we don't then we will run into pickling problems later.
-            del self.config["model"]["atomic_transitions"]
-
-        # Verify that we have the minimum columns required.
-        for column in ("wavelength", "species", "excitation_potential", "loggf"):
-            if column not in atomic_transitions.dtype.names:
-                raise ValueError("missing requried column '{}' in the atomic "
-                    "transitions table".format(column))
-
-        if "clean" not in atomic_transitions.dtype.names:
-            logger.warn("No 'clean' column found in atomic transitions. All the"
-                "transitions are assumed to have no blending by nearby lines.")
-
-        # Create a default table with the additional columns we require.
-        N = len(atomic_transitions)
-        columns = [
-            table.Column(np.ones(N) * np.nan,
-                name="equivalent_width", unit="milliAngstrom"),
-            table.Column(np.ones(N, dtype=bool),
-                name="clean", dtype=bool),
-            table.Column(np.ones(N) * np.nan,
-                name="abundance"),
-            table.Column([""] * N,
-                name="custom_mask", dtype="|S32")
-            ]
-        for column in columns:
-            if column.name not in atomic_transitions.columns:
-                atomic_transitions.add_column(column)
-            else:
-                index = atomic_transitions.colnames.index(column.name)
-                old_dtype = atomic_transitions.columns[index].dtype
-
-                # HACK TODO
-                if column.dtype != old_dtype and old_dtype != "S1":
-                    new_column = table.MaskedColumn(
-                        data=atomic_transitions[column.name],
-                        name=column.name, dtype=column.dtype)
-
-                    atomic_transitions.remove_column(column.name)
-                    atomic_transitions.add_column(new_column)
-
-        # Add some units.
-        atomic_transitions["wavelength"].unit = u.Angstrom
-        atomic_transitions["excitation_potential"].unit = u.eV
-        atomic_transitions["equivalent_width"].unit = "milliAngstrom"
-
-        # Check for custom masks.
-        for mask in set(atomic_transitions["custom_mask"]).difference({""}):
-            if mask not in self.config.get("custom_mask", {}) \
-            and isinstance(mask, (str, unicode)):
-                raise ValueError("cannot find custom mask '{}' in the model "
-                    "configuration".format(mask))
-
-        atomic_transitions.sort(["wavelength", "species"])
-        return atomic_transitions
-
-
-    def fit_all_atomic_transitions(self, data, effective_temperature=None,
-        surface_gravity=None, metallicity=None, microturbulence=None,
-        wavelength_region=2.01, oversampling_rate=4, **kwargs):
-        """
-        Fit all clean transitions within a single data channel.
-        """
-
-        photosphere = None
-        # Interpolate a photosphere if we have the information to do so.
-        if None not in (effective_temperature, surface_gravity, metallicity):
-            photosphere = self._interpolator(
-                effective_temperature, surface_gravity, metallicity)
-
-        # Identify clean transitions that are actually in the data channels.
-        # If data_indices is -1 it means the line was not found in the data
-
-        clean = self.atomic_transitions["clean"]
-        data_indices = \
-            wavelengths_in_data(self.atomic_transitions["wavelength"], data)
-        measurable = clean * (data_indices > -1)
-
-        # Create the subset containing the measurable lines.
-        transition_indices = np.where(measurable)[0]
-        transitions = self.atomic_transitions[measurable]
-        data_indices = data_indices[measurable]
-
-
-        # Join by data indices because we will be doing one full channel at a
-        # time.
-
-        if "profile_stddev" not in self.atomic_transitions.dtype.names:
-            self.atomic_transitions.add_column(table.Column(
-                name="profile_stddev",
-                data=[np.nan] * len(self.atomic_transitions)))
-
-        import matplotlib.pyplot as plt
-        fitted_profiles = []
-        for data_index in np.unique(data_indices):
-
-            data_channel = data[data_index]
-            pixels = np.zeros(data_channel.disp.size, dtype=bool)
-            is_blended = np.zeros(data_channel.disp.size, dtype=bool)
-
-            comparison_regions = []
-            _ = np.where(data_indices == data_index)[0]
-            wavelengths = np.sort(transitions["wavelength"][_])
-            for wavelength in wavelengths:
-                start, end = (wavelength - wavelength_region, \
-                    wavelength + wavelength_region)
-
-                # Does this overlap with the last region?
-                if len(comparison_regions) == 0 \
-                or start > comparison_regions[-1][1]:
-                    # If not add this region.
-                    comparison_regions.append([start, end])
-
-                else:
-                    # If so just extend the last region to cover this one.
-                    comparison_regions[-1][1] = end
-
-            # is_blended will be a masked array indicating whether a pixel needs
-            # to be interpolated from the synthetic spectra.
-
-            synthetic_disp, synthetic_flux = [], []
-            for start, end in comparison_regions:
-
-                # Save the data pixels for this region.
-                indices = data_channel.disp.searchsorted([start, end]) + [0, 1]
-                pixels.__setslice__(indices[0], indices[1], True)
-
-                relevant_lines = \
-                    (end >= self.atomic_transitions["wavelength"]) * \
-                    (self.atomic_transitions["wavelength"] >= start)
-
-                # Apply custom masks.
-                for relevant_line in self.atomic_transitions[relevant_lines]:
-                    if not isinstance(relevant_line["custom_mask"],
-                        (str, unicode)): continue
-
-                    wavelength = relevant_line["wavelength"]
-                    mask_name = relevant_line["custom_mask"]
-                    mask = np.clip(self.config["custom_mask"][mask_name.strip()],
-                        max([start, wavelength - wavelength_region]),
-                        min([end, wavelength + wavelength_region]))
-                    pixels[indices[0]:indices[1]] *= \
-                        self._mask(data_channel.disp[indices[0]:indices[1]], mask)
-
-                # Synthesise spectra as required, and save the data pixels.
-                blending_lines = ~clean * relevant_lines
-
-                # If there are no blending lines in this region, we should go on
-                if not np.any(blending_lines):
-                    continue
-
-                # Check that we can actually do the synthesis
-                if photosphere is None:
-                    raise ValueError(
-                        "there are blending lines in the region between {0:.0f}"
-                        "to {1:.0f} (so synthesis will be needed) but not all "
-                        "the stellar parameters were given".format(start, end))
-
-                # Mark these x-pixels as being blended with a background spec.
-                is_blended.__setslice__(indices[0], indices[1], True)
-
-                # Synthesise an over-sampled spectrum.
-                x = data_channel.disp[indices[0]:indices[1]]
-                synth_pixel_size = np.diff(x).mean()/oversampling_rate
-                disp, flux = synthesis.moog.synthesise(
-                    self.atomic_transitions[blending_lines], photosphere,
-                    microturbulence=microturbulence,
-                    wavelength_region=[x.min(), x.max()],
-                    wavelength_step=synth_pixel_size)
-
-                # Store the synthetic spectrum
-                synthetic_disp.extend(disp)
-                synthetic_flux.extend(flux)
-
-
-            # Build a model.
-            # Needs to have the disp/flux data stored internally.
-            # Needs to add in all the absorption profiles at each point.
-
-            # Local continuum at each region?
-
-
-            # Prepare the data
-            x = data_channel.disp[pixels]
-            y = data_channel.flux[pixels]
-            is_blended = is_blended[pixels]
-
-            # Prepare the synthetic data.
-            synthetic_disp = np.array(synthetic_disp)
-            synthetic_flux = np.array(synthetic_flux)
-
-            # Define the model.
-            class StellarSpectrum(modeling.Fittable1DModel):
-
-                resolution = modeling.Parameter(default=20000)
-
-                stddev_m = modeling.Parameter(default=1e-5)
-                stddev_c = modeling.Parameter(default=1e-2)
-
-                @staticmethod
-                def evaluate(x, resolution, stddev_m, stddev_c):
-
-                    # Non-blended regions will be 1.
-                    model = np.ones(x.size, dtype=float)
-
-                    # Convolve the synthetic spectrum
-                    if synthetic_disp.size > 0:
-                        binner = _rebinner(synthetic_disp, x, resolution)
-                        model[is_blended] = \
-                            np.array(synthetic_flux * binner)[is_blended]
-                    return model
-
-            # Create the model, then compound it with absorption profiles at
-            # each of the wavelengths.
-            model = StellarSpectrum(resolution=10000)
-            for wavelength in wavelengths:
-
-                idx = x.searchsorted(wavelength)
-                if is_blended[idx]:
-                    depth = \
-                        synthetic_flux[synthetic_disp.searchsorted(wavelength)]
-                else:
-                    depth = 1
-
-                # TODO this is a bad approximation
-                amplitude = np.clip(depth - y[idx], 0, 1)
-
-                model *= modeling.models.GaussianAbsorption1D(
-                    mean=wavelength, amplitude=amplitude,
-                    stddev=0.10)
-
-            # Tie the std. devs. to the spectral resolution, and set boundaries
-            # for the amplitude.
-            for n in range(1, len(wavelengths) + 1):
-                #model.tied["stddev_{}".format(n)] = lambda _: _.stddev_1 + \
-                #    _.resolution_0 * getattr(_, "mean_{}".format(n))
-                """
-
-                if np.any(0.01 >= np.abs(np.array([4890.759, 4891.494]) - wavelengths[n-1])):
-                    print("skipping on {}".format(n))
-
-                else:
-                    model.tied["stddev_{}".format(n)] = lambda _: \
-                        _.stddev_c_0 + _.stddev_m_0 * (getattr(_, "mean_{}".format(n)) \
-                            - getattr(_, "mean_1"))
-
-                    init = model.stddev_m_0 * wavelengths[n - 1] + model.stddev_c_0
-                    setattr(model, "stddev_{}".format(n), init)
-
-
-                """
-                model.bounds["stddev_{}".format(n)] = [0, 1]
-                model.bounds["amplitude_{}".format(n)] = [0, 1]
-                model.fixed["mean_{}".format(n)] = True
-
-
-
-            fit = modeling.fitting.LevMarLSQFitter()
-            model.bounds["stddev_m_0"] = [0, None]
-            model.bounds["resolution_0"] = [7500, 40000]
-
-            fitted = fit(model, x, y)
-
-            np.sort(transitions["wavelength"][_])
-
-            fig, ax = plt.subplots()
-            ax.plot(x, y, c='k')
-            ax.scatter(x, y, facecolor='k')
-            ax.plot(synthetic_disp, synthetic_flux, "r:")
-            ax.plot(x, model(x), 'r-.')
-
-            """
-            model2 = np.ones(x.size, dtype=float)
-
-            # Convolve the synthetic spectrum
-            binner = _rebinner(synthetic_disp, x, 20000)
-            model2[is_blended] = \
-                np.array(synthetic_flux * binner)[is_blended]
-
-            ax.plot(x, model2, c='g')
-            """
-
-
-            for wavelength in wavelengths:
-                ax.axvline(wavelength, c="#666666", zorder=-1)
-
-
-            ax.plot(x, fitted(x), c='r')
-
-
-            for j in range(1, len(wavelengths) + 1):
-
-                clean = self.atomic_transitions["clean"]
-                index = \
-                    np.argmin(np.abs(self.atomic_transitions["wavelength"][clean] \
-                        - getattr(fitted, "mean_{}".format(j))))
-                index = np.where(clean)[0][index]
-
-                stddev = getattr(fitted, "stddev_{}".format(j))
-                amplitude = getattr(fitted, "amplitude_{}".format(j))
-
-                self.atomic_transitions["equivalent_width"][index] = \
-                    1000 * np.sqrt(2 * np.pi) * amplitude * stddev
-                self.atomic_transitions["profile_stddev"][index] = stddev.value
-
-
-        sensible = np.isfinite(self.atomic_transitions["equivalent_width"]) \
-            * (self.atomic_transitions["equivalent_width"] > 0)
-        # Eliminate all other abundances, then re-calculate them.
-        self.atomic_transitions["abundance"] = np.nan
-        self.atomic_transitions["abundance"][sensible] = \
-            synthesis.moog.atomic_abundances(self.atomic_transitions[sensible],
-                photosphere, microturbulence=microturbulence)
-
-
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots(3)
-
-        # Add profile_* columns to the atomic_transitions table:
-        # profile_stddev, profile_amplitude
-        ok = np.isfinite(self.atomic_transitions["abundance"])
-
-        ax[0].scatter(self.atomic_transitions["excitation_potential"][ok],
-            self.atomic_transitions["abundance"][ok], facecolor='k')
-        ax[1].scatter(
-            np.log(self.atomic_transitions["equivalent_width"]/self.atomic_transitions["wavelength"])[ok],
-            self.atomic_transitions["abundance"][ok], facecolor="k")
-
-        ax[2].scatter(self.atomic_transitions["wavelength"][ok],
-            self.atomic_transitions["profile_stddev"][ok], facecolor="k")
-
-        state, info = utils.equalibrium_state(
-            self.atomic_transitions, metallicity=metallicity, full_output=True)
-        coefficients = info["coefficients"]
-
-        x = self.atomic_transitions["excitation_potential"][ok]
-        ax[0].plot(x, np.polyval(coefficients[0], x), c='b')
-        x = np.log(self.atomic_transitions["equivalent_width"] \
-            / self.atomic_transitions["wavelength"])[ok]
-        ax[1].plot(x, np.polyval(coefficients[1], x), c='b')
-
-        plt.show()
-
-        raise a
-
-
-
-
-
-    def fit_atomic_transitions2(self, data, effective_temperature=None,
-        surface_gravity=None, metallicity=None, microturbulence=None,
-        wavelength_region=2.0, opacity_contributes=1.0, **kwargs):
-        """
-        Fit absorption profiles to the atomic transitions in this model and
-        account for the nearby blends.
-
-        :param data:
-            The observed spectra.
-
-        :type data:
-            list of :class:`oracle.specutils.Spectrum1D`
-
-        :param effective_temperature: [sometimes optional]
-            The effective temperature for the photosphere.
-
-            When there are nearby blending transitions, these lines need to be
-            synthesised in order to accurately measure the actual transition we
-            care about. Thus, if any blending (non-clean) transitions are within
-            `wavelength_region` of a clean line then this parameter is required.
-
-        :type effective_temperature:
-            float
-
-        :param surface_gravity: [sometimes optional]
-            The surface gravity for the photosphere.
-
-            When there are nearby blending transitions, these lines need to be
-            synthesised in order to accurately measure the actual transition we
-            care about. Thus, if any blending (non-clean) transitions are within
-            `wavelength_region` of a clean line then this parameter is required.
-
-        :type surface_gravity:
-            float
-
-        :param metallicity: [sometimes optional]
-            The scaled-solar metallicity for the photosphere.
-
-            When there are nearby blending transitions, these lines need to be
-            synthesised in order to accurately measure the actual transition we
-            care about. Thus, if any blending (non-clean) transitions are within
-            `wavelength_region` of a clean line then this parameter is required.
-
-        :type metallicity:
-            float
-
-        :param microturbulence: [sometimes optional]
-            The microturbulence for the photosphere. This is not required for
-            <3D> models.
-
-            When there are nearby blending transitions, these lines need to be
-            synthesised in order to accurately measure the actual transition we
-            care about. Thus, if any blending (non-clean) transitions are within
-            `wavelength_region` of a clean line then this parameter is required.
-
-        :type microturbulence:
-            float
-
-        :param wavelength_region: [optional]
-            The +/- region (in Angstroms) around each atomic transition to
-            consider.
-
-        :type wavelength_region:
-            float
-
-        :param outlier_modeling: [optional]
-            Detect inaccurate fits due to blending lines and account for them.
-            If enabled, then a poor fit is detected when the centroid of the
-            atomic transition is not within 5 per cent of the data, or if the
-            profile FWHM has hit an upper boundary. When this happens the code
-            will detect regions that are most discrepant, and attempt to fit
-            them with additional profiles (using the same profile FWHM).
-
-        :type outlier_modeling:
-            bool
-
-        :param max_outlier_profiles: [optional]
-            The maximum number of outlier profiles to add for each atomic
-            transition. This keyword argument is ignored if `outlier_modeling`
-            is set to `False`.
-        """
-
-        oversampling_rate = int(kwargs.pop("oversampling_rate", 4))
-        if 1 > oversampling_rate:
-            raise ValueError("oversampling rate must be a positive integer")
-
-
-        photosphere = None
-        # Interpolate a photosphere if we have the information to do so.
-        if None not in (effective_temperature, surface_gravity, metallicity):
-            photosphere = self._interpolator(
-                effective_temperature, surface_gravity, metallicity)
-
-        # Identify clean transitions that are actually in the data.
-        # If data_indices is -1 it means the line was not found in the data
-        data_indices = \
-            wavelengths_in_data(self.atomic_transitions["wavelength"], data)
-        measurable = self.atomic_transitions["clean"] * (data_indices > -1) \
-            * ((self.atomic_transitions["species"] == 26.0) | \
-                (self.atomic_transitions["species"] == 26.1))
-
-        # Create the subset containing the measurable lines.
-        transition_indices = np.where(measurable)[0]
-        transitions = self.atomic_transitions[measurable]
-        data_indices = data_indices[measurable]
-
-
-        plotting = True
-        if plotting:
-            import matplotlib.pyplot as plt
-
-        stopper = -1
-
-        if "profile_stddev" not in self.atomic_transitions.dtype.names:
-            self.atomic_transitions.add_column(table.Column(
-                name="profile_stddev",
-                data=[np.nan] * len(self.atomic_transitions)))
-
-        fitted_profiles = []
-        fit = modeling.fitting.LevMarLSQFitter()
-        for i, (transition_index, transition, data_index) \
-        in enumerate(zip(transition_indices, transitions, data_indices)):
-
-            if i < stopper:
-                continue
-
-            wavelength = transition["wavelength"]
-
-            # Look for nearby transitions within the wavelength region and
-            # ignore this line.
-            blending = wavelength_region >= \
-                np.abs(self.atomic_transitions["wavelength"] - wavelength)
-            blending[transition_index] = False
-
-            # Slice the data +/- some region.
-            spectrum = data[data_index]
-            disp_indices = spectrum.disp.searchsorted([
-                wavelength - wavelength_region,
-                wavelength + wavelength_region
-                ]) + [0, 1]
-            x = spectrum.disp.__getslice__(*disp_indices)
-            y = spectrum.flux.__getslice__(*disp_indices)
-
-
-            # Continuum!
-            model = modeling.models.Polynomial1D(degree=1, c0=1, c1=0)
-            #model = modeling.models.Const1D(amplitude=1)
-
-            bounds = {}
-            #fixed = ["c0_0", "c1_0"]
-            fixed = []
-
-            # Anything to synthesise?
-            if np.any(blending):
-                if photosphere is None:
-                    raise ValueError("transition at {0:.3f} has blending lines "
-                        "within {1:.0f} (so a synthesis approach is needed) but"
-                        " not all stellar parameters were given".format(
-                            wavelength, wavelength_region))
-
-                # Synthesise a spectrum (with oversampling)
-                synth_pixel_size = np.diff(x).mean()/oversampling_rate
-                synth_disp, synth_flux = synthesis.moog.synthesise(
-                    self.atomic_transitions[blending], photosphere,
-                    microturbulence=microturbulence,
-                    wavelength_region=[
-                        wavelength - (wavelength_region + opacity_contributes),
-                        wavelength + (wavelength_region + opacity_contributes)
-                    ],
-                    wavelength_step=synth_pixel_size)
-
-
-                class StellarSpectrum(modeling.Fittable1DModel):
-
-                    resolution = modeling.Parameter(default=20000)
-
-                    @staticmethod
-                    def evaluate(x, resolution):
-                        binner = _rebinner(synth_disp, x, resolution)
-                        return np.array(synth_flux * binner)
-
-                model *= StellarSpectrum()
-                bounds["resolution_1"] = [10000, 40000]
-
-                bounds["amplitude_2"] = [0, 1]
-                bounds["stddev_2"] = [0, 0.3]
-                fixed.append("mean_2")
+                state, atomic_abundances, info = _exception_full_response
+                logger.exception("Exception while calculating abundances at {}"\
+                    .format(theta))
 
             else:
+                # Calculate the slopes w.r.t. excitation potential and REW, etc.
+                state, info = equalibrium_state(transitions[acceptable],
+                    atomic_abundances, metallicity, **equalibrium_state_kwds)
 
-                bounds["amplitude_1"] = [0, 1]
-                bounds["stddev_1"] = [0, 0.3]
-                fixed.append("mean_1")
+            # Append to the sample.
+            total_state = (state**2).sum()
+            sampled_theta.append(np.copy(theta))
+            sampled_state_sums.append(total_state)
 
-            fixed.append("amplitude_0")
+            logger.debug("Equalibrium state: {0} {1:.3e}".format(
+                state, total_state))
 
-            # Add Gaussian profile.
-            idx = x.searchsorted(wavelength)
-            model *= modeling.models.GaussianAbsorption1D(
-                mean=wavelength, amplitude=1.0 - y[idx],
-                stddev=0.10)
+            if total_state < state_tolerance and not full_output:
+                raise Converged(theta, state, total_state)
 
-            # Tie and bounds.
-            for k in fixed:
-                model.fixed[k] = True
+            if full_output:
+                return (state, atomic_abundances, info)
+            return state
 
-            for k, v in bounds.items():
-                model.bounds[k] = v
+        # Optimisation keywords (fsolve and fmin)
+        op_fsolve_kwds = {
+            "fprime": utils.jacobian_original,
+            "col_deriv": 1,
+            "epsfcn": 0,
+            "xtol": 1e-10,
+            "maxfev": 100
+        }
+        op_fsolve_kwds.update(kwargs.pop("op_fsolve_kwargs", {}))
+        op_fsolve_kwds["full_output"] = True
 
-            if np.any(blending):
-                model.tied["resolution_2"] = lambda _: transition/(_.stddev_2 * 2.65)
-            else:
-                model.tied["resolution_1"] = lambda _: transition/(_.stddev_1 * 2.65)
+        op_fmin_kwds = {
+            "xtol": 0.1,
+            "ftol": 0.1,
+            "maxiter": 500,
+            "maxfun": 500,
+            "disp": False
+        }
+        op_fmin_kwds.update(kwargs.pop("op_fmin_kwargs", {}))
+        op_fmin_kwds["full_output"] = True
 
+        _exception_response = (np.nan * np.ones(4), None, np.nan * np.ones(4))
+        _exception_full_response = (np.nan * np.ones(4), None,
+            np.nan * np.ones(4), sampled_theta, sampled_state_sums, {})
 
-            fitted = fit(model, x, y)
+        iteration, t_init = 0, time()
+        
+        while True:
 
+            try:
+                x, info_dict, ier, mesg = op.fsolve(
+                    objective_function, initial_theta, **op_fsolve_kwds)
 
-            # Any masks to apply?
-            if plotting:
+            except Converged as e:
+                logger.info("Stopped optimisation function because convergence "
+                    "has been absolutely achieved.")
 
-                fig, ax = plt.subplots()
-                ax.plot(x, y, c='k')
+                # e.args contains (theta, state, total_state)
+                x = np.array(e.args[0])
+                ier, mesg = 1, "Optimisation absolutely converged."
+                info_dict = dict(zip(
+                    ("nfev", "njev", "fvec", "fjac", "r", "qtf"), [np.nan] * 6))
 
-                if isinstance(transition["custom_mask"], (str, unicode)) \
-                and len(transition["custom_mask"].strip()) > 0:
-                    mask_name = transition["custom_mask"].strip()
-                    mask = self._mask(x, self.config["custom_mask"][mask_name])
-                    print(len(x), len(y))
-                    x = x[mask]
-                    y = y[mask]
-                    print(len(x), len(y))
-                    print(mask)
+            except ValueError:
+                logger.exception("Unrecoverable exception occurred during the "
+                    "optimisation:")
+                return _exception_full_response \
+                    if full_output else _exception_response
 
-                    ax.scatter(x, y, c='k', lw=2)
+            # If the fsolve optimisation fails, we should try again.
+            if ier != 1:
+                logger.warn(
+                    "Initial optimisation failed with the message below. Now "\
+                    "attempting a dumber, more robust optimisation. Error: {}"\
+                    .format(mesg))
 
-                ax.plot(x, model(x), 'r:')
-                ax.plot(x, fitted(x), c='r')
-                ax.axvline(wavelength, c="#666666", zorder=-1)
-
-            # Save the equivalent widths.
-
-            if i == stopper:
-                if plotting:
-                    plt.show()
-                raise a
-
-            amplitude = getattr(fitted, "amplitude_1",
-                getattr(fitted, "amplitude_2", None)).value
-            stddev = getattr(fitted, "stddev_1",
-                getattr(fitted, "stddev_2", None)).value
-            self.atomic_transitions["equivalent_width"][transition_index] = \
-                1000 * np.sqrt(2 * np.pi) * amplitude * stddev
-            self.atomic_transitions["profile_stddev"][transition_index] = stddev
-
-
-        sensible = np.isfinite(self.atomic_transitions["equivalent_width"]) \
-            * (self.atomic_transitions["equivalent_width"] > 0)
-        # Eliminate all other abundances, then re-calculate them.
-        self.atomic_transitions["abundance"] = np.nan
-        self.atomic_transitions["abundance"][sensible] = \
-            synthesis.moog.atomic_abundances(self.atomic_transitions[sensible],
-                photosphere, microturbulence=microturbulence)
-
-
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots(3)
-
-        # Add profile_* columns to the atomic_transitions table:
-        # profile_stddev, profile_amplitude
-        ok = np.isfinite(self.atomic_transitions["abundance"])
-
-        ax[0].scatter(self.atomic_transitions["excitation_potential"][ok],
-            self.atomic_transitions["abundance"][ok], facecolor='k')
-        ax[1].scatter(
-            np.log(self.atomic_transitions["equivalent_width"]/self.atomic_transitions["wavelength"])[ok],
-            self.atomic_transitions["abundance"][ok], facecolor="k")
-
-        ax[2].scatter(self.atomic_transitions["wavelength"][ok],
-            self.atomic_transitions["profile_stddev"][ok], facecolor="k")
-
-        state, info = utils.equalibrium_state(
-            self.atomic_transitions, metallicity=metallicity, full_output=True)
-        coefficients = info["coefficients"]
-
-        x = self.atomic_transitions["excitation_potential"][ok]
-        ax[0].plot(x, np.polyval(coefficients[0], x), c='b')
-        x = np.log(self.atomic_transitions["equivalent_width"] \
-            / self.atomic_transitions["wavelength"])[ok]
-        ax[1].plot(x, np.polyval(coefficients[1], x), c='b')
-
-        plt.show()
-
-        return None
-
-
-
-
-
-    def fit_atomic_transitions(self, data, effective_temperature=None,
-        surface_gravity=None, metallicity=None, microturbulence=None,
-        wavelength_region=2.5, outlier_modeling=False, max_outlier_profiles=5,
-        **kwargs):
-        """
-        Fit absorption profiles to the atomic transitions in this model and
-        account for the nearby blends.
-
-        :param data:
-            The observed spectra.
-
-        :type data:
-            list of :class:`oracle.specutils.Spectrum1D`
-
-        :param effective_temperature: [sometimes optional]
-            The effective temperature for the photosphere.
-
-            When there are nearby blending transitions, these lines need to be
-            synthesised in order to accurately measure the actual transition we
-            care about. Thus, if any blending (non-clean) transitions are within
-            `wavelength_region` of a clean line then this parameter is required.
-
-        :type effective_temperature:
-            float
-
-        :param surface_gravity: [sometimes optional]
-            The surface gravity for the photosphere.
-
-            When there are nearby blending transitions, these lines need to be
-            synthesised in order to accurately measure the actual transition we
-            care about. Thus, if any blending (non-clean) transitions are within
-            `wavelength_region` of a clean line then this parameter is required.
-
-        :type surface_gravity:
-            float
-
-        :param metallicity: [sometimes optional]
-            The scaled-solar metallicity for the photosphere.
-
-            When there are nearby blending transitions, these lines need to be
-            synthesised in order to accurately measure the actual transition we
-            care about. Thus, if any blending (non-clean) transitions are within
-            `wavelength_region` of a clean line then this parameter is required.
-
-        :type metallicity:
-            float
-
-        :param microturbulence: [sometimes optional]
-            The microturbulence for the photosphere. This is not required for
-            <3D> models.
-
-            When there are nearby blending transitions, these lines need to be
-            synthesised in order to accurately measure the actual transition we
-            care about. Thus, if any blending (non-clean) transitions are within
-            `wavelength_region` of a clean line then this parameter is required.
-
-        :type microturbulence:
-            float
-
-        :param wavelength_region: [optional]
-            The +/- region (in Angstroms) around each atomic transition to
-            consider.
-
-        :type wavelength_region:
-            float
-
-        :param outlier_modeling: [optional]
-            Detect inaccurate fits due to blending lines and account for them.
-            If enabled, then a poor fit is detected when the centroid of the
-            atomic transition is not within 5 per cent of the data, or if the
-            profile FWHM has hit an upper boundary. When this happens the code
-            will detect regions that are most discrepant, and attempt to fit
-            them with additional profiles (using the same profile FWHM).
-
-        :type outlier_modeling:
-            bool
-
-        :param max_outlier_profiles: [optional]
-            The maximum number of outlier profiles to add for each atomic
-            transition. This keyword argument is ignored if `outlier_modeling`
-            is set to `False`.
-        """
-
-        oversampling_rate = int(kwargs.pop("oversampling_rate", 4))
-        if 1 > oversampling_rate:
-            raise ValueError("oversampling rate must be a positive integer")
-
-        # TODO this should really be changed to a limit based on radial velocity.
-        wavelength_tolerance = abs(kwargs.pop("wavelength_tolerance", 0))
-
-        # Allow the user to specify bounds on the data.
-        # (And here we will set some sensible ones.)
-        common_bounds = kwargs.pop("bounds", {
-            "stddev": (0, 0.3),
-            "amplitude": (0, 1)
-        })
-        if "wavelength" in common_bounds or "mean" in common_bounds:
-            raise ValueError("apply bounds on the profile location through the "
-                "wavelength_tolerance keyword argument")
-
-        # Create a handy function to update the compound model properties.
-        def _update_compound_model(compound_model, wavelength):
-
-            # Deal with the line we care about first.
-            single_model = hasattr(compound_model, "mean")
-            transition_mean_key = ["mean_0", "mean"][single_model]
-            if wavelength_tolerance > 0:
-                compound_model.bounds[transition_mean_key] = (
-                    wavelength - wavelength_tolerance,
-                    wavelength + wavelength_tolerance
-                )
-            else:
-                compound_model.fixed[transition_mean_key] = True
-
-            for param_name in compound_model.param_names:
-                if param_name.startswith("mean_") \
-                and param_name != transition_mean_key:
-                    # It's an outlier line. Fix the wavelength.
-                    compound_model.fixed[param_name] = True
-
-                # Apply common bounds.
+                y = lambda x, **k: (objective_function(x, **k)**2).sum()
                 try:
-                    prefix, num = param_name.split("_")
+                    x, fopt, n_iter, funcalls, warnflag = op.fmin(y, x, 
+                        **op_fmin_kwds)
+
+                except Converged as e:
+                    logger.info("Stopped optimisation function because "
+                        "convergence has been absolutely achieved.")
+                    # e.args contains (theta, state, total_state)
+                    x = np.array(e.args[0])
+                    fopt = np.array(e.args[2])
+                    n_iter, funcalls, warnflag = -1, -1, 0
 
                 except ValueError:
-                    prefix, num = param_name, "0"
+                    logger.exception("Unrecoverable exception occurred during "
+                        "the optimisation:")
+                    return _exception_full_response \
+                        if full_output else _exception_response
 
-                if prefix in common_bounds.keys():
-                    compound_model.bounds[param_name] = common_bounds[prefix]
-
-                # Tie the stddevs to the original absorption profile.
-                # The stddevs between the absorption transition we care
-                # about and the outlier transition are related by:
-                # R = lambda_1/delta_lambda_1 = lambda_2/delta_labmda_2
-                if prefix == "stddev" and num != "0":
-                    compound_model.tied[param_name] = lambda _: _.stddev_0 * \
-                        getattr(compound_model, "mean_{}".format(num))/_.mean_0
-            return True
-
-
-        photosphere = None
-        # Interpolate a photosphere if we have the information to do so.
-        if None not in (effective_temperature, surface_gravity, metallicity):
-            photosphere = self._interpolator(
-                effective_temperature, surface_gravity, metallicity)
-
-        # Identify clean transitions that are actually in the data.
-        # If data_indices is -1 it means the line was not found in the data
-        data_indices = \
-            wavelengths_in_data(self.atomic_transitions["wavelength"], data)
-        measurable = self.atomic_transitions["clean"] * (data_indices > -1)
-
-        # Create additional columns in the atomic_transitions table if needed.
-        if "profile_amplitude" not in self.atomic_transitions.dtype.names:
-            self.atomic_transitions.add_column(table.Column(
-                name="profile_amplitude",
-                data=[np.nan] * len(self.atomic_transitions)))
-        if "profile_stddev" not in self.atomic_transitions.dtype.names:
-            self.atomic_transitions.add_column(table.Column(
-                name="profile_stddev",
-                data=[np.nan] * len(self.atomic_transitions)))
-
-        # Create the subset containing the measurable lines.
-        transition_indices = np.where(measurable)[0]
-        transitions = self.atomic_transitions[measurable]
-        data_indices = data_indices[measurable]
-
-        fitted_profiles = []
-        for transition_index, transition, data_index \
-        in zip(transition_indices, transitions, data_indices):
-
-            wavelength = transition["wavelength"]
-
-            # Look for nearby transitions within the wavelength region and
-            # ignore this line.
-            blending = wavelength_region >= \
-                np.abs(self.atomic_transitions["wavelength"] - wavelength)
-            blending[transition_index] = False
-
-            # Slice the data +/- some region.
-            spectrum = data[data_index]
-            disp_indices = spectrum.disp.searchsorted([
-                wavelength - wavelength_region,
-                wavelength + wavelength_region
-                ]) + [0, 1]
-            x = spectrum.disp.__getslice__(*disp_indices)
-            y = spectrum.flux.__getslice__(*disp_indices)
-
-            # Calculate an initial stddev value based on the x spacing.
-            initial_stddev = 2 * 5 * np.diff(x).mean()
-
-            # Apply any custom mask.
-            # TODO This should just remove the masked pixels from x and y,
-            #      because setting them to NaN will break the fitter.
-
-
-            # TODO the amplitude initial guess will have to be udpated in the
-            #      presence of continuum.
-
-            synthesised_spectra = {}
-            _ = x.searchsorted(wavelength)
-            initial_amplitude = 1.0 - y[_]
-
-            # Any continuum?
-            continuum_degree = self._continuum_degree(data_index)
-            if continuum_degree > 0:
-                # TODO I specify order and astropy uses degree. Switch to degree!
-                #profile_init *= modeling.models.Polynomial1D(continuum_degree + 1)
-
-                # Set initial estimates of continuum.
-                # TODO
-
-                # This will probably fuck up the parameter names.
-                raise NotImplementedError
-
-            # Any synthesis?
-            if np.any(blending):
-                if photosphere is None:
-                    raise ValueError("transition at {0:.3f} has blending lines "
-                        "within {1:.0f} (so a synthesis approach is needed) but"
-                        " not all stellar parameters were given".format(
-                            wavelength, wavelength_region))
-
-                # Synthesise a spectrum (with oversampling)
-                synth_pixel_size = np.diff(x).mean()/oversampling_rate
-                synth_disp, synth_flux = synthesis.moog.synthesise(
-                    self.atomic_transitions[blending], photosphere,
-                    microturbulence=microturbulence,
-                    wavelength_region=[x.min(), x.max()],
-                    wavelength_step=synth_pixel_size)
-
-                # Create a custom class that uses the synthesised spectrum.
-                class GaussianAbsorption1D(modeling.Fittable1DModel):
-
-                    amplitude = modeling.Parameter(default=1)
-                    mean = modeling.Parameter(default=0)
-                    stddev = modeling.Parameter(default=1)
-                    # TODO see issue 18 on GitHub
-
-                    @staticmethod
-                    def evaluate(x, amplitude, mean, stddev):
-                        convolved = ndimage.gaussian_filter1d(
-                            synth_flux, stddev/synth_pixel_size)
-                        sampled = np.interp(x, synth_disp, convolved, 1, 1)
-                        return sampled * (1.0 - \
-                            modeling.models.Gaussian1D.evaluate(x, amplitude,
-                                mean, stddev))
-
-                profile = GaussianAbsorption1D(
-                    mean=wavelength, amplitude=initial_amplitude,
-                    stddev=initial_stddev)
-
-                # Save the initial profile + synthesised spectra
-                # TODO multiply by some continuum
-                synth_only_model = GaussianAbsorption1D(
-                    mean=wavelength, amplitude=0, stddev=initial_stddev)
-                synthesised_spectra["initial_synthesis"] = synth_only_model(x)
-                profile_only_model = modeling.models.GaussianAbsorption1D(
-                    mean=wavelength, amplitude=initial_amplitude,
-                    stddev=initial_stddev)
-                synthesised_spectra["initial_profile"] = profile_only_model(x)
-
-            else:
-                profile = modeling.models.GaussianAbsorption1D(
-                    mean=wavelength, amplitude=initial_amplitude,
-                    stddev=initial_stddev)
-
-                # TODO multiply by some continuum
-                synthesised_spectra["initial_synthesis"] = np.ones(len(x))
-                synthesised_spectra["initial_profile"] = profile(x)
-
-            # Update the bounds, fixed, and tied properties.
-            _update_compound_model(profile, wavelength)
-
-            j, fitter = 1, modeling.fitting.LevMarLSQFitter()
-            synthesised_spectra["initial_composite"] = profile(x)
-
-            while True:
-
-                # Fit the profile.
-                fitted = fitter(profile, x, y)
-
-                # Break here if we have no more outlier modeling to do.
-                if not outlier_modeling or j > max_outlier_profiles: break
-
-                # Limitingly-high stddev values are good indicators of nearby
-                # lines that have not been accounted for.
-
-                # Having a large % difference between the profile and the data
-                # at the transition point is another good indicator of nearby
-                # lines that have not been accounted for.
-                if (j == 1 and fitted.stddev == profile.bounds["stddev"][1])   \
-                or (j > 1 and fitted.stddev_0 == profile.bounds["stddev_0"][1])\
-                or not (1.05 > y[_]/fitted(x[_]) > 0.95): #absorption is 5% off
-
-                    # Add a(nother) outlier absorption profile to this model at
-                    # the location where a blending line is most likely to be.
-
-                    # But ignore locations near existing lines so we don't just
-                    # pile up absorption profiles in the same place.
-                    existing_means = [getattr(fitted, key) \
-                        for key in fitted.param_names if key[:4] == "mean"]
-
-                    difference = abs(fitted(x) - y)
-                    for mean in existing_means:
-                        __ = np.clip(x.searchsorted([
-                            mean - 3 * initial_stddev,
-                            mean + 3 * initial_stddev
-                        ]) + [0, 1], 0, len(difference))
-                        difference.__setslice__(__[0], __[1], 0)
-
-                    most_discrepant = difference.argmax()
-
-                    # TODO continuum will fuck this up too.
-                    profile *= modeling.models.GaussianAbsorption1D(
-                        mean=x[most_discrepant], stddev=initial_stddev,
-                        amplitude=1.0 - y[most_discrepant])
-
-                    # Update the bounds, fixed, and tied properties.
-                    _update_compound_model(profile, wavelength)
-                    j += 1
-
+                if warnflag != 0:
+                    logger.warn([
+                        "Maximum number of evaluations made by Nelder-Mead.",
+                        "Maximum number of iterations reached by Nelder-Mead."
+                        ][warnflag - 1])
                 else:
-                    # No outlier treatment required, apparently.
+                    logger.info("Nelder-Mead optimisation completed successfully")
+            else:
+                fopt, n_iter, funcalls, warnflag = np.nan, 0, 0, -1
+                logger.info("fsolve optimisation completed successfully")
+
+            # Update the number of iterations.
+            iteration += 1
+
+            # Do any outlier clipping.
+            if clips >= iteration:
+
+                metallicity = x[3]
+                state, log_eps, info = objective_function(x, full_output=True)
+                
+                # We will fit the regression lines to the scaled-solar difference.
+                log_eps_differences = log_eps - metallicity - \
+                    atmospheres.solar_abundance(
+                        transitions["species"][acceptable])
+
+                # Remove anything more than |sigma_clip| from the median.
+                sigma \
+                    = (log_eps_differences - np.nanmedian(log_eps_differences))\
+                        / np.nanstd(log_eps_differences)
+
+                outlier = np.abs(sigma) > sigma_clip
+                logger.info("On iteration {0}, {1} outlier(s) were removed"\
+                    .format(iteration, outlier.sum()))
+                acceptable[acceptable] *= ~outlier
+
+                # Update the initial theta with the optimised result.
+                initial_theta = x.copy()
+
+                if not np.any(outlier):
+                    logger.info("Optimisation complete.")
                     break
 
-            # Create final copies of things
-            synthesised_spectra["fitted_composite"] = fitted(x)
+            else:
+                logger.info("Optimisation complete.")
+                break
 
-            # Save the final model fit, and the model parameters.
-            parameters = dict(zip(fitted.param_names, fitted.parameters))
-            fitted_profiles.append((x, y, synthesised_spectra, parameters))
+        optimisation_info = {
+            "fsolve": {
+                "nfev": info_dict["nfev"],
+                "njev": info_dict["njev"],
+                "fvec": info_dict["fvec"],
+                "fjac": info_dict["fjac"],
+                "r":    info_dict["r"],
+                "qtf":  info_dict["qtf"],
+                "ier":  ier,
+                "mesg": mesg,
+                "kwds": op_fsolve_kwds
+            },
+            "fmin": {
+                "fopt": fopt,
+                "niter": n_iter,
+                "funcalls": funcalls,
+                "warnflag": warnflag,
+                "kwds": op_fmin_kwds
+            },
+            "clipping_iterations": iteration,
+            "time_taken": time() - t_init
+        }
 
-            # Update the equivalent width
-            amplitude = \
-                parameters.get("amplitude", parameters.get("amplitude_0", None))
-            stddev = parameters.get("stddev", parameters.get("stddev_0", None))
+        # Note, remember final_abundances will have size of sum(acceptable) !!
+        final_state, final_abundances, info = objective_function(x, True)
 
-            # Integral of Gaussian = amplitude * sigma * sqrt(2 * pi)
-            #              (in mA) *= 1000
-            self.atomic_transitions["profile_stddev"][transition_index] = stddev
-            self.atomic_transitions["profile_amplitude"][transition_index] = \
-                amplitude
-            self.atomic_transitions["equivalent_width"][transition_index] = \
-                1000 * np.sqrt(2 * np.pi) * amplitude * stddev
+        # Create an abundance *table*
+        all_abundances = np.nan * np.ones(len(transitions))
+        all_abundances[acceptable] = final_abundances
 
-        sensible = np.isfinite(self.atomic_transitions["equivalent_width"]) \
-            * (self.atomic_transitions["equivalent_width"] > 0)
-        # Eliminate all other abundances, then re-calculate them.
-        self.atomic_transitions["abundance"] = np.nan
-        self.atomic_transitions["abundance"][sensible] = \
-            synthesis.moog.atomic_abundances(self.atomic_transitions[sensible],
-                photosphere, microturbulence=microturbulence)
+        results_table = table.Table(transitions.copy())
+        results_table.add_column(table.Column(
+            name="log_eps", data=np.round(all_abundances, 3)))
+        results_table.add_column(table.Column(
+            name="outlier", data=~acceptable, dtype=bool))
 
-        # Supply some metadata to the atomic_transitions table
-        self.atomic_transitions.meta["profiles_given_stellar_parameters"] = \
-            [effective_temperature, surface_gravity, metallicity, microturbulence]
-        self.atomic_transitions.meta["abundances_given_stellar_parameters"] = \
-            [effective_temperature, surface_gravity, metallicity, microturbulence]
+        if full_output:
+            sampled_theta = np.array(sampled_theta)
+            sampled_state_sums = np.array(sampled_state_sums)
 
-        #x return fitted_profiles
+            # TODO: Return profile fits + results from line fitting solver, where
+            # applicable
+            return (x, results_table, final_state, sampled_theta,
+                sampled_state_sums, optimisation_info)
 
-        # At this point should we consider re-fitting lines that are deviant
-        # from the wavelength vs stddev plot
-        for i, (x, y, synthesised_spectra, parameters) in enumerate(fitted_profiles):
-
-            fig, ax = plt.subplots()
-            ax.plot(x,y,c='k')
-            ax.plot(x, synthesised_spectra["initial_profile"], "r", lw=1.5, label="Initial profile")
-            ax.plot(x, synthesised_spectra["initial_synthesis"], "b", lw=1.5, label="Initial synthesis")
-            ax.plot(x, synthesised_spectra["initial_composite"], "m", label="Initial composite")
-            ax.plot(x, synthesised_spectra["fitted_composite"], "g", label="Fitted composite")
-
-            ax.legend()
-            for p, v in parameters.items():
-                if p[:4] == "mean" and p not in ("mean", "mean_0"):
-                    ax.axvline(v, c="r")
-
-        # Only update those with good quality constraints.
-        fig, ax = plt.subplots(3)
-
-        # Add profile_* columns to the atomic_transitions table:
-        # profile_stddev, profile_amplitude
-
-        ax[0].scatter(self.atomic_transitions["excitation_potential"],
-            self.atomic_transitions["abundance"], facecolor='k')
-        ax[1].scatter(
-            np.log(self.atomic_transitions["equivalent_width"]/self.atomic_transitions["wavelength"]),
-            self.atomic_transitions["abundance"], facecolor="k")
-
-        ax[2].scatter(self.atomic_transitions["wavelength"],
-            self.atomic_transitions["profile_stddev"], facecolor="k")
-
-        state, info = utils.equalibrium_state(
-            self.atomic_transitions, full_output=True)
-        coefficients = info["coefficients"]
-        ok = np.isfinite(self.atomic_transitions["abundance"])
-        x = self.atomic_transitions["excitation_potential"][ok]
-        ax[0].plot(x, np.polyval(coefficients[0], x), c='b')
-        x = np.log(self.atomic_transitions["equivalent_width"] \
-            / self.atomic_transitions["wavelength"])[ok]
-        ax[1].plot(x, np.polyval(coefficients[1], x), c='b')
-        raise a
+        return (x, results_table, final_state)
 
 
 
-    def estimate_stellar_parameters(self, data, initial_theta=None,
+    def estimate_stellar_parameters_old(self, data, initial_theta=None,
         full_output=False, **kwargs):
         """
         Return point estimates for the stellar parameters (effective temperature,
@@ -1227,7 +578,7 @@ class EqualibriaModel(Model):
             global transitions
             stellar_parameters, microturbulence = theta[:3], theta[3]
             try:
-                photosphere = self._interpolator(*stellar_parameters)
+                photosphere = self._atmosphere_interpolator(*stellar_parameters)
                 abundances = \
                     synthesis.moog.atomic_abundances(transitions,
                         photosphere, microturbulence=microturbulence)
@@ -1252,7 +603,7 @@ class EqualibriaModel(Model):
 
         # Optimisation
         op_kwds = {
-            "fprime": utils.jacobian,
+            "fprime": utils.jacobian_original,
             "col_deriv": 1,
             "epsfcn": 0,
             "xtol": 1e-10,
@@ -1286,47 +637,6 @@ class EqualibriaModel(Model):
         if full_output:
             return (stellar_parameters, result)
         return stellar_parameters
-
-
-
-def _rebinner(from_disp, to_disp, to_resolution, from_resolution=100000):
-
-    assert (to_resolution<from_resolution)
-
-
-    fwhms = to_disp/to_resolution
-    fwhms0 = to_disp/from_resolution
-
-    sigs = (fwhms**2-fwhms0**2)/2.65
-    thresh = 5 # 5 sigma
-    l0 = len(from_disp)
-    l = len(to_disp)
-    xs= []
-    ys= []
-    vals= []
-    for i in range(len(to_disp)):
-        curlam = to_disp[i]
-        cursig = sigs[i]
-        curl0= curlam  - thresh*cursig
-        curl1= curlam  + thresh*cursig
-        left = np.searchsorted(from_disp, curl0)
-        right = np.searchsorted(from_disp, curl1)
-        curx = np.clip(np.arange(left, right + 1), 0, len(from_disp) -1)
-        curvals = stats.norm.pdf(from_disp[curx], curlam, cursig)
-        curvals = curvals/curvals.sum()
-        ys.append(i + curx * 0)
-        xs.append(curx)
-        vals.append(curvals)
-    xs= np.concatenate(xs)
-    ys= np.concatenate(ys)
-    vals= np.concatenate(vals)
-
-    mat = sparse.coo_matrix((vals,(xs,ys)), shape=(len(from_disp),len(to_disp)))
-    mat = mat.tocsc()
-    return mat
-
-
-
 
 
 def wavelengths_in_data(wavelengths, data):

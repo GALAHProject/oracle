@@ -9,7 +9,7 @@ c******************************************************************************
       include 'Linex.com'
       include 'Dummy.com'
       real*8 dinteg(200)
-      data waveold /0.0/                                   
+      data waveold /0.0/        
 
 
 c*****set an arbitrary maximum # of wavelength points to compute 
@@ -50,6 +50,8 @@ c*****calculate continuous opacity and intensity/flux at line wavelength
       endif
 
 
+
+
 c*****check the wavelength step size; expand/contract as necessary
       if (wavestep .eq. 0.) then
          wave = wave1(lim1)
@@ -59,8 +61,10 @@ c*****check the wavelength step size; expand/contract as necessary
          d(1) = rinteg(xref,cd,dummy1,ntau,first)
          do k=1,30
             if (k .eq. 30) then
-               if (debug .gt. 0) write (*,1010) wave
-               stop
+               if (debug .gt. 0) write (*,1010) wave               
+c               stop
+               print *, "CALLING F2PYSTOP FROM FORTRAN"
+               call f2pystop(100)
             endif
             wave = wave1(lim1) + 5.*st1
             call taukap

@@ -1,8 +1,8 @@
 
       function abundances(in_metallicity, in_xi,
      .   in_photosphere, in_logepsilon_abundances,
-     .   in_transitions, in_modtype, in_debug, output, in_ntau, 
-     .   in_ncols, in_natoms, in_nlines)
+     .   in_transitions, in_modtype, in_debug, output,
+     .   data_path, in_ntau, in_ncols, in_natoms, in_nlines)
 
       implicit real*8 (a-h,o-z)
       real*8, intent(in) :: in_metallicity, in_xi
@@ -13,10 +13,15 @@
       real*8, dimension(in_nlines, 7), intent(in) :: in_transitions
       character*10, intent(in) :: in_modtype
       integer, optional :: in_debug
+      character(300), intent(in) :: data_path
 
       real*8, dimension(in_nlines), intent(out) :: output
 
-   
+!f2py intent(callback) f2pystop
+      EXTERNAL f2pystop
+
+
+
       include 'Atmos.com'
       include 'Linex.com'
       include 'Dummy.com'
@@ -193,7 +198,7 @@ c      endif
 c      fbarklem(1:num) = moogpath(1:num)
 c      fbarklem(num+1:num+11) = 'Barklem.dat'
       nfbarklem = 35
-      open (nfbarklem,file="$DATA_DIR/Barklem.dat")
+      open (nfbarklem,file=TRIM(data_path) // "/Barklem.dat")
 
  
 c      nfbarklemUV = 36
@@ -206,8 +211,7 @@ c      endif
 c      fbarklemUV(1:num) = moogpath(1:num)
 c      fbarklemUV(num+1:num+13) = 'BarklemUV.dat'
       nfbarklemUV = 36
-      open (nfbarklemUV,file="$DATA_DIR/BarklemUV.dat")
-
+      open (nfbarklemUV,file=TRIM(data_path) // "/BarklemUV.dat")
 
 
 
@@ -342,7 +346,8 @@ c                  call putasci (nchars,ikount)
 c               lscreen = lscreen + 2
 c               call prinfo (lscreen)
                print *, "molecule!"
-               stop
+               call f2pystop
+c               stop
             endif
          endif
       endif

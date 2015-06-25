@@ -18,6 +18,7 @@ c******************************************************************************
       integer append
 
 
+
 c*****Read in the key word to define the model type
       wavref = 5000.0
       modelnum = modelnum + 1
@@ -39,7 +40,8 @@ cc      read (list2,*) ntau
       if (ntau .gt. 100) then
          if (debug .gt. 0) write (array,1012)
 cc         call prinfo (10)
-         stop
+         call f2pystop
+c         stop
       endif
 
       if (modtype .eq. 'WEBMARCS') then
@@ -61,7 +63,8 @@ cc         call prinfo (10)
          enddo
       else
          write (*,1001)
-         stop
+         call f2pystop
+c         stop
       endif
 
 
@@ -316,7 +319,8 @@ c*****Set up the default molecule list
          array = 'molset = 0 or 1 only; I quit!'
          print *, array
 cc         call putasci (29,6)
-         stop
+         call f2pystop
+c         stop
       endif
 
 

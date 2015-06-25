@@ -10,6 +10,7 @@ __all__ = ["atomic_abundances", "synthesise"]
 import logging
 import multiprocessing
 import numpy as np
+import os
 
 from astropy.table import Table
 
@@ -17,6 +18,11 @@ import oracle.atmospheres
 from . import _mini_moog as moog
 
 logger = logging.getLogger("oracle")
+
+
+class MOOGException(BaseException):
+    def __call__(self, status="MOOG fell over unexpectedly"):
+        raise self.__class__(status)
 
 
 def _format_transitions(transitions):
@@ -337,10 +343,12 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
     if not safe_mode: 
         code, output = moog.abundances(metallicity, microturbulence,
             photosphere_arr, photospheric_abundances, transitions,
-            in_modtype=modtype, in_debug=debug)
+            in_modtype=modtype, in_debug=debug, f2pystop=MOOGException(),
+            data_path=os.path.dirname(__file__))
         return output
 
     else:
+        raise NotImplementedError
         print("IN SAFE MODE")
         p = multiprocessing.Process(target=moog.abundances, args=(metallicity,
             microturbulence, photosphere_arr, photospheric_abundances,

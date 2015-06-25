@@ -42,4 +42,7 @@ after_script:
 
 notifications:
  email:
-  - andycasey@gmail.com
+  recipients:
+    - arc@ast.cam.ac.uk
+  on_success: change
+  on_failure: change 
