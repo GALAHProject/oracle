@@ -1,8 +1,8 @@
 
       function abundances(in_metallicity, in_xi,
      .   in_photosphere, in_logepsilon_abundances,
-     .   in_transitions, in_modtype, in_debug, output, in_ntau, 
-     .   in_ncols, in_natoms, in_nlines)
+     .   in_transitions, in_modtype, in_debug, output,
+     .   in_ntau, in_ncols, in_natoms, in_nlines)
 
       implicit real*8 (a-h,o-z)
       real*8, intent(in) :: in_metallicity, in_xi
@@ -15,7 +15,12 @@
       integer, optional :: in_debug
 
       real*8, dimension(in_nlines), intent(out) :: output
-  
+
+!f2py intent(callback) f2pystop
+      EXTERNAL f2pystop
+
+
+
       include 'Atmos.com'
       include 'Linex.com'
       include 'Dummy.com'
@@ -341,7 +346,8 @@ c                  call putasci (nchars,ikount)
 c               lscreen = lscreen + 2
 c               call prinfo (lscreen)
                print *, "molecule!"
-               stop
+               call f2pystop
+c               stop
             endif
          endif
       endif

@@ -11,6 +11,7 @@ c******************************************************************************
       include 'Mol.com'
       include 'Pstuff.com'
 
+
       molflag = 0
       iabatom = int(atom1(lim1obs)+0.0001)
 
@@ -35,7 +36,8 @@ c*****halt if M.E. wasn't done or didn't include this species
             lscreen = lscreen + 2
             if (debug .gt. 0.0) write (array,1001) iabatom
 c            call prinfo (lscreen)
-            stop
+              call f2pystop
+c            stop
          endif
          call sunder(atom1(lim1obs),ia,ib)
          iaa = ia
@@ -47,7 +49,8 @@ c            call prinfo (lscreen)
             lscreen = lscreen + 2
             if (debug .gt. 0.0) write (array,1002) iabatom
 c            call prinfo (lscreen)
-            stop
+               call f2pystop
+c            stop
          endif
          molflag = 1
 
@@ -65,13 +68,15 @@ c*****for other molecules, the user specifies which element will be varied
             if (debug .gt. 0.0) write (array,1003) iabatom
             nchars = 56
             if (debug .gt. 0.0) print *, "need manual input; die"
-            stop
+            call f2pystop
+c            stop
 c            call getnum (nchars,ikount+1,xnum,shortnum)
 c            iabatom = int(xnum+0.0001)
          
             if (iabatom.ne.ia .and. iabatom.ne.ib) then
                if (debug .gt. 0.0) write (array,1003)
-               stop
+               call f2pystop
+c               stop
             endif
          endif
          return

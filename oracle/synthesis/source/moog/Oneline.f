@@ -11,9 +11,6 @@ c******************************************************************************
       real*8 dinteg(200)
       data waveold /0.0/        
 
-!f2py intent(callback) f2pystop
-      EXTERNAL f2pystop
-
 
 c*****set an arbitrary maximum # of wavelength points to compute 
 c     the line profile
@@ -67,7 +64,7 @@ c*****check the wavelength step size; expand/contract as necessary
                if (debug .gt. 0) write (*,1010) wave               
 c               stop
                print *, "CALLING F2PYSTOP FROM FORTRAN"
-               call f2pystop(10)
+               call f2pystop(100)
             endif
             wave = wave1(lim1) + 5.*st1
             call taukap

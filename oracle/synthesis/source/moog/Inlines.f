@@ -16,7 +16,6 @@ c******************************************************************************
      .       sdampnum(40),sd0(40),swidth(40), scharge(40)
       integer n2
 
-
 c      if (num .eq. 2) go to 4
 c      if (num .eq. 6) go to 340
       n1marker = 1
@@ -111,6 +110,7 @@ c      print *, "inlines says number of lines is ", nlines, nstrong
 
       if (nstrong .gt. 40) then
         print *, "more than 40 strong lines. stahp"
+        call f2pystop
 c        stop
       endif
 
@@ -132,7 +132,8 @@ c         Check the charge
              print *, "strong line charge greater than 3"
              print *, "A", wave1(j), iatom, charge(j), gf(j)
              print *, "stahp"
-             stop
+             call f2pystop
+c             stop
           endif
         enddo
       endif
@@ -154,7 +155,8 @@ c         Check the charge
               print *, "line charge greater than 3"
               print *, "B", wave1(j), iatom, charge(j), gf(j)
               print *, "stahp"
-              stop
+              call f2pystop
+c              stop
            endif
         enddo
       endif
@@ -256,7 +258,8 @@ c*****here are the calculations specific to molecular lines
             if (ia .gt. ib) then
 c               write (*,1010) ia,ib
                print *, "stahp ia, ib", ia, ib
-               stop
+               call f2pystop
+c               stop
             endif
             if (atom10-int(atom10) .le. 0.0) then
                amass(j) = xam(ia) + xam(ib)    
@@ -271,7 +274,8 @@ c               write (*,1010) ia,ib
      .             mas2.le.0.0) then
 c                  write (*,1011) mas1, mas2
                   print *, "stahp mas1, mas2", mas1, mas2
-                  stop
+                  call f2pystop
+c                  stop
                endif
                amass(j) = mas1 + mas2
             endif
@@ -286,7 +290,8 @@ c     does not read one in
                   endif
                 enddo
                 if (debug .gt. 0) write (*,1013) atom1(j)
-                stop
+                call f2pystop
+c                stop
             endif
 390         rdmass(j) = mas1*mas2/amass(j)
             chi(j,1) = 0.

@@ -14,16 +14,14 @@ import numpy as np
 from astropy.table import Table
 
 import oracle.atmospheres
-
-class MOOGException(Exception):
-    def __call__(self, status="MOOG fell over unexpectedly"):
-        raise self.__class__(status)
-
 from . import _mini_moog as moog
-moog.f2pystop = MOOGException()
-
 
 logger = logging.getLogger("oracle")
+
+
+class MOOGException(BaseException):
+    def __call__(self, status="MOOG fell over unexpectedly"):
+        raise self.__class__(status)
 
 
 def _format_transitions(transitions):
@@ -344,7 +342,7 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
     if not safe_mode: 
         code, output = moog.abundances(metallicity, microturbulence,
             photosphere_arr, photospheric_abundances, transitions,
-            in_modtype=modtype, in_debug=debug)
+            in_modtype=modtype, in_debug=debug, f2pystop=MOOGException())
         return output
 
     else:

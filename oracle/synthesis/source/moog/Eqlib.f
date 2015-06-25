@@ -36,8 +36,9 @@ c*****either read in the dissociation data for a molecular species
             do k=1,110                                                  
                if (datmol(1,k) .eq. amol(jmol)) go to 11                
             enddo
-            if (debug .gt. 0) write (nf1out,1001) amol(jmol)                   
-            stop                                                        
+            if (debug .gt. 0) write (nf1out,1001) amol(jmol)   
+            call f2pystop
+c            stop                                                        
 11          do kk=1,6                                                   
                const(kk,jmol) = datmol(kk+1,k)                          
             enddo 
