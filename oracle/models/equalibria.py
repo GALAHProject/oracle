@@ -21,6 +21,9 @@ logger = logging.getLogger("oracle")
 import matplotlib.pyplot as plt
 
 
+class Converged(BaseException):
+    pass
+
 def equalibrium_state(transitions, log_eps, metallicity,
     excitation_regression_species=None, ionisation_state_species=None,
     abundance_state_species=None, rew_regression_species=None):
@@ -100,11 +103,13 @@ def equalibrium_state(transitions, log_eps, metallicity,
         element_ionisation_state[i] = neutral_log_eps - ionised_log_eps
 
         if multiple_ionising_elements:
-            logger.debug("Ionisation state of {0} is {1:.3f} dex".format(
-                element, element_ionisation_state[i]))
+            logger.debug("Ionisation state of {0} is {1:.3f} dex ({2} neutral "\
+                "{3} ionised lines)".format(element, element_ionisation_state[i],
+                neutral_N, ionised_N))
 
     relative_weights /= relative_weights.sum()
-    ionisation_state = (element_ionisation_state * relative_weights).sum()
+    ionisation_state = (element_ionisation_state * relative_weights).sum() \
+        / len(elements)
     if multiple_ionising_elements:
         logger.debug("Final ionisation state is {0:.3f} dex (neutral-ionised)"\
             .format(ionisation_state))
@@ -194,7 +199,7 @@ class EqualibriaModel(Model):
 
     def estimate_stellar_parameters(self, spectra=None, transitions=None,
         initial_theta=None, transition_solver=None, sigma_clip=2.0, clips=1,
-        fixed=None, full_output=False, **kwargs):
+        state_tolerance=1e-8, fixed=None, full_output=False, **kwargs):
         """
         Can provide either data=[spectra] or measured atomic transitions
         """
@@ -225,6 +230,7 @@ class EqualibriaModel(Model):
             initial_theta = [5750, 1.0, 4.5, 0.]
             # original:
             initial_theta = [4500, 1.5, 2.0, -1.5]
+            initial_theta = [5750, 1.0, 4.5, 0.]
             
         debug = kwargs.pop("debug", False)
         equalibrium_state_kwds = kwargs.pop("equalibrium_state", {})
@@ -272,11 +278,15 @@ class EqualibriaModel(Model):
                     atomic_abundances, metallicity, **equalibrium_state_kwds)
 
             # Append to the sample.
-            _ = (state**2).sum()
+            total_state = (state**2).sum()
             sampled_theta.append(np.copy(theta))
-            sampled_state_sums.append(_)
+            sampled_state_sums.append(total_state)
 
-            logger.debug("Equalibrium state: {0} {1:.3e}".format(state, _))
+            logger.debug("Equalibrium state: {0} {1:.3e}".format(
+                state, total_state))
+
+            if total_state < state_tolerance and not full_output:
+                raise Converged(theta, state, total_state)
 
             if full_output:
                 return (state, atomic_abundances, info)
@@ -306,8 +316,20 @@ class EqualibriaModel(Model):
         iteration, t_init = 0, time()
         
         while True:
-            x, info_dict, ier, mesg = op.fsolve(
-                objective_function, initial_theta, **op_fsolve_kwds)
+
+            try:
+                x, info_dict, ier, mesg = op.fsolve(
+                    objective_function, initial_theta, **op_fsolve_kwds)
+
+            except Converged as e:
+                logger.info("Stopped optimisation function because convergence "
+                    "has been absolutely achieved.")
+                
+                # e.args contains (theta, state, total_state)
+                x = np.array(e.args[0])
+                ier, mesg = 1, "Optimisation absolutely converged."
+                info_dict = dict(zip(
+                    ("nfev", "njev", "fvec", "fjac", "r", "qtf"), [np.nan] * 6))
 
             # If the fsolve optimisation fails, we should try again.
             if ier != 1:
@@ -317,8 +339,18 @@ class EqualibriaModel(Model):
                     .format(mesg))
 
                 y = lambda x, **k: (objective_function(x, **k)**2).sum()
-                x, fopt, n_iter, funcalls, warnflag = op.fmin(y, x, 
-                    **op_fmin_kwds)
+                try:
+                    x, fopt, n_iter, funcalls, warnflag = op.fmin(y, x, 
+                        **op_fmin_kwds)
+
+                except Converged as e:
+                    logger.info("Stopped optimisation function because "
+                        "convergence has been absolutely achieved.")
+                    # e.args contains (theta, state, total_state)
+                    x = np.array(e.args[0])
+                    fopt = np.array(e.args[2])
+                    n_iter, funcalls, warnflag = -1, -1, 0
+
                 if warnflag != 0:
                     logger.warn([
                         "Maximum number of evaluations made by Nelder-Mead.",
@@ -350,7 +382,7 @@ class EqualibriaModel(Model):
                         / np.nanstd(log_eps_differences)
 
                 outlier = np.abs(sigma) > sigma_clip
-                logger.info("On iteration {0}, {1} outlier lines were removed"\
+                logger.info("On iteration {0}, {1} outlier(s) were removed"\
                     .format(iteration, outlier.sum()))
                 acceptable[acceptable] *= ~outlier
 
@@ -405,6 +437,8 @@ class EqualibriaModel(Model):
             sampled_theta = np.array(sampled_theta)
             sampled_state_sums = np.array(sampled_state_sums)
 
+            # TODO: Return profile fits + results from line fitting solver, where
+            # applicable
             return (x, results_table, final_state, sampled_theta,
                 sampled_state_sums, optimisation_info)
 
