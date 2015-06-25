@@ -27,7 +27,7 @@ class Converged(BaseException):
 def equalibrium_state(transitions, log_eps, metallicity,
     excitation_regression_species=None, ionisation_state_species=None,
     abundance_state_species=None, rew_regression_species=None,
-    relative_weighting_behaviour="total"):
+    averaging_behaviour="mean", relative_weighting_behaviour="total"):
     """
     Calculate the equalibrium state for the atomic transitions and abundances
     provided.
@@ -37,6 +37,12 @@ def equalibrium_state(transitions, log_eps, metallicity,
         "total", "minimum_species"):
         raise ValueError("relative weighting behaviour not known")
 
+    if averaging_behaviour not in ("mean", "median"):
+        raise ValueError("averaging behaviour not understood")
+    else:
+        logger.debug("Using {0} averaging.".format(averaging_behaviour))
+
+    avg = np.nanmean if averaging_behaviour == "mean" else np.nanmedian
     finite = np.isfinite(log_eps)
 
     def match_species(species):
@@ -68,7 +74,7 @@ def equalibrium_state(transitions, log_eps, metallicity,
 
     # Calculate the abundance state.
     mask = match_species(abundance_state_species) * finite
-    abundance_state = np.nanmedian(log_eps_differences[mask])
+    abundance_state = avg(log_eps_differences[mask])
 
     # Calculate the ionisation state.
     # Each set of single and ionised species gives us an indication to what the
@@ -91,7 +97,7 @@ def equalibrium_state(transitions, log_eps, metallicity,
         values = log_eps_differences[mask]
 
         N = np.isfinite(values).sum()
-        species_abundances[each] = [np.nanmedian(values), N]
+        species_abundances[each] = [avg(values), N]
 
     # If we have many different elements, create some weighted average.
     elements = set(map(int, species))   
@@ -443,9 +449,11 @@ class EqualibriaModel(Model):
                     atmospheres.solar_abundance(
                         transitions["species"][acceptable])
 
-                # Remove anything more than |sigma_clip| from the median.
+                # Remove anything more than |sigma_clip| from the mean/median.
+                avg = np.nanmean if equalibrium_state_kwds.get(
+                    "averaging_behaviour", "mean") else np.nanmedian
                 sigma \
-                    = (log_eps_differences - np.nanmedian(log_eps_differences))\
+                    = (log_eps_differences - avg(log_eps_differences))\
                         / np.nanstd(log_eps_differences)
 
                 outlier = np.abs(sigma) > sigma_clip
