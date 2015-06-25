@@ -10,6 +10,7 @@ __all__ = ["atomic_abundances", "synthesise"]
 import logging
 import multiprocessing
 import numpy as np
+import os
 
 from astropy.table import Table
 
@@ -342,10 +343,12 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
     if not safe_mode: 
         code, output = moog.abundances(metallicity, microturbulence,
             photosphere_arr, photospheric_abundances, transitions,
-            in_modtype=modtype, in_debug=debug, f2pystop=MOOGException())
+            in_modtype=modtype, in_debug=debug, f2pystop=MOOGException(),
+            data_path=os.path.dirname(__file__))
         return output
 
     else:
+        raise NotImplementedError
         print("IN SAFE MODE")
         p = multiprocessing.Process(target=moog.abundances, args=(metallicity,
             microturbulence, photosphere_arr, photospheric_abundances,
