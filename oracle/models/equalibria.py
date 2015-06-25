@@ -22,7 +22,12 @@ import matplotlib.pyplot as plt
 
 
 class Converged(BaseException):
+    """
+    An exception class that is used to alert optimisation algorithms that the
+    objective function has already converged on an optimal point.
+    """
     pass
+
 
 def equalibrium_state(transitions, log_eps, metallicity,
     excitation_regression_species=None, ionisation_state_species=None,
@@ -234,7 +239,8 @@ class EqualibriaModel(Model):
 
     def estimate_stellar_parameters(self, spectra=None, transitions=None,
         initial_theta=None, transition_solver=None, sigma_clip=2.0, clips=1,
-        state_tolerance=1e-8, parameter_limits=None, fixed=None, full_output=False, **kwargs):
+        transition_limits=None, fixed_parameters=None, parameter_limits=None,
+        state_tolerance=1e-8, full_output=False, **kwargs):
         """
         Can provide either data=[spectra] or measured atomic transitions
         """
@@ -249,9 +255,8 @@ class EqualibriaModel(Model):
         if spectra is not None:
             raise NotImplementedError
 
-
         assert transitions is not None
-        assert fixed is None
+        assert fixed_parameters is None
 
         if initial_theta is None:
             # Assume whatever value.
@@ -261,12 +266,31 @@ class EqualibriaModel(Model):
                 "metallicity": 0.,
                 "xi": 1.0
             }
+            initial_theta = [5750, 1.0, 4.5, 0.]
 
-            initial_theta = [5750, 1.0, 4.5, 0.]
-            # original:
-            initial_theta = [4500, 1.5, 2.0, -1.5]
-            initial_theta = [5750, 1.0, 4.5, 0.]
-        
+        # Transition limits.
+        if transition_limits is None:
+            transition_limits = {
+                "equivalent_width": [20, 120]
+            }
+
+        else:
+            # Make a copy because we will delete unrecognised elements.
+            transition_limits = transition_limits.copy()
+
+        # Transition limits can be on wavelength, equivalent_width, rew,
+        # log_eps,
+        available_transition_limits = ("wavelength", "equivalent_width",
+            "reduced_equivalent_width", "log_eps")
+        for key in [] + transition_limits.keys():
+            if key not in available_transition_limits:
+                logger.warn("Ignoring transition limit on unrecognised "
+                    "parameter '{}'".format(key))
+            del transition_limits[key]
+
+        logger.info("Limiting transitions to range: {}".format(transition_limits))
+
+        # Parameter limits.        
         if parameter_limits is None:
             parameter_limits = {
                 "effective_temperature": [3000, 8000],
@@ -274,6 +298,9 @@ class EqualibriaModel(Model):
                 "xi": [0, 5],
                 "metallicity": [-5, 0.5]
             }
+
+        logger.info("Limiting parameters to range: {}".format(parameter_limits))
+
         debug = kwargs.pop("debug", False)
         equalibrium_state_kwds = kwargs.pop("equalibrium_state", {})
 
@@ -282,6 +309,16 @@ class EqualibriaModel(Model):
         sampled_theta = []
         sampled_state_sums = []
         acceptable = np.ones(len(transitions), dtype=bool)
+
+        # Any transition limits that are not dependent on abundances can be
+        # applied now, before the objective function.
+        for key, (upper, lower) in transition_limits.items():
+            is_ok = (upper >= transitions[key]) * (transitions[key] >= lower)
+            if not np.any(~is_ok):
+                logger.info("{0} transitions ignored due to restriction on {1}"\
+                    .format((~is_ok).sum(), key))
+            acceptable *= is_ok
+
 
         def objective_function(theta, full_output=False):
 
@@ -330,9 +367,25 @@ class EqualibriaModel(Model):
                     .format(theta))
 
             else:
+
+                # Apply any transition limits that depend on abundance.
+                # Currently this is just log_eps (#TODO this will need updating)
+                if "log_eps" in transition_limits:
+                    l, u = transition_limits["log_eps"]
+                    still_acceptable = \
+                        (u >= atomic_abundances) * (atomic_abundances >= l)
+                    if np.any(~still_acceptable):
+                        logger.info("{0} transitions ignored at these stellar "\
+                            "parameters due to restriction on log_eps".format(
+                                (~still_acceptable).sum()))
+                else:
+                    still_acceptable = np.ones(acceptable.sum(), dtype=bool)
+
                 # Calculate the slopes w.r.t. excitation potential and REW, etc.
-                state, info = equalibrium_state(transitions[acceptable],
-                    atomic_abundances, metallicity, **equalibrium_state_kwds)
+                state, info = equalibrium_state(
+                    transitions[acceptable][still_acceptable],
+                    atomic_abundances[still_acceptable], metallicity,
+                    **equalibrium_state_kwds)
 
             # Append to the sample.
             total_state = (state**2).sum()
@@ -346,6 +399,7 @@ class EqualibriaModel(Model):
                 raise Converged(theta, state, total_state)
 
             if full_output:
+                # NOTE: atomic_abundances here is only for *acceptable* lines.
                 return (state, atomic_abundances, info)
             return state
 
