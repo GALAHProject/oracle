@@ -21,158 +21,6 @@ logger = logging.getLogger("oracle")
 import matplotlib.pyplot as plt
 
 
-class Converged(BaseException):
-    """
-    An exception class that is used to alert optimisation algorithms that the
-    objective function has already converged on an optimal point.
-    """
-    pass
-
-
-def equalibrium_state(transitions, log_eps, metallicity,
-    excitation_regression_species=None, ionisation_state_species=None,
-    abundance_state_species=None, rew_regression_species=None,
-    averaging_behaviour="mean", relative_weighting_behaviour="total"):
-    """
-    Calculate the equalibrium state for the atomic transitions and abundances
-    provided.
-    """
-
-    if relative_weighting_behaviour not in ("num_neutral", "num_ionised",
-        "total", "minimum_species"):
-        raise ValueError("relative weighting behaviour not known")
-
-    if averaging_behaviour not in ("mean", "median"):
-        raise ValueError("averaging behaviour not understood")
-    else:
-        logger.debug("Using {0} averaging.".format(averaging_behaviour))
-
-    avg = np.nanmean if averaging_behaviour == "mean" else np.nanmedian
-    finite = np.isfinite(log_eps)
-
-    def match_species(species):
-        if species is None:
-            return np.ones(len(transitions), dtype=bool)
-        return np.array([each in species for each in transitions["species"]])
-
-    # Scale the log_eps abundances to the expected relative values.
-    expected_log_eps \
-        = metallicity + atmospheres.solar_abundance(transitions["species"])
-
-    # We will fit the regression lines to the scaled-solar difference.
-    log_eps_differences = log_eps - expected_log_eps
-
-    # Which lines will be used to calculate the slope with excitation potential
-    # and abundance?
-    mask = match_species(excitation_regression_species) * finite
-
-    # Calculate the slope with excitation potential and abundance.
-    exc_slope, exc_offset, exc_r_value, exc_p_value, exc_stderr \
-        = stats.linregress(x=transitions["excitation_potential"][mask],
-            y=log_eps_differences[mask])
-
-    # Calculate the slope with reduced equivalent width and line abundance.
-    mask = match_species(rew_regression_species) * finite
-    rew = np.log(transitions["equivalent_width"] / transitions["wavelength"])
-    rew_slope, rew_offset, rew_r_value, rew_p_value, rew_stderr \
-        = stats.linregress(x=rew[mask], y=log_eps_differences[mask])
-
-    # Calculate the abundance state.
-    mask = match_species(abundance_state_species) * finite
-    abundance_state = avg(log_eps_differences[mask])
-
-    # Calculate the ionisation state.
-    # Each set of single and ionised species gives us an indication to what the
-    # ionisation state of the system is. When we have many Fe lines but only 1
-    # Ti 1 + 2 set, or vice versa, we should average each set.
-    species = set(transitions["species"])
-    if ionisation_state_species is not None:
-        species = species.intersection(abundance_state_species)
-
-    if 2 > len(species):
-        logger.warn("Only one species found ({}); ionisation state is unknown"\
-            .format(list(species)[0]))
-
-    #assert len(species) > 1 # Need at least X I and X II
-
-    # For each species and ionisation state, calculate the abundance.
-    species_abundances = {}
-    for each in sorted(species):
-        mask = match_species([each]) * finite
-        values = log_eps_differences[mask]
-
-        N = np.isfinite(values).sum()
-        species_abundances[each] = [avg(values), N]
-
-    # If we have many different elements, create some weighted average.
-    elements = set(map(int, species))   
-    multiple_ionising_elements = len(elements) > 1 
-    if multiple_ionising_elements:
-        logger.debug("Calculating relative weight for ionisation state using {}"
-            " number of lines.".format(relative_weighting_behaviour))
-
-    relative_weights = np.zeros(len(elements))
-    element_ionisation_state = np.zeros(len(elements))
-    for i, element in enumerate(elements):
-        neutral_log_eps, neutral_N = species_abundances.get(
-            float(element), (np.nan, 0))
-        ionised_log_eps, ionised_N = species_abundances.get(
-            float(element) + 0.1, (np.nan, 0))
-
-        element_ionisation_state[i] = neutral_log_eps - ionised_log_eps
-
-        if multiple_ionising_elements:
-            logger.debug("Ionisation state of {0} is {1:.3f} dex ({2} neutral,"\
-                " {3} ionised lines)".format(
-                    element, element_ionisation_state[i], neutral_N, ionised_N))
-
-        if neutral_N == 0 or ionised_N == 0:
-            # Relative weights default to zero.
-            logger.info("Skipping element {} because of missing lines".format(
-                element))
-            continue
-
-        if relative_weighting_behaviour == "minimum_species":
-            # Weight by the least number of lines present in either species.
-            relative_weights[i] = min([neutral_N, ionised_N])
-
-        elif relative_weighting_behaviour == "num_ionised":
-            # Weight by the number of ionised lines present.
-            relative_weights[i] = ionised_N
-
-        elif relative_weighting_behaviour == "num_neutral":
-            # Weight by the number of neutral lines present.
-            relative_weights[i] = neutral_N
-
-        elif relative_weighting_behaviour == "total":
-            # Weight by the total number of lines present.
-            relative_weights[i] = neutral_N + ionised_N
-
-    ionisation_state = np.nansum(element_ionisation_state * relative_weights) \
-        / relative_weights.sum()
-    if multiple_ionising_elements:
-        logger.debug("Final ionisation state is {0:.3f} dex (neutral-ionised)"\
-            .format(ionisation_state))
-
-    # Calculate the final state.
-    state = np.array([
-        exc_slope,
-        ionisation_state,
-        abundance_state,
-        rew_slope
-    ])
-
-    state = np.array([
-        exc_slope,
-        rew_slope,
-        0.1 * ionisation_state,
-        0.1 * abundance_state,
-    ])
-
-
-    # TODO: Include an info dictionary.
-    return (state, None)
-
 
 
 class EqualibriaModel(Model):
@@ -220,12 +68,15 @@ class EqualibriaModel(Model):
         # Initiate an atmosphere interpolator.
         self._atmosphere_interpolator = atmospheres.interpolator(
             **self.config["model"].get("atmosphere", {}))
+
+        self._equalibrium_estimate_ = None
+
         return None
 
 
     # For pickling and unpickling the class.
     def __getstate__(self):
-        allowed_keys = ("config", "atomic_transitions", "_initial_theta")
+        allowed_keys = ("config", "_equalibrium_estimate_", "_initial_theta")
         state = self.__dict__.copy()
         for key in state.keys():
             if key not in allowed_keys:
@@ -236,21 +87,55 @@ class EqualibriaModel(Model):
         self.__dict__ = state.copy()
 
 
-
     def estimate_stellar_parameters(self, spectra=None, transitions=None,
         initial_theta=None, transition_solver=None, sigma_clip=2.0, clips=1,
         transition_limits=None, fixed_parameters=None, parameter_limits=None,
         state_tolerance=1e-8, full_output=False, **kwargs):
         """
-        Can provide either data=[spectra] or measured atomic transitions
+        Estimate the stellar parameters by performing excitation and ionisation
+        equalibrium.
+
+        This method can operate using an atomic transition table with measured
+        equivalent widths, or it can measure atomic transitions from spectra.
+
+        If spectral data are provided, the `transition_solver` must also be
+        given, as it determines how the atomic transitions will be measured.
+        Some examples include (in order of descending speed/accuracy):
+
+            - line_fitting.VoigtProfiles
+                + This will fit voight profiles to all data before doing the
+                  excitation/ionisation equalibrum, and allows for continuum,
+                  redshift, etc to be configured.
+
+            - line_fitting.SynthesiseBackgroundAndFitProfile
+                + This will synthesise the background region (not the atomic
+                  lines that we care about) and fit the profile of interest with
+                  a voigt profile.
+
+            - line_fitting.SynthesiseProfiles
+                + This will synthesise individual lines at some frequency (e.g.,
+                  if stellar parameters are very similar it may not re-synth.)
+
+
+
         """
+
+        if spectra is None and transitions is None:
+            raise ValueError("give at least spectra or measured transitions")
+
+        if spectra is not None and not isinstance(spectra, list):
+            spectra = [spectra]
+
+        if transitions is None:
+            # Load transitions from the configuration?
+            raise NotImplementedError
+
+
 
         # if it's data=[spectra], then the initial_theta may need to include vrad, continuum etc,
 
         # if it's data=[transitions], then we can really start from anywhere, because it is just teff, logg.
 
-        if spectra is None and transitions is None:
-            raise ValueError("give at least spectra or transitions")
 
         if spectra is not None:
             raise NotImplementedError
@@ -559,13 +444,27 @@ class EqualibriaModel(Model):
         results_table = table.Table(transitions.copy())
         results_table.add_column(table.Column(
             name="log_eps", data=np.round(all_abundances, 3)))
+        results_table.add_column(table.Column(name="log_eps_Solar",
+            data=atmospheres.solar_abundance(results_table["species"])))
+
+        # x = (teff, xi, logg, metallicity)
+        results_table.add_column(table.Column(
+            name="[X/M]", data=np.round(all_abundances - x[3] \
+                - atmospheres.solar_abundance(transitions["species"]), 3)))
         results_table.add_column(table.Column(
             name="outlier", data=~acceptable, dtype=bool))
 
-        if full_output:
-            sampled_theta = np.array(sampled_theta)
-            sampled_state_sums = np.array(sampled_state_sums)
+        # Arrayify for later.
+        sampled_theta = np.array(sampled_theta)
+        sampled_state_sums = np.array(sampled_state_sums)
 
+        # Save the successful equalibrium information for pickling.
+        logger.info("Saving successful equalibrium information to the model.")
+        self._equalibrium_estimate_ = (x, results_table, final_state,
+            sampled_theta, sampled_state_sums, optimisation_info) 
+
+        if full_output:
+            
             # TODO: Return profile fits + results from line fitting solver, where
             # applicable
             return (x, results_table, final_state, sampled_theta,
@@ -707,5 +606,159 @@ def wavelengths_in_data(wavelengths, data):
         orders[(spectrum.disp[-1] >= wavelengths) \
             * (wavelengths >= spectrum.disp[0])] = i
     return orders
+
+
+
+class Converged(BaseException):
+    """
+    An exception class that is used to alert optimisation algorithms that the
+    objective function has already converged on an optimal point.
+    """
+    pass
+
+
+def equalibrium_state(transitions, log_eps, metallicity,
+    excitation_regression_species=None, ionisation_state_species=None,
+    abundance_state_species=None, rew_regression_species=None,
+    averaging_behaviour="mean", relative_weighting_behaviour="total"):
+    """
+    Calculate the equalibrium state for the atomic transitions and abundances
+    provided.
+    """
+
+    if relative_weighting_behaviour not in ("num_neutral", "num_ionised",
+        "total", "minimum_species"):
+        raise ValueError("relative weighting behaviour not known")
+
+    if averaging_behaviour not in ("mean", "median"):
+        raise ValueError("averaging behaviour not understood")
+    else:
+        logger.debug("Using {0} averaging.".format(averaging_behaviour))
+
+    avg = np.nanmean if averaging_behaviour == "mean" else np.nanmedian
+    finite = np.isfinite(log_eps)
+
+    def match_species(species):
+        if species is None:
+            return np.ones(len(transitions), dtype=bool)
+        return np.array([each in species for each in transitions["species"]])
+
+    # Scale the log_eps abundances to the expected relative values.
+    expected_log_eps \
+        = metallicity + atmospheres.solar_abundance(transitions["species"])
+
+    # We will fit the regression lines to the scaled-solar difference.
+    log_eps_differences = log_eps - expected_log_eps
+
+    # Which lines will be used to calculate the slope with excitation potential
+    # and abundance?
+    mask = match_species(excitation_regression_species) * finite
+
+    # Calculate the slope with excitation potential and abundance.
+    exc_slope, exc_offset, exc_r_value, exc_p_value, exc_stderr \
+        = stats.linregress(x=transitions["excitation_potential"][mask],
+            y=log_eps_differences[mask])
+
+    # Calculate the slope with reduced equivalent width and line abundance.
+    mask = match_species(rew_regression_species) * finite
+    rew = np.log(transitions["equivalent_width"] / transitions["wavelength"])
+    rew_slope, rew_offset, rew_r_value, rew_p_value, rew_stderr \
+        = stats.linregress(x=rew[mask], y=log_eps_differences[mask])
+
+    # Calculate the abundance state.
+    mask = match_species(abundance_state_species) * finite
+    abundance_state = avg(log_eps_differences[mask])
+
+    # Calculate the ionisation state.
+    # Each set of single and ionised species gives us an indication to what the
+    # ionisation state of the system is. When we have many Fe lines but only 1
+    # Ti 1 + 2 set, or vice versa, we should average each set.
+    species = set(transitions["species"])
+    if ionisation_state_species is not None:
+        species = species.intersection(abundance_state_species)
+
+    if 2 > len(species):
+        logger.warn("Only one species found ({}); ionisation state is unknown"\
+            .format(list(species)[0]))
+
+    #assert len(species) > 1 # Need at least X I and X II
+
+    # For each species and ionisation state, calculate the abundance.
+    species_abundances = {}
+    for each in sorted(species):
+        mask = match_species([each]) * finite
+        values = log_eps_differences[mask]
+
+        N = np.isfinite(values).sum()
+        species_abundances[each] = [avg(values), N]
+
+    # If we have many different elements, create some weighted average.
+    elements = set(map(int, species))   
+    multiple_ionising_elements = len(elements) > 1 
+    if multiple_ionising_elements:
+        logger.debug("Calculating relative weight for ionisation state using {}"
+            " number of lines.".format(relative_weighting_behaviour))
+
+    relative_weights = np.zeros(len(elements))
+    element_ionisation_state = np.zeros(len(elements))
+    for i, element in enumerate(elements):
+        neutral_log_eps, neutral_N = species_abundances.get(
+            float(element), (np.nan, 0))
+        ionised_log_eps, ionised_N = species_abundances.get(
+            float(element) + 0.1, (np.nan, 0))
+
+        element_ionisation_state[i] = neutral_log_eps - ionised_log_eps
+
+        if multiple_ionising_elements:
+            logger.debug("Ionisation state of {0} is {1:.3f} dex ({2} neutral,"\
+                " {3} ionised lines)".format(
+                    element, element_ionisation_state[i], neutral_N, ionised_N))
+
+        if neutral_N == 0 or ionised_N == 0:
+            # Relative weights default to zero.
+            logger.info("Skipping element {} because of missing lines".format(
+                element))
+            continue
+
+        if relative_weighting_behaviour == "minimum_species":
+            # Weight by the least number of lines present in either species.
+            relative_weights[i] = min([neutral_N, ionised_N])
+
+        elif relative_weighting_behaviour == "num_ionised":
+            # Weight by the number of ionised lines present.
+            relative_weights[i] = ionised_N
+
+        elif relative_weighting_behaviour == "num_neutral":
+            # Weight by the number of neutral lines present.
+            relative_weights[i] = neutral_N
+
+        elif relative_weighting_behaviour == "total":
+            # Weight by the total number of lines present.
+            relative_weights[i] = neutral_N + ionised_N
+
+    ionisation_state = np.nansum(element_ionisation_state * relative_weights) \
+        / relative_weights.sum()
+    if multiple_ionising_elements:
+        logger.debug("Final ionisation state is {0:.3f} dex (neutral-ionised)"\
+            .format(ionisation_state))
+
+    # Calculate the final state.
+    state = np.array([
+        exc_slope,
+        ionisation_state,
+        abundance_state,
+        rew_slope
+    ])
+
+    state = np.array([
+        exc_slope,
+        rew_slope,
+        0.1 * ionisation_state,
+        0.1 * abundance_state,
+    ])
+
+
+    # TODO: Include an info dictionary.
+    return (state, None)
 
 
