@@ -133,12 +133,11 @@ def equalibrium_state(transitions, log_eps, metallicity,
             # Weight by the total number of lines present.
             relative_weights[i] = neutral_N + ionised_N
 
-    ionisation_state = (element_ionisation_state * relative_weights).sum() \
+    ionisation_state = np.nansum(element_ionisation_state * relative_weights) \
         / relative_weights.sum()
     if multiple_ionising_elements:
         logger.debug("Final ionisation state is {0:.3f} dex (neutral-ionised)"\
             .format(ionisation_state))
-
 
     # Calculate the final state.
     state = np.array([
@@ -283,10 +282,11 @@ class EqualibriaModel(Model):
                 and not np.any(np.isfinite(sampled_state_sums[-100:]))):
                 raise ValueError("last hundred sampled thetas returned NaNs")
 
+            _exception_response = np.nan * np.ones(len(theta))
+            _exception_full_response = (_exception_response,
+                np.nan * acceptable.sum(), {})
+                
             def invalid_value():
-                _exception_response = np.nan * np.ones(len(theta))
-                _exception_full_response = (_exception_response,
-                    np.nan * acceptable.sum(), {})
                 sampled_theta.append(theta)
                 sampled_state_sums.append(np.nan)
 
@@ -378,9 +378,12 @@ class EqualibriaModel(Model):
                 info_dict = dict(zip(
                     ("nfev", "njev", "fvec", "fjac", "r", "qtf"), [np.nan] * 6))
 
-            except:
+            except ValueError:
                 logger.exception("Unrecoverable exception occurred during the "
                     "optimisation:")
+                if full_output:
+                    return ([np.nan] * 4, None, [np.nan] * 4, sampled_theta,
+                        sampled_state_sums, {})
                 return ([np.nan] * 4, None, [np.nan] * 4)
 
             # If the fsolve optimisation fails, we should try again.
@@ -403,9 +406,12 @@ class EqualibriaModel(Model):
                     fopt = np.array(e.args[2])
                     n_iter, funcalls, warnflag = -1, -1, 0
 
-                except:
+                except ValueError:
                     logger.exception("Unrecoverable exception occurred during "
                         "the optimisation:")
+                    if full_output:
+                        return ([np.nan] * 4, None, [np.nan] * 4, sampled_theta,
+                            sampled_state_sums, {})
                     return ([np.nan] * 4, None, [np.nan] * 4)
 
                 if warnflag != 0:
