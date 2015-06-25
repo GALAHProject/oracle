@@ -55,8 +55,24 @@ class Interpolator(BaseInterpolator):
         scale.
         """
 
-        point = list(point) + [self._spherical_or_plane_parallel(*point)]
-        return super(self.__class__, self).interpolate(*point)
+        # Try either spherical / plane parallel, and if that fails, switch.
+        geometry = self._spherical_or_plane_parallel(*point)
+
+        p = list(point) + [geometry]
+        try:
+            return super(self.__class__, self).interpolate(*p)
+
+        except ValueError:
+            # Ok, switch geometry and try again.
+            new_geometry = (1, 0)[geometry > 0]
+            human_name = ["plane-parallel", "spherical"] # 1 = spherical
+            logger.exception("Failed to produce photosphere with {0} geometry "\
+                "at parameters {1}. Trying a {2} photosphere..".format(
+                    human_name[geometry], point, human_name[new_geometry]))
+
+            p = list(point) + [new_geometry]
+            return super(self.__class__, self).interpolate(*p)
+
 
 
 
