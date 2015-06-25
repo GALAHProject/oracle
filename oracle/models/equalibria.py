@@ -80,8 +80,8 @@ def equalibrium_state(transitions, log_eps, metallicity,
 
     if 2 > len(species):
         logger.warn("Only one species found ({}); ionisation state is unknown"\
-            .format(species[0]))
-    
+            .format(list(species)[0]))
+
     #assert len(species) > 1 # Need at least X I and X II
 
     # For each species and ionisation state, calculate the abundance.
