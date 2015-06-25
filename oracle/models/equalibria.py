@@ -78,7 +78,11 @@ def equalibrium_state(transitions, log_eps, metallicity,
     if ionisation_state_species is not None:
         species = species.intersection(abundance_state_species)
 
-    assert len(species) > 1 # Need at least X I and X II
+    if 2 > len(species):
+        logger.warn("Only one species found ({}); ionisation state is unknown"\
+            .format(species[0]))
+    
+    #assert len(species) > 1 # Need at least X I and X II
 
     # For each species and ionisation state, calculate the abundance.
     species_abundances = {}
@@ -360,6 +364,10 @@ class EqualibriaModel(Model):
         op_fmin_kwds.update(kwargs.pop("op_fmin_kwargs", {}))
         op_fmin_kwds["full_output"] = True
 
+        _exception_response = (np.nan * np.ones(4), None, np.nan * np.ones(4))
+        _exception_full_response = (np.nan * np.ones(4), None,
+            np.nan * np.ones(4), sampled_theta, sampled_state_sums, {})
+
         iteration, t_init = 0, time()
         
         while True:
@@ -381,10 +389,8 @@ class EqualibriaModel(Model):
             except ValueError:
                 logger.exception("Unrecoverable exception occurred during the "
                     "optimisation:")
-                if full_output:
-                    return ([np.nan] * 4, None, [np.nan] * 4, sampled_theta,
-                        sampled_state_sums, {})
-                return ([np.nan] * 4, None, [np.nan] * 4)
+                return _exception_full_response \
+                    if full_output else _exception_response
 
             # If the fsolve optimisation fails, we should try again.
             if ier != 1:
@@ -409,10 +415,8 @@ class EqualibriaModel(Model):
                 except ValueError:
                     logger.exception("Unrecoverable exception occurred during "
                         "the optimisation:")
-                    if full_output:
-                        return ([np.nan] * 4, None, [np.nan] * 4, sampled_theta,
-                            sampled_state_sums, {})
-                    return ([np.nan] * 4, None, [np.nan] * 4)
+                    return _exception_full_response \
+                        if full_output else _exception_response
 
                 if warnflag != 0:
                     logger.warn([
