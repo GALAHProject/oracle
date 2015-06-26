@@ -11,8 +11,9 @@ import logging
 import numpy as np
 
 from scipy import optimize as op
-from scipy.special import wofz
 
+#from . import profile
+import profile
 
 logger = logging.getLogger("oracle")
 
@@ -24,63 +25,6 @@ class BaseFitter(object):
     def __init__(self, *args, **kwargs):
         self._initialised = True
 
-
-
-class gaussian_profile(object):
-
-    @staticmethod
-    def __call__(x, mu, sigma, amplitude, continuum=1.0):
-        """Evaluates a Gaussian absorption profile across the `x` values with a 
-        given local continuum.
-
-        continuum : `np.array` or call-able function
-            The continuum over the given `x` region.
-        """
-
-        try:
-            # Is the continuum call-able?
-            continuum = continuum(x)
-        except TypeError:
-            None
-
-        g = amplitude * np.exp(-(x - mu)**2 / (2.0 * sigma**2))
-        return continuum - g
-
-
-    @staticmethod
-    def integrate(x, mu, sigma, amplitude, **kwargs):
-        return amplitude * sigma * np.sqrt(2*np.pi)
-
-
-class voigt_profile(object):
-
-    @staticmethod
-    def __call__(x, mu, sigma, amplitude, gamma, continuum=1.0):
-        """Evaluates a Voigt absorption profile across the `x`
-        values with a given local continuum.
-
-        V(x,sig,gam) = Re(w(z))/(sig*sqrt(2*pi))
-        z = (x+i*gam)/(sig*sqrt(2))
-
-        continuum : `np.array` or callable function
-            The continuum over the given region.
-        """
-
-        try:
-            # Is the continuum call-able?
-            continuum = continuum(x)
-        except TypeError:
-            None
-
-        z = ((x - mu) + 1j*gamma) / (sigma * np.sqrt(2))
-        v = amplitude * np.real(wofz(z)) 
-    
-        return continuum - v
-
-    @staticmethod
-    def integrate(x, mu, sigma, amplitude, shape, continuum=1.0):
-
-        raise NotImplementedError
 
 
 
@@ -103,7 +47,7 @@ def mask_data(x, y, mask_regions, mask_non_finites=False):
         mask *= upper > x if upper is not None else 1
         mask *= x > lower if lower is not None else 1
 
-    return mask
+    return ~mask
 
 
 class NormalisedSpectrumFitter(BaseFitter):
@@ -133,7 +77,7 @@ class NormalisedSpectrumFitter(BaseFitter):
             "initial_fwhm": initial_fwhm,
             "central_weighting": bool(central_weighting),
             "wavelength_tolerance": wavelength_tolerance,
-            "maximum_wavelength_window": 1.0
+            "maximum_wavelength_window": 0.5
         }
 
         return None
@@ -191,10 +135,10 @@ class NormalisedSpectrumFitter(BaseFitter):
             1.0 - spectrum.flux[index]      # amplitude
         ])
         if kwds["profile"] == "gaussian":
-            f = gaussian_profile() 
+            f = profile.gaussian() 
             
         elif kwds["profile"] == "voigt":
-            f = voigt_profile()
+            f = profile.voigt()
             p_init = np.append(p_init, [0.01]) # shape
         
 
@@ -214,18 +158,20 @@ class NormalisedSpectrumFitter(BaseFitter):
         ax.plot(disp, f(disp, *p_init), c='g')
         ax.plot(disp, f(disp, *p_opt), c='r')
 
+        a = f.integrate(disp, *p_opt)
+        
         # Fit as voigt now
-        f = voigt_profile()
+        f = profile.voigt()
         p_init = np.append(p_opt.copy(), [0.0001])
 
-        ax.plot(disp, f(disp, *p_init), "k", lw=2)
+        ax.plot(disp, f(disp, *p_init), "g", lw=2)
 
         p_opt2, p_cov = op.curve_fit(f, disp[ma], flux[ma], p_init,
             sigma=np.sqrt(variance[ma]), absolute_sigma=True)
 
-        ax.plot(disp, f(disp, *p_opt2), 'r:')
+        ax.plot(disp, f(disp, *p_opt2), 'r', lw=2)
 
-        #f.integrate(disp, *p_opt)
+        b = f.integrate(disp, *p_opt2)
 
         raise a
 
@@ -248,6 +194,6 @@ if __name__ == "__main__":
 
 
     f = NormalisedSpectrumFitter(profile="gaussian")
-    f.fit_transition(spec, 4779.29)
+    f.fit_transition(spec, 4779.29, mask=[[4779.6, 6000]])
 
 
