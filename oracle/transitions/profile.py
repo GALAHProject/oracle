@@ -7,6 +7,8 @@ from __future__ import absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
+__all__ = ["gaussian", "voigt"]
+
 import numpy as np
 
 from scipy import integrate
@@ -35,7 +37,7 @@ class gaussian(object):
 
 
     @staticmethod
-    def integrate(x, mu, sigma, amplitude, **kwargs):
+    def integrate(mu, sigma, amplitude, **kwargs):
         return amplitude * sigma * np.sqrt(2*np.pi)
 
 
@@ -60,12 +62,12 @@ class voigt(object):
             None
 
         z = ((x - mu) + 1j*gamma) / (sigma * np.sqrt(2))
-        v = amplitude * np.real(wofz(z)) 
+        v = amplitude * wofz(z).real
         return continuum - v
 
 
     @staticmethod
-    def integrate(x, mu, sigma, amplitude, gamma, continuum=1.0, threshold=10):
+    def integrate(mu, sigma, amplitude, gamma, continuum=1.0, threshold=10):
 
         f = voigt()
         integral, error = integrate.quad(f, mu - threshold * sigma,

@@ -127,11 +127,18 @@ class NormalisedSpectrumFitter(BaseFitter):
                 "line at {1:.2f} Angstroms".format(kwds["wavelength_tolerance"],
                     wavelength))
 
-
         # Get the profile and initialise the point.
+        try:
+            contains_fwhm = 1 - (1 - spectrum.flux[index])/2. >= flux
+            idx = np.where(contains_fwhm)[0]
+            initial_fwhm = disp[np.diff(idx).nonzero()].ptp()
+
+        except ValueError:
+            initial_fwhm = kwds["initial_fwhm"]
+
         p_init = np.array([
             spectrum.disp[index],           # mu
-            2.355 * kwds["initial_fwhm"],   # sigma
+            initial_fwhm / 2.355,           # sigma
             1.0 - spectrum.flux[index]      # amplitude
         ])
         if kwds["profile"] == "gaussian":
@@ -158,7 +165,7 @@ class NormalisedSpectrumFitter(BaseFitter):
         ax.plot(disp, f(disp, *p_init), c='g')
         ax.plot(disp, f(disp, *p_opt), c='r')
 
-        a = f.integrate(disp, *p_opt)
+        a = f.integrate(*p_opt)
         
         # Fit as voigt now
         f = profile.voigt()
@@ -171,7 +178,7 @@ class NormalisedSpectrumFitter(BaseFitter):
 
         ax.plot(disp, f(disp, *p_opt2), 'r', lw=2)
 
-        b = f.integrate(disp, *p_opt2)
+        b = f.integrate(*p_opt2)
 
         raise a
 
