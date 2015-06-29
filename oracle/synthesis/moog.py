@@ -40,8 +40,16 @@ def _format_transitions(transitions):
 
     d = transitions if hasattr(transitions, "view") else transitions.as_array()
 
-    columns = ("wavelength", "species", "excitation_potential", "loggf",
-        "C6???", "C4???", "equivalent_width")
+    columns = (
+        "wavelength",
+        "species",
+        "excitation_potential",
+        "loggf",
+        #"C1", # RADIATION DAMPING
+        "C6", # Van Der Waals DAMPING
+        "D0", # Dissociation energy [eV]
+        #"C4", # GAMMA, QUADRATIC STARK DAMPING
+        "equivalent_width")
 
     if np.any((d["species"] % 1) > 0.15):
         # [TODO] Maybe we should actually raise an exception here.

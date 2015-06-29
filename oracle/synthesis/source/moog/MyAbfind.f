@@ -43,7 +43,7 @@ c     Params crap. Can probably be removed eventually.
       linprintopt  = 2
       fluxintopt   = 0
       plotopt      = 0
-      dampingopt   = 1
+      dampingopt   = 3
       specfileopt  = 0
       linfileopt   = 0
       iunits       = 0
