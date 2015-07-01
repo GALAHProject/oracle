@@ -55,7 +55,7 @@ def _format_transitions(transitions):
         # [TODO] Maybe we should actually raise an exception here.
         logger.warn("Species with high ionisation states (>1) detected!")
 
-    transitions_arr = np.zeros((len(d), 7))
+    transitions_arr = np.zeros((len(d), 7), dtype=float)
     for i, column in enumerate(columns):
         if column not in d.dtype.names: continue
         transitions_arr[:, i] = d[column]
@@ -293,7 +293,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
 
     assert wavelengths.size == fluxes.size
     assert wavelengths.size == pixels
-    
+
     return (wavelengths, fluxes)
 
 

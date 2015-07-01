@@ -29,7 +29,7 @@
       include 'Linex.com'
       include 'Pstuff.com'
       include 'Dummy.com'
-
+      include 'Dampdat.com'
 
 
       nfbarklem = 35
@@ -39,6 +39,49 @@
       open (nfbarklemUV,file=TRIM(data_path) // "/BarklemUV.dat")
 
 
+      nfmodel =  0 
+      nflines =  0
+      nfslines = 0
+      nfobs =    0
+      nftable =  0
+      modprintopt  = 2
+      molopt       = 2
+      linprintopt  = 2
+      fluxintopt   = 0
+      plotopt      = 0
+      dampingopt   = 3
+      specfileopt  = 0
+      linfileopt   = 0
+      iunits       = 0
+      itru         = 0
+      iscale       = 0
+      iraf         = 0
+      histoyes     = 0
+      byteswap     = 0
+      deviations   = 0
+      scatopt      = 0
+      gfstyle      = 0
+      maxshift     = 0
+      dostrong     = 0
+      fudge = -1.0
+
+      oldstart = 0.
+      start = 0.
+      sstop = 0.
+      step = 0.
+      delta = 0.
+      cogatom = 0.
+      contnorm = 1.0
+
+
+c  INITIALIZE SOME VARIABLES: line limit parameters
+      ncurve = 0
+      lim1line = 0
+      lim2line = 0
+      lim1obs = 0
+      lim2obs = 0
+      lim1 = 0
+      lim2 = 0
 
 
 cc      i = nint((in_synlimits(2) - in_synlimits(1))/in_synlimits(3) + 1)
@@ -210,6 +253,7 @@ c      print *, "numpecatom", numpecatom, numatomsyn
 c         nlines = 0
          mode = 3
 c        inlines updates nlines and nstrong, so we will have to update them
+
          call inlines (1)
          call eqlib
          call nearly (1)

@@ -15,6 +15,17 @@ import oracle
 
 line_list_filename = "18sco-line-abundances.txt"
 
+def test_synth(debug=False):
+
+    line_list = np.core.records.fromarrays(np.loadtxt(line_list_filename,
+        usecols=(0, 1, 2, 3)).T, names=("wavelength", "species", 
+        "excitation_potential", "loggf"))
+
+    t = oracle.synthesis.synthesise(np.atleast_2d(line_list[2]), [5777, 4.445, 0.00],
+        wavelength_region=[5240, 5250], microturbulence=1.00, debug=debug,
+        photosphere_kwargs={"kind": "MARCS"})
+    return t
+
 
 def test_18sco(start=0, N=None, debug=True):
     """
