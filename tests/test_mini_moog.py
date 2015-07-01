@@ -21,10 +21,15 @@ def test_synth(debug=False):
         usecols=(0, 1, 2, 3)).T, names=("wavelength", "species", 
         "excitation_potential", "loggf"))
 
-    t = oracle.synthesis.synthesise(np.atleast_2d(line_list[2]), [5777, 4.445, 0.00],
+    disp, flux = oracle.synthesis.synthesise(line_list, [5777, 4.445, 0.00],
         wavelength_region=[5240, 5250], microturbulence=1.00, debug=debug,
         photosphere_kwargs={"kind": "MARCS"})
-    return t
+
+    with open("sun.iraf.out", "r") as fp:
+        precomputed_flux = map(float, fp.read().split())
+
+    assert np.allclose(precomputed_flux, flux, rtol=1e-3, atol=1e-4)
+    return (disp, flux)
 
 
 def test_18sco(start=0, N=None, debug=True):
