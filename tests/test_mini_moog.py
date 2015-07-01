@@ -15,7 +15,7 @@ import oracle
 
 line_list_filename = "18sco-line-abundances.txt"
 
-def test_synth(debug=False):
+def test_synth(rtol=1e-3, atol=1e-4, debug=False):
 
     line_list = np.core.records.fromarrays(np.loadtxt(line_list_filename,
         usecols=(0, 1, 2, 3)).T, names=("wavelength", "species", 
@@ -28,11 +28,11 @@ def test_synth(debug=False):
     with open("sun.iraf.out", "r") as fp:
         precomputed_flux = map(float, fp.read().split())
 
-    assert np.allclose(precomputed_flux, flux, rtol=1e-3, atol=1e-4)
+    assert np.allclose(precomputed_flux, flux, rtol=rtol, atol=atol)
     return (disp, flux)
 
 
-def test_18sco(start=0, N=None, debug=True):
+def test_18sco(start=0, N=None, debug=False):
     """
     Make sure we get the same abundances as the compiled MOOG version for 18Sco.
     """
@@ -63,7 +63,7 @@ def test_18sco(start=0, N=None, debug=True):
     assert np.all(np.abs(differences) < 0.005)
 
 
-def test_repeated_moog_calls(debug=False, rtol=1e-05, atol=1e-08):
+def test_repeated_moog_calls(rtol=1e-05, atol=1e-08, debug=False):
     """
     Make the same MOOG call 100 times and make sure that we get the exact
     same abundances each time.
