@@ -287,7 +287,13 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
     pixels = (synthesis_region[1] - synthesis_region[0])/synthesis_region[2] + 1
     code, wavelengths, fluxes = moog.synthesise(metallicity, microturbulence,
         photosphere_arr, photospheric_abundances, transitions, synthesis_region,
-        opacity_contribution, npoints_=pixels, modtype_=modtype, debug_=debug)
+        opacity_contribution, in_npoints=pixels, in_modtype=modtype,
+        in_debug=debug, #f2pystop=MOOGException(),
+        data_path=os.path.dirname(__file__))
+
+    assert wavelengths.size == fluxes.size
+    assert wavelengths.size == pixels
+    
     return (wavelengths, fluxes)
 
 
