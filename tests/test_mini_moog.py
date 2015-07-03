@@ -26,10 +26,10 @@ def test_synth(rtol=1e-3, atol=1e-4, debug=False):
         photosphere_kwargs={"kind": "MARCS"})
 
     with open("sun.iraf.out", "r") as fp:
-        precomputed_flux = map(float, fp.read().split())
+        precomputed_flux = map(float, "".join(fp.readlines()[7:]).split())
 
     assert np.allclose(precomputed_flux, flux, rtol=rtol, atol=atol)
-    return (disp, flux)
+    return (disp, flux, precomputed_flux)
 
 
 def test_18sco(start=0, N=None, debug=False):
