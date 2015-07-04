@@ -79,8 +79,7 @@ def _format_abundances(abundances=None):
         formatted_abundances = np.asfortranarray(np.array([])).reshape(-1, 2)
         
     else:
-        formatted_abundances = np.asfortranarray(np.atleast_2d(
-            photospheric_abundances))
+        formatted_abundances = np.asfortranarray(np.atleast_2d(abundances))
 
     return formatted_abundances
 
@@ -292,7 +291,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
         data_path=os.path.dirname(__file__))
 
     assert wavelengths.size == fluxes.size
-    assert wavelengths.size == pixels
+    assert wavelengths.size == int(pixels)
 
     return (wavelengths, fluxes)
 

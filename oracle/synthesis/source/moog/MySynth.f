@@ -151,13 +151,11 @@ c      call params
          jatom = in_logepsilon_abundances(i, 1)
          if (jatom .eq. 99) then
             do kk=1,numatomsyn
-c               abfactor(kk) = in_logepsilon_abundances(i, 1+kk)
-                abfactor(kk) = 0.0
+               abfactor(kk) = in_logepsilon_abundances(i, 1+kk)
             enddo
          else
             do kk=1,numatomsyn
-c               pecabund(jatom, kk) = in_logepsilon_abundances(i, 1+kk)
-                pecabund(jatom, kk) = 0.0
+               pecabund(jatom, kk) = in_logepsilon_abundances(i, 1+kk)
             enddo
             pec(jatom) = 1
          endif
