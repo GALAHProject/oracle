@@ -193,7 +193,7 @@ if __name__ == "__main__":
         "species": 26.0,
         "excitation_potential": 2.727,
         "loggf": -1.473,
-        "C6": 320.26400756
+        "VDW_DAMP": 320.26400756
     }])
 
     import cPickle as pickle
@@ -207,7 +207,14 @@ if __name__ == "__main__":
     #wavelength_range = [6592.9124 - 5., 6597.2]
     
     synthesiser = lambda abundance: oracle.synthesis.moog.synthesise(transitions,
-        photosphere, wavelength_range, microturbulence=1.07, photospheric_abundances=[26, abundance])
+        photosphere, wavelength_range, microturbulence=1.07,
+        photospheric_abundances=[26, abundance], damping=4)
+
+    # 0 = 840699499.20031548
+    # 1 = 111950631.80524081
+    # 2 = 126757416.63107705
+    # 3 = 1231810711.2760828
+    # 4 = 116284148.07045062
 
 
     foo = SynthesisFitter(radial_velocity_tolerance=3, continuum_degree=0)

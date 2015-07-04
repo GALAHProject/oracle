@@ -46,7 +46,7 @@ def _format_transitions(transitions):
         "excitation_potential",
         "loggf",
         #"C1", # RADIATION DAMPING
-        "C6", # Van Der Waals DAMPING
+        "VDW_DAMP", # Coefficient for collisional broadening by Hydrogen (vdW)
         "D0", # Dissociation energy [eV]
         #"C4", # GAMMA, QUADRATIC STARK DAMPING
         "equivalent_width")
@@ -253,6 +253,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
         raise ValueError("opacity contribution must be a positive float")
 
     debug = kwargs.pop("debug", False)
+    damping = kwargs.pop("damping", 4)
     modtype, photosphere_arr, metallicity = _format_photosphere(
         photosphere_information, photosphere_kwargs,
         interpolator=kwargs.pop("_interpolator", None))
@@ -288,6 +289,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
         photosphere_arr, photospheric_abundances, transitions, synthesis_region,
         opacity_contribution, in_npoints=pixels, in_modtype=modtype,
         in_debug=debug, #f2pystop=MOOGException(),
+        damping=damping,
         data_path=os.path.dirname(__file__))
 
     assert wavelengths.size == fluxes.size
@@ -346,6 +348,8 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
         photosphere_information, photosphere_kwargs,
         interpolator=kwargs.pop("_interpolator", None))
 
+    damping = kwargs.pop("damping", 4)
+
     # Prepare the transitions table.
     transitions = _format_transitions(transitions)
     
@@ -357,7 +361,7 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
         code, output = moog.abundances(metallicity, microturbulence,
             photosphere_arr, photospheric_abundances, transitions,
             in_modtype=modtype, in_debug=debug, f2pystop=MOOGException(),
-            data_path=os.path.dirname(__file__))
+            damping=damping, data_path=os.path.dirname(__file__))
         return output
 
     else:
