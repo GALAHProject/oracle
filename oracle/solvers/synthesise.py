@@ -147,26 +147,27 @@ class SynthesisFitter(BaseFitter):
             return model_pixels
 
         try:
-            p_opt, p_cov = op.curve_fit(model, disp[mask], flux[mask], p_init,
-                sigma=np.sqrt(variance[mask]), absolute_sigma=True, epsfcn=0.0,
+            p_opt, p_cov = op.curve_fit(model, disp[~mask], flux[~mask], p_init,
+                sigma=np.sqrt(variance[~mask]), absolute_sigma=True, epsfcn=0.0,
                 ftol=1e-10, gtol=1e-10)
 
         except:
-            logger.exception("Exception occurred during line-fitting (1):")
+            logger.exception("Exception occurred during synthesis fitting:")
             raise
 
         # TODO: Do we want to do sigma-clipping and go again? Probably not...
 
         # Calculate the chi-squared value.
-        chi_sq = sum((model(disp[mask], *p_opt) - flux[mask])**2/variance[mask])
-        dof = sum(mask) - len(p_opt) - 1
+        difference = model(disp[~mask], *p_opt) - flux[~mask]
+        chi_sq = sum(difference**2/variance[~mask])
+        dof = sum(~mask) - len(p_opt) - 1
 
         if full_output:
             return (p_opt, chi_sq, dof, kwds,
                 [
-                    disp[mask],
-                    model(disp[mask], *p_opt),
-                    model(disp[mask], *p_init)
+                    disp[~mask],
+                    model(disp[~mask], *p_opt),
+                    model(disp[~mask], *p_init)
                 ], p_cov)
 
         return (p_opt, chi_sq, dof, kwds)
@@ -179,7 +180,7 @@ if __name__ == "__main__":
 
     import oracle
     data = oracle.specutils.Spectrum1D.load_GALAH(
-        "/Users/arc/research/galah/data/iDR1/data/benchmark/18Sco_3.fits", normalised=False, rest=True)
+        "/Users/arc/research/galah/data/iDR1/data/benchmark/18Sco_3.fits", normalised=True, rest=True)
 
     # Create a synthesiser that includes the line list and model atmosphere
     # information for the fitter.
@@ -187,17 +188,45 @@ if __name__ == "__main__":
     photosphere = interpolator(5810, 4.45, 0)
 
     from astropy.table import Table
-    transitions = Table(rows=[{"wavelength": 6592.9124, "species": 26.0, "excitation_potential": 2.727, "loggf": -1.473}])
+    transitions = Table(rows=[{
+        "wavelength": 6592.9124, 
+        "species": 26.0,
+        "excitation_potential": 2.727,
+        "loggf": -1.473,
+        "C6": 320.26400756
+    }])
+
+    import cPickle as pickle
+    with open("lines.pkl", "rb") as fp:
+        rows = pickle.load(fp)
+
+    #transitions = Table(rows=rows)
 
     wavelength_range = [6592.6880, 6593.4500]
-    wavelength_range = [6592.4880, 6593.4500]
-    wavelength_range = [6592.9124 - 5., 6597.2]
+    wavelength_range = [6591.2880, 6594.6500]
+    #wavelength_range = [6592.9124 - 5., 6597.2]
     
     synthesiser = lambda abundance: oracle.synthesis.moog.synthesise(transitions,
         photosphere, wavelength_range, microturbulence=1.07, photospheric_abundances=[26, abundance])
 
 
-    foo = SynthesisFitter(radial_velocity_tolerance=3, continuum_degree=1)
-    moo = foo.fit(data, synthesiser, mask=[[6590.91, 6591.76], [6593.35, 6594.54]], full_output=False)
+    foo = SynthesisFitter(radial_velocity_tolerance=3, continuum_degree=0)
+    p_opt, chi_sq, dof, kwds, (disp, opt_mod_flux, init_mod_flux), cov \
+        = foo.fit(data, synthesiser, mask=[[6593.44, 6594.27]],
+            full_output=True)
+
+
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    ax.plot(disp, init_mod_flux, c='b', zorder=10)
+    ax.plot(disp, opt_mod_flux, c='r', zorder=10)
+    lims = ax.get_xlim()
+    
+    ax.errorbar(data.disp, data.flux, yerr=data.variance**0.5, fmt=None, ecolor="k")
+
+    ax.plot(data.disp, data.flux, c='k')
+    ax.set_xlim(lims)
+
+    raise a
 
 

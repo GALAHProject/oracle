@@ -21,23 +21,24 @@ class BaseFitter(object):
 
 
     @classmethod
-    def mask_data(cls, x, y, mask_regions, mask_non_finites=False):
+    def mask_data(cls, x, y, mask_regions, mask_non_finites=True):
         """
         Return a mask array for the data (x, y).
+
+        Like numpy masked arrays, when the mask is True, the element is said to
+        be masked (invalid).
         """
 
         assert x.size == y.size
         if mask_non_finites:
             mask = ~np.isfinite(y)
         else:
-            mask = np.ones(x.size, dtype=bool)
+            mask = ~np.ones(x.size, dtype=bool)
 
         for lower, upper in mask_regions:
-            print(lower, upper)
-            if None not in (upper, lower):
-                assert upper > lower
+            upper = +np.inf if upper is None else upper
+            lower = -np.inf if lower is None else lower
+            assert upper > lower
+            mask += (upper > x) * (x > lower)
 
-            mask *= upper > x if upper is not None else 1
-            mask *= x > lower if lower is not None else 1
-
-        return ~mask
+        return mask

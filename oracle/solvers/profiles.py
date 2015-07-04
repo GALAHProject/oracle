@@ -96,10 +96,10 @@ class ProfileFitter(BaseFitter):
             variance *= 4 * np.abs(disp - wavelength)**2
 
         # Apply any masks.
-        ma = self.mask_data(disp, flux / variance, kwds["global_mask"],
+        mask = self.mask_data(disp, flux / variance, kwds["global_mask"],
             mask_non_finites=True)
 
-        if 5 > (ma).sum(): # minimum 5 pixels
+        if 5 > (~mask).sum(): # minimum 5 pixels
             # No finite data around the line.
             raise ValueError("no finite data within {0:.2f} Angstroms of the "\
                 "line at {1:.2f} Angstroms".format(kwds["wavelength_tolerance"],
@@ -154,8 +154,8 @@ class ProfileFitter(BaseFitter):
 
         try:
             # Note: Ensure we are only using finite values for the fit.
-            p_opt, p_cov = op.curve_fit(g, disp[ma], flux[ma], p_init,
-                sigma=np.sqrt(variance[ma]), absolute_sigma=True, epsfcn=0.0,
+            p_opt, p_cov = op.curve_fit(g, disp[~mask], flux[~mask], p_init,
+                sigma=np.sqrt(variance[~mask]), absolute_sigma=True, epsfcn=0.0,
                 ftol=1e-10, gtol=1e-10)
 
         except:
@@ -166,12 +166,12 @@ class ProfileFitter(BaseFitter):
         if kwds["clip_model_sigma"] > 0:
 
             model_sigma = np.abs((flux - f(disp, *p_opt))/np.sqrt(variance))
-            mb = ma * (kwds["clip_model_sigma"] >= model_sigma)
+            mask_b = mask * (model_sigma >= kwds["clip_model_sigma"])
 
             try:
                 # Note: Ensure we are only using finite values for the fit.
-                p_opt, p_cov = op.curve_fit(g, disp[mb], flux[mb], p_init,
-                    sigma=np.sqrt(variance[mb]), absolute_sigma=True,
+                p_opt, p_cov = op.curve_fit(g, disp[~mask_b], flux[~mask_b], p_init,
+                    sigma=np.sqrt(variance[~mask_b]), absolute_sigma=True,
                     epsfcn=0.0, ftol=1e-10, gtol=1e-10)
 
             except:
@@ -183,7 +183,7 @@ class ProfileFitter(BaseFitter):
 
         if full_output:
             return (equivalent_width, p_opt, p_init, kwds,
-                [disp[ma], f(disp[ma], *p_opt), f(disp[ma], *p_init)], p_cov)
+                [disp[~mask], f(disp[~mask], *p_opt), f(disp[~mask], *p_init)], p_cov)
 
         return (equivalent_width, p_opt, kwds)
 
