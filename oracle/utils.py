@@ -18,6 +18,11 @@ from scipy.special import wofz
 logger = logging.getLogger("oracle")
 
 
+from collections import namedtuple
+from functools import update_wrapper
+from threading import RLock
+
+
 def overlap(start_a, end_a, start_b, end_b):
     return end_b >= start_b and end_b >= start_a
 
@@ -146,9 +151,7 @@ def invert_mask(mask, data=None, limits=(0, 10e5), padding=0):
     return inverted_mask
 
 
-
-_CacheInfo = collections.namedtuple("CacheInfo",
-    ["hits", "misses", "maxsize", "currsize"])
+_CacheInfo = namedtuple("CacheInfo", ["hits", "misses", "maxsize", "currsize"])
 
 class _HashedSeq(list):
     __slots__ = 'hashvalue'
@@ -181,7 +184,55 @@ def _make_key(args, kwds, typed,
     return _HashedSeq(key)
 
 
-def lru_cache(maxsize=128, typed=False):
+def simple_round_factory(tol):
+    """helper function for simple_round (a factory for simple_round functions)"""
+    def simple_round(*args, **kwds):
+        argstype = type(args)
+        _args = list(args)
+        _kwds = kwds.copy()
+        for i,j in enumerate(args): # args[0] is the class.
+            if isinstance(j, float): _args[i] = round(j, tol[i - 1] \
+                if isinstance(tol, (list, tuple)) else tol) # don't round int
+        for k, (i,j) in enumerate(kwds.items()):
+            if isinstance(j, float): _kwds[i] = round(j, tol[k] \
+                if isinstance(tol, (list, tuple)) else tol)
+        return argstype(_args), _kwds
+    return simple_round
+
+def simple_round(tol=0):
+    """decorator for rounding a function's input argument and keywords to the
+    given precision *tol*.  This decorator always rounds to a floating point
+    number.
+    Rounding is only done for arguments or keywords that are floats.
+    For example:
+    >>> @simple_round(tol=1)
+    ... def add(x,y):
+    ...   return x+y
+    ...
+    >>> add(2.54, 5.47)
+    8.0
+    >>>
+    >>> # does not round elements of iterables, only rounds at the top-level
+    >>> add([2.54, 5.47],['x','y'])
+    [2.54, 5.4699999999999998, 'x', 'y']
+    >>>
+    >>> # does not round elements of iterables, only rounds at the top-level
+    >>> add([2.54, 5.47],['x',[8.99, 'y']])
+    [2.54, 5.4699999999999998, 'x', [8.9900000000000002, 'y']]
+    """
+    def dec(f):
+        def func(*args, **kwds):
+            if tol is None:
+                _args,_kwds = args,kwds
+            else:
+                _simple_round = simple_round_factory(tol)
+                _args,_kwds = _simple_round(*args, **kwds)
+            return f(*_args, **_kwds)
+        return func
+    return dec
+
+
+def lru_cache(maxsize=100, typed=False, **kwargs):
     """Least-recently-used cache decorator.
 
     If *maxsize* is set to None, the LRU features are disabled and the cache
@@ -206,6 +257,12 @@ def lru_cache(maxsize=128, typed=False):
     # The internals of the lru_cache are encapsulated for thread safety and
     # to allow the implementation to change (including a possible C version).
 
+    tol = kwargs.get("tol", None)
+
+    @simple_round(tol)
+    def rounded_args(*args, **kwds):
+        return (args, kwds)
+
     def decorating_function(user_function):
 
         cache = dict()
@@ -224,7 +281,8 @@ def lru_cache(maxsize=128, typed=False):
 
             def wrapper(*args, **kwds):
                 # no caching, just do a statistics update after a successful call
-                result = user_function(*args, **kwds)
+                _args, _kwds = rounded_args(*args, **kwds)
+                result = user_function(*_args, **_kwds)
                 stats[MISSES] += 1
                 return result
 
@@ -237,7 +295,8 @@ def lru_cache(maxsize=128, typed=False):
                 if result is not root:
                     stats[HITS] += 1
                     return result
-                result = user_function(*args, **kwds)
+                _args, _kwds = rounded_args(*args, **kwds)
+                result = user_function(*_args, **_kwds)
                 cache[key] = result
                 stats[MISSES] += 1
                 return result
@@ -260,9 +319,9 @@ def lru_cache(maxsize=128, typed=False):
                         link[PREV] = last
                         link[NEXT] = root
                         stats[HITS] += 1
-                        logger.debug("Using cache")
                         return result
-                result = user_function(*args, **kwds)
+                _args, _kwds = rounded_args(*args, **kwds)
+                result = user_function(*_args, **_kwds)
                 with lock:
                     root, = nonlocal_root
                     if key in cache:
@@ -311,34 +370,6 @@ def lru_cache(maxsize=128, typed=False):
         return update_wrapper(wrapper, user_function)
 
     return decorating_function
-
-
-def rounder(*decimals, **decimal_kwargs):
-    def decorator(function):
-        def wrapper(*args, **kwargs):
-            
-            rounded_args = []
-            for arg, decimal in zip(args, decimals):
-                if decimal is None:
-                    if isinstance(arg, (np.core.records.record, )):
-                        rounded_args.append(tuple(arg))
-                    else:
-                        rounded_args.append(arg)
-                else:
-                    if isinstance(arg, (float, int)):
-                        rounded_args.append(np.round(arg, decimal))
-                    else:
-                        rounded_args.append(tuple(np.round(arg, decimal)))
-
-
-            # Extend with arguments that don't have precision requirements
-            missing_args = len(args) - len(rounded_args)
-            if missing_args > 0:
-                rounded_args.extend(args[-missing_args:])
-            return function(*rounded_args, **kwargs)
-        return wrapper
-    return decorator
-
 
 
 #        return ("teff", "xi", "logg", "[M/H]")

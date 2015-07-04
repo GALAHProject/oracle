@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Functions for dealing with MARCS model atmospheres. """
+""" Functions for dealing with MARCS model photospheres. """
 
 from __future__ import division, absolute_import, print_function
 
@@ -16,7 +16,7 @@ from collections import Counter
 import numpy as np
 
 # Module-specific.
-from oracle.atmospheres.interpolator import BaseInterpolator
+from oracle.photospheres.interpolator import BaseInterpolator
 
 # Create logger.
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class Interpolator(BaseInterpolator):
     def __init__(self, **kwargs):
         """
         A class to interpolate spherical and plane-parallel MARCS model
-        atmospheres.
+        photospheres.
 
         We use the standard-composition 1 Solar mass models with microturbulence
         of 1 km/s in plane-parallel models and 2 km/s in spherical models.
