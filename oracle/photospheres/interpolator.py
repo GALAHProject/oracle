@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Interpolate model atmospheres. """
+""" Interpolate model photospheres. """
 
 from __future__ import division, absolute_import, print_function
 
@@ -19,7 +19,7 @@ import numpy as np
 import scipy.interpolate as interpolate
 from scipy import __version__ as scipy_version
 
-from .atmosphere import Atmosphere
+from .photosphere import Photosphere
 
 major, minor = map(int, str(scipy_version).split(".")[:2])
 has_scipy_requirements = (major > 0 or minor >= 14)
@@ -35,29 +35,29 @@ class BaseInterpolator(object):
     opacity_scale = None
     logarithmic_photosphere_quantities = []
 
-    def __init__(self, pickled_atmospheres, neighbours=30, method="linear",
+    def __init__(self, pickled_photospheres, neighbours=30, method="linear",
         rescale=True, live_dangerously=True):
         """
         Create a class to interpolate photospheric quantities.
 
-        :param pickled_atmospheres:
-            The kind of atmospheres to interpolate. 
+        :param pickled_photospheres:
+            The kind of photospheres to interpolate. 
 
-        :type pickled_atmospheres:
+        :type pickled_photospheres:
             str
         """
 
-        if os.path.exists(pickled_atmospheres):
-            with open(pickled_atmospheres, "rb") as fp:
+        if os.path.exists(pickled_photospheres):
+            with open(pickled_photospheres, "rb") as fp:
                 _ = pickle.load(fp)
 
         else:
             try:
-                with resource_stream(__name__, pickled_atmospheres) as fp:
+                with resource_stream(__name__, pickled_photospheres) as fp:
                     _ = pickle.load(fp)
             except:
-                raise ValueError("atmosphere filename '{}' does not exist"\
-                    .format(pickled_atmospheres))
+                raise ValueError("photosphere filename '{}' does not exist"\
+                    .format(pickled_photospheres))
 
         stellar_parameters, photospheres, photospheric_quantities, meta = _
 
@@ -104,7 +104,7 @@ class BaseInterpolator(object):
         return self.interpolate(*args, **kwargs)
 
 
-    def _return_atmosphere(self, stellar_parameters, quantities):
+    def _return_photosphere(self, stellar_parameters, quantities):
         """ 
         Prepare the interpolated photospheric quantities (with correct columns,
         units, metadata, etc).
@@ -116,7 +116,7 @@ class BaseInterpolator(object):
             dict(zip(self.stellar_parameters.dtype.names, stellar_parameters))
         units = meta.pop("photospheric_units", None)
 
-        photosphere = Atmosphere(data=quantities, meta=meta,
+        photosphere = Photosphere(data=quantities, meta=meta,
             names=self.photospheric_quantities)
         if units is not None:
             for name, unit in zip(self.photospheric_quantities, units):
@@ -137,7 +137,7 @@ class BaseInterpolator(object):
 
     def nearest(self, *point):
         logger.warn("Living dangerously!")
-        return self._return_atmosphere(point, 
+        return self._return_photosphere(point, 
             self.photospheres[self.nearest_neighbours(point, 1)[0]])
 
 
@@ -153,7 +153,7 @@ class BaseInterpolator(object):
         grid_index = np.all(grid == point, axis=1)
         if np.any(grid_index):
             grid_index = np.where(grid_index)[0][0]
-            return self._return_atmosphere(point, self.photospheres[grid_index])
+            return self._return_photosphere(point, self.photospheres[grid_index])
 
         # Work out what the optical depth points will be in our (to-be)-
         # interpolated photosphere.
@@ -229,7 +229,7 @@ class BaseInterpolator(object):
                 interpolated_quantities[:, index] = \
                     10**interpolated_quantities[:, index]
 
-        return self._return_atmosphere(point, interpolated_quantities)
+        return self._return_photosphere(point, interpolated_quantities)
 
 
 def resample_photosphere(opacities, photosphere, opacity_index):

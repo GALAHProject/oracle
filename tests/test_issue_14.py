@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Ensure that Castelli/Kurucz and MARCS model atmospheres give similar results for
+Ensure that Castelli/Kurucz and MARCS model photospheres give similar results for
 a single line.
 """
 
@@ -11,7 +11,7 @@ from __future__ import division, print_function
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import numpy as np
-from oracle import atmospheres, synthesis
+from oracle import photospheres, synthesis
 
 
 def test_for_GH_issue_14():
@@ -21,8 +21,8 @@ def test_for_GH_issue_14():
         names=("wavelength", "species", "excitation_potential", "loggf",
             "equivalent_width"))
 
-    m = atmospheres.interpolator(kind="marcs")
-    ck = atmospheres.interpolator(kind="castelli/kurucz")
+    m = photospheres.interpolator(kind="marcs")
+    ck = photospheres.interpolator(kind="castelli/kurucz")
 
     stellar_parameters, xi = (5777, 4.445, 0), 1.0
     dwarf_ck = ck.interpolate(*stellar_parameters)

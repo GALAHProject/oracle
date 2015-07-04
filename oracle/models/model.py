@@ -20,7 +20,7 @@ from scipy import ndimage, stats, optimize as op
 
 logger = logging.getLogger("oracle")
 
-from oracle import atmospheres, specutils, utils
+from oracle import photospheres, specutils, utils
 from oracle.models import profiles, validation
 
 from astropy import constants
@@ -122,7 +122,7 @@ class Model(object):
         parameters = ["effective_temperature", "surface_gravity", "metallicity"]
 
         kind = \
-            self.config["model"].get("atmosphere_kwargs", {}).get("kind", None)
+            self.config["model"].get("photosphere_kwargs", {}).get("kind", None)
         if kind != "Stagger":
             parameters.append("microturbulence")
         self._stellar_parameters = [] + parameters
@@ -493,7 +493,7 @@ class Model(object):
         # Is microturbulence a parameter?
         if "microturbulence" in parameters:
             theta.setdefault("microturbulence",
-                atmospheres.utils.estimate_microturbulence(
+                photospheres.utils.estimate_microturbulence(
                     closest_grid_point["effective_temperature"],
                     closest_grid_point["surface_gravity"]))
 

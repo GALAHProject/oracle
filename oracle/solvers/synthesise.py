@@ -182,9 +182,9 @@ if __name__ == "__main__":
     data = oracle.specutils.Spectrum1D.load_GALAH(
         "/Users/arc/research/galah/data/iDR1/data/benchmark/18Sco_3.fits", normalised=True, rest=True)
 
-    # Create a synthesiser that includes the line list and model atmosphere
+    # Create a synthesiser that includes the line list and model photosphere
     # information for the fitter.
-    interpolator = oracle.atmospheres.interpolator(kind="MARCS")
+    interpolator = oracle.photospheres.interpolator(kind="MARCS")
     photosphere = interpolator(5810, 4.45, 0)
 
     from astropy.table import Table

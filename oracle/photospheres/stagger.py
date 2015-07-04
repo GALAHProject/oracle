@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Functions for dealing with the Stagger model atmospheres. """
+""" Functions for dealing with the Stagger model photospheres. """
 
 from __future__ import division, absolute_import, print_function
 
@@ -16,7 +16,7 @@ from collections import Counter
 import numpy as np
 
 # Module-specific.
-from oracle.atmospheres.interpolator import BaseInterpolator
+from oracle.photospheres.interpolator import BaseInterpolator
 
 # Create logger.
 logger = logging.getLogger(__name__)

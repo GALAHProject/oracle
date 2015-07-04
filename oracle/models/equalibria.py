@@ -13,7 +13,7 @@ from time import time
 from scipy import stats, sparse, ndimage, optimize as op
 from astropy import (modeling, table, units as u)
 
-from oracle import (atmospheres, specutils, synthesis, utils)
+from oracle import (photospheres, specutils, synthesis, utils)
 from oracle.models import Model, utils
 
 logger = logging.getLogger("oracle")
@@ -37,7 +37,7 @@ class EqualibriaModel(Model):
             "instrumental_resolution": True,
             "continuum": False,
             "profile_function": "gaussian",
-            "atmosphere": {
+            "photosphere": {
                 "kind": "marcs"
             }
         },
@@ -65,9 +65,9 @@ class EqualibriaModel(Model):
         # Initialise the atomic transitions.
         #self.atomic_transitions = self._initialise_atomic_transitions()
 
-        # Initiate an atmosphere interpolator.
-        self._atmosphere_interpolator = atmospheres.interpolator(
-            **self.config["model"].get("atmosphere", {}))
+        # Initiate an photosphere interpolator.
+        self._photosphere_interpolator = photospheres.interpolator(
+            **self.config["model"].get("photosphere", {}))
 
         self._equalibrium_estimate_ = None
 
@@ -240,7 +240,7 @@ class EqualibriaModel(Model):
                         return invalid_value()
 
             try:
-                photosphere = self._atmosphere_interpolator(
+                photosphere = self._photosphere_interpolator(
                     effective_temperature, surface_gravity, metallicity)
                 atomic_abundances = synthesis.moog.atomic_abundances(
                     transitions[acceptable], photosphere, microturbulence=xi,
@@ -385,7 +385,7 @@ class EqualibriaModel(Model):
                 
                 # We will fit the regression lines to the scaled-solar difference.
                 log_eps_differences = log_eps - metallicity - \
-                    atmospheres.solar_abundance(
+                    photospheres.solar_abundance(
                         transitions["species"][acceptable])
 
                 # Remove anything more than |sigma_clip| from the mean/median.
@@ -445,12 +445,12 @@ class EqualibriaModel(Model):
         results_table.add_column(table.Column(
             name="log_eps", data=np.round(all_abundances, 3)))
         results_table.add_column(table.Column(name="log_eps_Solar",
-            data=atmospheres.solar_abundance(results_table["species"])))
+            data=photospheres.solar_abundance(results_table["species"])))
 
         # x = (teff, xi, logg, metallicity)
         results_table.add_column(table.Column(
             name="[X/M]", data=np.round(all_abundances - x[3] \
-                - atmospheres.solar_abundance(transitions["species"]), 3)))
+                - photospheres.solar_abundance(transitions["species"]), 3)))
         results_table.add_column(table.Column(
             name="outlier", data=~acceptable, dtype=bool))
 
@@ -539,7 +539,7 @@ class EqualibriaModel(Model):
             global transitions
             stellar_parameters, microturbulence = theta[:3], theta[3]
             try:
-                photosphere = self._atmosphere_interpolator(*stellar_parameters)
+                photosphere = self._photosphere_interpolator(*stellar_parameters)
                 abundances = \
                     synthesis.moog.atomic_abundances(transitions,
                         photosphere, microturbulence=microturbulence)
@@ -645,7 +645,7 @@ def equalibrium_state(transitions, log_eps, metallicity,
 
     # Scale the log_eps abundances to the expected relative values.
     expected_log_eps \
-        = metallicity + atmospheres.solar_abundance(transitions["species"])
+        = metallicity + photospheres.solar_abundance(transitions["species"])
 
     # We will fit the regression lines to the scaled-solar difference.
     log_eps_differences = log_eps - expected_log_eps
