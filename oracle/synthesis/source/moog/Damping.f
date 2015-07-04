@@ -195,7 +195,7 @@ c    While nhtot gives the number density of hydrogen, it seems
 c    MOOG just approximates the number density of helium with
 c    nhe = xabund(2)*nhtot(i) (see Trudamp.f)
                gammav = gammav*(nhtot(i) + 
-     .            0.42*xabund(2)*nhtot(i))*1.E6*2.0
+     .            0.41336*xabund(2)*nhtot(i))*1.E6*2.0
 
          endif
          
