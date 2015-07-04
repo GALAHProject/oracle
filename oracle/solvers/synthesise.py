@@ -78,7 +78,7 @@ class SynthesisFitter(BaseFitter):
             logger.exception("Exception raised when trying synthesiser")
             raise
 
-        indices = spectrum.disp.searchsorted(d[0], d[-1]])
+        indices = spectrum.disp.searchsorted([d[0], d[-1]])
 
         disp = spectrum.disp.__getslice__(*indices)
         flux = spectrum.flux.__getslice__(*indices)
@@ -104,7 +104,7 @@ class SynthesisFitter(BaseFitter):
             continuum_degree = kwds["continuum_degree"]
             if continuum_degree > 0:
                 coefficients = np.zeros(continuum_degree)
-                coefficients[-1] = 1.0
+                coefficients[-1] = np.nanmedian(flux)
                 p_init = np.append(p_init, coefficients)
 
         # Create a model for the data.
@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
     import oracle
     data = oracle.specutils.Spectrum1D.load_GALAH(
-        "/Users/arc/research/galah/data/iDR1/data/benchmark/18Sco_3.fits", normalised=True, rest=True)
+        "/Users/arc/research/galah/data/iDR1/data/benchmark/18Sco_3.fits", normalised=False, rest=True)
 
     # Create a synthesiser that includes the line list and model atmosphere
     # information for the fitter.
@@ -191,13 +191,13 @@ if __name__ == "__main__":
 
     wavelength_range = [6592.6880, 6593.4500]
     wavelength_range = [6592.4880, 6593.4500]
-    #wavelength_range = [6592.9124 - 5., 6592.9124 + 5.]
+    wavelength_range = [6592.9124 - 5., 6597.2]
     
     synthesiser = lambda abundance: oracle.synthesis.moog.synthesise(transitions,
         photosphere, wavelength_range, microturbulence=1.07, photospheric_abundances=[26, abundance])
 
 
-    foo = SynthesisFitter(radial_velocity_tolerance=3, continuum_degree=0)
-    moo = foo.fit(data, synthesiser, full_output=False)
+    foo = SynthesisFitter(radial_velocity_tolerance=3, continuum_degree=1)
+    moo = foo.fit(data, synthesiser, mask=[[6590.91, 6591.76], [6593.35, 6594.54]], full_output=False)
 
 
