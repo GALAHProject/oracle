@@ -14,7 +14,7 @@ import os
 
 from astropy.table import Table
 
-import oracle.atmospheres
+import oracle.photospheres
 from . import _mini_moog as moog
 
 logger = logging.getLogger("oracle")
@@ -104,7 +104,7 @@ def _format_photosphere(photosphere_information, photosphere_kwargs,
         if interpolator is None:
             if photosphere_kwargs is None:
                 photosphere_kwargs = {}
-            interpolator = oracle.atmospheres.interpolator(**photosphere_kwargs)
+            interpolator = oracle.photospheres.interpolator(**photosphere_kwargs)
         photosphere = interpolator.interpolate(*photosphere_information)
 
     else:
@@ -198,7 +198,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
     :param photosphere_information:
         This can be a model photosphere or a set of stellar parameters. If a set
         of stellar parameters (Teff, logg, [M/H]) is provided, then a model
-        photosphere will be created and supplementary atmosphere information can
+        photosphere will be created and supplementary photosphere information can
         be provided with the `photosphere_kwargs` argument.
 
     :type photosphere_information:
@@ -213,7 +213,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
         2-length tuple of floats
 
     :microturbulence: [optional, sometimes]
-        The microturbulence for the model atmosphere, in km/s. Microturbulence
+        The microturbulence for the model photosphere, in km/s. Microturbulence
         is a required parameter for 1D models, but is not required for <3D>
         models.
 
@@ -240,7 +240,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
         :class:`np.array` (TODO update to astropy table)
 
     :param photosphere_kwargs: [optional]
-        Arguments to supply to the :class:`oracle.atmospheres.Interpolator`
+        Arguments to supply to the :class:`oracle.photospheres.Interpolator`
         class, if the `photosphere_information` is a 3-length list of stellar
         parameters. This is ignored if the `photosphere_information` is a
         pre-interpolated model photosphere.
@@ -312,14 +312,14 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
     :param photosphere_information:
         This can be a model photosphere or a set of stellar parameters. If a set
         of stellar parameters (Teff, logg, [M/H]) is provided, then a model
-        photosphere will be created and supplementary atmosphere information can
+        photosphere will be created and supplementary photosphere information can
         be provided with the `photosphere_kwargs` argument.
 
     :type photosphere_information:
         :class:`astropy.table.Table` (model photosphere) or list of float
 
     :microturbulence: [optional, sometimes]
-        The microturbulence for the model atmosphere, in km/s. Microturbulence
+        The microturbulence for the model photosphere, in km/s. Microturbulence
         is a required parameter for 1D models, but is not required for <3D>
         models.
 
@@ -333,7 +333,7 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
         :class:`np.array` (TODO update to astropy table)
 
     :param photosphere_kwargs: [optional]
-        Arguments to supply to the :class:`oracle.atmospheres.Interpolator`
+        Arguments to supply to the :class:`oracle.photospheres.Interpolator`
         class, if the `photosphere_information` is a 3-length list of stellar
         parameters. This is ignored if the `photosphere_information` is a
         pre-interpolated model photosphere.

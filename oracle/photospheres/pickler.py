@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Convenience script to pickle a set of model atmospheres. """
+""" Convenience script to pickle a set of model photospheres. """
 
 from __future__ import division, absolute_import, print_function
 
@@ -20,15 +20,15 @@ import castelli_kurucz
 import stagger
 
 
-def pickle_atmospheres(atmosphere_filenames, kind, meta=None):
+def pickle_photospheres(photosphere_filenames, kind, meta=None):
     """
-    Load all model atmospheres, parse the points and photospheric structures.
+    Load all model photospheres, parse the points and photospheric structures.
     """
 
     if meta is None:
         meta = {
             "kind": kind,
-            "source_directory": os.path.dirname(atmosphere_filenames[0])
+            "source_directory": os.path.dirname(photosphere_filenames[0])
         }
     elif not isinstance(meta, dict):
         raise TypeError("meta must be a dictionary or None")
@@ -41,14 +41,14 @@ def pickle_atmospheres(atmosphere_filenames, kind, meta=None):
     try:
         parser = parsers[kind.lower()]
     except KeyError:
-        raise ValueError("don't recognise atmosphere kind '{0}'; available kinds"
+        raise ValueError("don't recognise photosphere kind '{0}'; available kinds"
             " are {1}".format(kind, ", ".join(parsers.keys())))
 
-    _, parameter_names = parser.parse_filename(atmosphere_filenames[0], True)
+    _, parameter_names = parser.parse_filename(photosphere_filenames[0], True)
 
     # Get the parameters of all the points
     parameters = np.core.records.fromrecords(
-        map(parser.parse_filename, atmosphere_filenames), names=parameter_names)
+        map(parser.parse_filename, photosphere_filenames), names=parameter_names)
 
     # Verify there are no duplicates.
     array_view = parameters.view(float).reshape(parameters.size, -1)
@@ -66,8 +66,8 @@ def pickle_atmospheres(atmosphere_filenames, kind, meta=None):
     parameters = parameters[i]
 
     _, photosphere_columns = parser.parse_photospheric_structure(
-        atmosphere_filenames[0], full_output=True)
-    d = np.array([parser.parse_photospheric_structure(atmosphere_filenames[_]) \
+        photosphere_filenames[0], full_output=True)
+    d = np.array([parser.parse_photospheric_structure(photosphere_filenames[_]) \
         for _ in i])
 
     return (parameters, d, photosphere_columns, meta)
@@ -76,28 +76,28 @@ def pickle_atmospheres(atmosphere_filenames, kind, meta=None):
 
 if __name__ == "__main__":
 
-    # Usage: pickler.py <atmosphere_type> <directory> <pickled_filename>
+    # Usage: pickler.py <photosphere_type> <directory> <pickled_filename>
 
     import argparse
 
-    parser = argparse.ArgumentParser(description="Pickle atmospheres.")
+    parser = argparse.ArgumentParser(description="Pickle photospheres.")
     parser.add_argument("kind", choices=["marcs", "castelli/kurucz"],
-        action="store", help="the type of model atmospheres")
+        action="store", help="the type of model photospheres")
     parser.add_argument("directory", action="store", help="directory containing"
-        " the atmosphere files")
+        " the photosphere files")
     parser.add_argument("pickle_filename", action="store",
-        help="the filename to save the pickled atmospheres to")
+        help="the filename to save the pickled photospheres to")
 
     args = parser.parse_args()
 
     # Find the files:
-    atmosphere_filenames = glob("{}/*".format(args.directory))
-    print("Found {0} files in {1}".format(len(atmosphere_filenames),
+    photosphere_filenames = glob("{}/*".format(args.directory))
+    print("Found {0} files in {1}".format(len(photosphere_filenames),
         args.directory))
-    pickled_data = pickle_atmospheres(atmosphere_filenames, args.kind)
+    pickled_data = pickle_photospheres(photosphere_filenames, args.kind)
 
     with open(args.pickle_filename, "wb") as fp:
         pickle.dump(pickled_data, fp, -1)
-    print("Pickled {0} atmospheres from {1} to {2}".format(args.kind,
+    print("Pickled {0} photospheres from {1} to {2}".format(args.kind,
         args.directory, args.pickle_filename))
 

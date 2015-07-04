@@ -11,7 +11,7 @@ import logging
 import numpy as np
 from scipy import stats
 
-from oracle.atmospheres import solar_abundance
+from oracle.photospheres import solar_abundance
 
 logger = logging.getLogger(__name__)
 

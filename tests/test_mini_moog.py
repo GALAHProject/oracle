@@ -23,7 +23,7 @@ def test_synth(rtol=1e-3, atol=1e-4, debug=False):
 
     disp, flux = oracle.synthesis.synthesise(line_list, [5777, 4.445, 0.00],
         wavelength_region=[5240, 5250], microturbulence=1.00, debug=debug,
-        photosphere_kwargs={"kind": "MARCS"})
+        photosphere_kwargs={"kind": "MARCS"}, damping=3)
 
     with open("sun.iraf.out", "r") as fp:
         precomputed_flux = map(float, "".join(fp.readlines()[7:]).split())

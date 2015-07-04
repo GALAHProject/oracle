@@ -50,19 +50,19 @@ if "--with-models" in map(str.lower, sys.argv):
         # Model photospheres:
         # Castelli & Kurucz (2004)
         ("https://zenodo.org/record/14964/files/castelli-kurucz-2004.pkl",
-            "oracle/atmospheres/castelli-kurucz-2004.pkl"),
+            "oracle/photospheres/castelli-kurucz-2004.pkl"),
         # MARCS (2008)
         ("https://zenodo.org/record/14964/files/marcs-2011-standard.pkl",
-            "oracle/atmospheres/marcs-2011-standard.pkl"),
+            "oracle/photospheres/marcs-2011-standard.pkl"),
         # Stagger-Grid <3D> (2013)
         ("https://zenodo.org/record/15077/files/stagger-2013-optical.pkl",
-            "oracle/atmospheres/stagger-2013-optical.pkl"),
+            "oracle/photospheres/stagger-2013-optical.pkl"),
         ("https://zenodo.org/record/15077/files/stagger-2013-mass-density.pkl",
-            "oracle/atmospheres/stagger-2013-mass-density.pkl"),
+            "oracle/photospheres/stagger-2013-mass-density.pkl"),
         ("https://zenodo.org/record/15077/files/stagger-2013-rosseland.pkl",
-            "oracle/atmospheres/stagger-2013-rosseland.pkl"),
+            "oracle/photospheres/stagger-2013-rosseland.pkl"),
         ("https://zenodo.org/record/15077/files/stagger-2013-height.pkl",
-            "oracle/atmospheres/stagger-2013-height.pkl"),
+            "oracle/photospheres/stagger-2013-height.pkl"),
         # Model spectra (AMBRE public grid for GALAH)
         ("https://zenodo.org/record/14977/files/galah-ambre-grid.pkl",
             "oracle/models/galah-ambre-grid.pkl")
@@ -83,7 +83,7 @@ setup(
     author="Andrew R. Casey",
     author_email="arc@ast.cam.ac.uk",
     packages=[
-        "oracle", "oracle.atmospheres", "oracle.models", "oracle.specutils",
+        "oracle", "oracle.photospheres", "oracle.models", "oracle.specutils",
         "oracle.synthesis"
     ],
     url="http://www.github.com/andycasey/oracle/",
@@ -99,7 +99,7 @@ setup(
     zip_safe=True,
     include_package_data=True,
     package_data={
-        "oracle.atmospheres": [
+        "oracle.photospheres": [
             "marcs-2011-standard.pkl",
             "castelli-kurucz-2004.pkl",
             "stagger-2013-optical.pkl",
