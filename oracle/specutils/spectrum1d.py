@@ -106,6 +106,14 @@ class Spectrum1D(object):
             variance=self.variance.copy(), headers=self.headers.copy())
     
 
+    def __contains__(self, value):
+        try:
+            # for AtomicTransitions
+            return self.disp[-1] >= value.wavelength >= self.disp[0]
+        except AttributeError:
+            return self.disp[-1] >= value >= self.disp[0]
+
+
     @property
     def v_helio(self):
         """

@@ -83,8 +83,8 @@ setup(
     author="Andrew R. Casey",
     author_email="arc@ast.cam.ac.uk",
     packages=[
-        "oracle", "oracle.photospheres", "oracle.models", "oracle.specutils",
-        "oracle.synthesis"
+        "oracle", "oracle.photospheres", "oracle.models", "oracle.solvers",
+        "oracle.specutils", "oracle.synthesis", "oracle.transitions"
     ],
     url="http://www.github.com/andycasey/oracle/",
     description="the suppository of all wisdom",
