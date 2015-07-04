@@ -2,7 +2,7 @@
       function synthesise(in_metallicity, in_xi,
      .   in_photosphere, in_logepsilon_abundances,
      .   in_transitions, in_synlimits, in_opacity_contributes, 
-     .   in_npoints, in_modtype, in_debug, wavelengths, fluxes,
+     .   in_modtype, damping, in_npoints, in_debug, wavelengths, fluxes,
      .   data_path, in_ntau, in_ncols, in_natoms, in_nlines)
 
       implicit real*8 (a-h,o-z)
@@ -14,7 +14,7 @@
       real*8, dimension(in_nlines, 7), intent(in) :: in_transitions
       real*8, dimension(3) :: in_synlimits
       real*8, intent(in) :: in_opacity_contributes 
-      integer :: in_npoints
+      integer :: damping, in_npoints
       character*10, intent(in) :: in_modtype
       integer, optional :: in_debug
       character(300), intent(in) :: data_path
@@ -49,7 +49,7 @@
       linprintopt  = 2
       fluxintopt   = 0
       plotopt      = 0
-      dampingopt   = 3
+      dampingopt   = 0 + damping
       specfileopt  = 0
       linfileopt   = 0
       iunits       = 0

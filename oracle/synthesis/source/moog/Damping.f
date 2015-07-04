@@ -6,8 +6,13 @@ c     and then Voigt parameters 'a'
 c******************************************************************************
 
       implicit real*8 (a-h,o-z)
+      real*8      sigma, alpha, gx, gammaf, vbar
+      PARAMETER (PI=3.14159265)
+      PARAMETER (A0=5.29177249E-11)
+
       include 'Atmos.com'
       include 'Linex.com'
+      include 'Quants.com'
 
 
       j = linnumber
@@ -79,6 +84,11 @@ c        dampingopt = 3 and dampnum > 10^(-10) --->
 c                             c6 = (c6_NEXTGEN for H I, He I, H2)*dampnum
 c     for molecular lines (lacking a better idea) --->
 c                                        c6 done as in dampingopt = 0
+c        dampingopt = 4 and dampnum > 20 
+c                             c6 = int(sigma).alpha use ABO theory
+c        dampingopt = 4 and dampnum < 20
+c                             do as if dampingopt = 2
+
 
 
 c*****these damping calculations are done at each atmosphere level
@@ -124,7 +134,8 @@ c*****dampingopt = 1 and no Barklem data
 
 
 c*****dampingopt = 1 with extant Barklem data
-         elseif (dampingopt.eq.1 .and. gambark(j).gt.0.) then
+         elseif ((dampingopt.eq.1 .and. gambark(j).gt.0.) .or. 
+     .      (dampingopt .eq. 4 .and. dampnum(j) .lt. 20.)) then
                damptype(j) = 'BKgamma'
                gammav =
      .            gambark(j)*(t(i)/10000.)**alpbark(j)*numdens(1,1,i)
@@ -155,9 +166,39 @@ c*****dampingopt = 3
                gammav = 17.0*v1**0.6*(c6h**0.4*numdens(1,1,i) +
      .                  c6he**0.4*numdens(2,1,i) +
      .                  c6ht**0.4*numdens(8,1,i))*dampnum(j)**0.4
+
+
+c*****dampingopt = 4
+         elseif (dampingopt .eq. 4 .and. dampnum(j) .gt. 20) then
+               damptype(j) = 'ABO'
+
+               sigma = int(dampnum(j))
+               alpha = dampnum(j) - int(dampnum(j))
+               
+               gx = (2.0 - alpha*0.5) - 1.0
+               gammaf = 1 + (-0.5748646 + (0.9512363 + 
+     .           (-0.6998588 +(0.4245549 - 0.1010678*gx)
+     .           *gx)*gx)*gx)*gx
+
+c    Compute the half-width per unit perturber number density for
+c    this temperature.
+
+               gammav = (4./PI)**(alpha*0.5)*gammaf*1.E4*sigma*A0*A0
+
+c    K = 1.380658E-23 and M0 = 1.660540E-27
+c    K/M = 8314.51214665109
+               vbar = (8.*8314.51214665109*t(i)/PI
+     .             *(1./1.008+1./xam(atom1(j))))**0.5
+               gammav = gammav*((vbar/1.E4)**(1.-alpha))
+
+c    While nhtot gives the number density of hydrogen, it seems
+c    MOOG just approximates the number density of helium with
+c    nhe = xabund(2)*nhtot(i) (see Trudamp.f)
+               gammav = gammav*(nhtot(i) + 
+     .            0.42*xabund(2)*nhtot(i))*1.E6*2.0
+
          endif
-
-
+         
 c*****compute radiative broadening either by an approximate formula or 
 c*****the value in Barklem.dat) 
          if (gamrad(j).ne.0.0 .and. dampingopt .eq. 1) then

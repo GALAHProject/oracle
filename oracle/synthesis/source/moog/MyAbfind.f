@@ -1,7 +1,7 @@
 
       function abundances(in_metallicity, in_xi,
      .   in_photosphere, in_logepsilon_abundances,
-     .   in_transitions, in_modtype, in_debug, output,
+     .   in_transitions, in_modtype, damping, in_debug, output,
      .   data_path, in_ntau, in_ncols, in_natoms, in_nlines)
 
       implicit real*8 (a-h,o-z)
@@ -12,6 +12,7 @@
      .   in_logepsilon_abundances
       real*8, dimension(in_nlines, 7), intent(in) :: in_transitions
       character*10, intent(in) :: in_modtype
+      integer :: damping
       integer, optional :: in_debug
       character(300), intent(in) :: data_path
 
@@ -43,7 +44,7 @@ c     Params crap. Can probably be removed eventually.
       linprintopt  = 2
       fluxintopt   = 0
       plotopt      = 0
-      dampingopt   = 3
+      dampingopt   = 0 + damping
       specfileopt  = 0
       linfileopt   = 0
       iunits       = 0
