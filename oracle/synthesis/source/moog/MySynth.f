@@ -1,29 +1,27 @@
 
-      function synthesise(mh_, vturb_,
-     .   photospheric_structure_, photospheric_abundances,
-     .   transitions_, synlimits_, opacity_contribute_, 
-     .   npoints_, modtype_, debug_, ntau_, ncols_, 
-     .   natoms_, nlines_, wavelengths, fluxes)
+      function synthesise(in_metallicity, in_xi,
+     .   in_photosphere, in_logepsilon_abundances,
+     .   in_transitions, in_synlimits, in_opacity_contributes, 
+     .   in_npoints, in_modtype, in_debug, wavelengths, fluxes,
+     .   data_path, in_ntau, in_ncols, in_natoms, in_nlines)
 
       implicit real*8 (a-h,o-z)
-      real*8, intent(in) :: mh_, vturb_
-      real*8, intent(in) :: opacity_contribute_ 
-      real*8, dimension(ntau_, ncols_), intent(in) ::
-     .   photospheric_structure_
-      real*8, dimension(3) :: synlimits_
-      real*8, dimension(natoms_, 2), intent(in) ::
-     .   photospheric_abundances
-      real*8, dimension(nlines_, 7), intent(in) :: transitions_
-      character*10, intent(in) :: modtype_
-      integer :: npoints_
-      integer, optional :: debug_
-      real*8, dimension(npoints_), intent(out) :: wavelengths
-      real*8, dimension(npoints_), intent(out) :: fluxes
+      real*8, intent(in) :: in_metallicity, in_xi
+      real*8, dimension(in_ntau, in_ncols), intent(in) ::
+     .   in_photosphere
+      real*8, dimension(in_natoms, 2), intent(in) ::
+     .   in_logepsilon_abundances
+      real*8, dimension(in_nlines, 7), intent(in) :: in_transitions
+      real*8, dimension(3) :: in_synlimits
+      real*8, intent(in) :: in_opacity_contributes 
+      integer :: in_npoints
+      character*10, intent(in) :: in_modtype
+      integer, optional :: in_debug
+      character(300), intent(in) :: data_path
 
-c******************************************************************************
-c     This program synthesizes a section of spectrum and compares it
-c     to an observation file.
-c******************************************************************************
+      real*8, dimension(in_npoints), intent(out) :: wavelengths
+      real*8, dimension(in_npoints), intent(out) :: fluxes
+
 
       include 'Atmos.com'
       include 'Factor.com'
@@ -31,83 +29,133 @@ c******************************************************************************
       include 'Linex.com'
       include 'Pstuff.com'
       include 'Dummy.com'
+      include 'Dampdat.com'
 
 
-cc      i = nint((synlimits_(2) - synlimits_(1))/synlimits_(3) + 1)
+      nfbarklem = 35
+      open (nfbarklem,file=TRIM(data_path) // "/Barklem.dat")
+
+      nfbarklemUV = 36
+      open (nfbarklemUV,file=TRIM(data_path) // "/BarklemUV.dat")
+
+
+      nfmodel =  0 
+      nflines =  0
+      nfslines = 0
+      nfobs =    0
+      nftable =  0
+      modprintopt  = 2
+      molopt       = 2
+      linprintopt  = 2
+      fluxintopt   = 0
+      plotopt      = 0
+      dampingopt   = 3
+      specfileopt  = 0
+      linfileopt   = 0
+      iunits       = 0
+      itru         = 0
+      iscale       = 0
+      iraf         = 0
+      histoyes     = 0
+      byteswap     = 0
+      deviations   = 0
+      scatopt      = 0
+      gfstyle      = 0
+      maxshift     = 0
+      dostrong     = 0
+      fudge = -1.0
+
+      oldstart = 0.
+      start = 0.
+      sstop = 0.
+      step = 0.
+      delta = 0.
+      cogatom = 0.
+      contnorm = 1.0
+
+
+c  INITIALIZE SOME VARIABLES: line limit parameters
+      ncurve = 0
+      lim1line = 0
+      lim2line = 0
+      lim1obs = 0
+      lim2obs = 0
+      lim1 = 0
+      lim2 = 0
+
+
+cc      i = nint((in_synlimits(2) - in_synlimits(1))/in_synlimits(3) + 1)
 c      print *, "SETTING AS ",i
 c      allocate (output(2001))
 
-      modtype = modtype_
+      modtype = in_modtype
 
-      if (opacity_contribute_ .lt. 1.0) then
+      if (in_opacity_contributes .lt. 1.0) then
          delta = 1.0
          olddelta = 1.0
       else
-         delta = 0.0 + opacity_contribute_
-         olddelta = 0.0 + opacity_contribute_
+         delta = 0.0 + in_opacity_contributes
+         olddelta = 0.0 + in_opacity_contributes
       endif
 
-      start = synlimits_(1)
-      oldstart = synlimits_(1)
+      start = in_synlimits(1)
+      oldstart = in_synlimits(1)
 
-      sstop = synlimits_(2)
-      oldstop = synlimits_(2)
+      sstop = in_synlimits(2)
+      oldstop = in_synlimits(2)
 
-      step = synlimits_(3)
-      oldstep = synlimits_(3)
+      step = in_synlimits(3)
+      oldstep = in_synlimits(3)
       step1000 = 1000. * step
 
 c      print *, "start stop", start, sstop, step
 c      print *, "delta ", delta, olddelta
 
-      debug = debug_
+      debug = in_debug
       control = 'synth   '
       silent = 'y'
       smterm = 'x11'
       smt1 = 'x11'
       smt2 = 'x11'
    
-      nstrong = 0
-      transitions(:nlines_, :) = transitions_
-c      if (nstrong .gt. 0) then
-c         strong_transitions(:nstrong_, :) = strong_transitions_
+c       if (nstrong .gt. 0) then
+c         strong_transitions(:nstrong_, :) = strong_in_transitions
 c      endif
 
 c     MOOG plays with these. So let's keep absolute reference values
-      nlines_absolute = 0 + nlines_
-      nstrong_absolute = 0 + nstrong
-
-      vturb_absolute = vturb_
-c      print *, "input vturb", vturb_, vturb_absolute
+      nlines = 0 + in_nlines
+      nstrong = 0 
       
+      transitions(:nlines, :) = in_transitions
 
-      logepsilon_abundances(:natoms_, :) = photospheric_abundances
-      photospheric_structure(:ntau_, :ncols_) = photospheric_structure_
+      vturb(1) = in_xi
+
+
+      logepsilon_abundances(:in_natoms, :) = in_logepsilon_abundances
+      photospheric_structure(:in_ntau, :in_ncols) = in_photosphere
 
 c     These should not change...
-      ntau = ntau_
+      ntau = in_ntau
       moditle = 'atmosphere comment'
-      natoms = natoms_
-      abscale = mh_
+      natoms = in_natoms
+      abscale = in_metallicity
 
 c*****examine the parameter file
 c      call params
 
       
-      numpecatom = 0 + natoms_
+      numpecatom = 0 + in_natoms
       numatomsyn = 1
 
       do i=1,numpecatom
-         jatom = photospheric_abundances(i, 1)
+         jatom = in_logepsilon_abundances(i, 1)
          if (jatom .eq. 99) then
             do kk=1,numatomsyn
-c               abfactor(kk) = photospheric_abundances(i, 1+kk)
-                abfactor(kk) = 0.0
+               abfactor(kk) = in_logepsilon_abundances(i, 1+kk)
             enddo
          else
             do kk=1,numatomsyn
-c               pecabund(jatom, kk) = photospheric_abundances(i, 1+kk)
-                pecabund(jatom, kk) = 0.0
+               pecabund(jatom, kk) = in_logepsilon_abundances(i, 1+kk)
             enddo
             pec(jatom) = 1
          endif
@@ -195,11 +243,15 @@ c         call infile ('input  ',nfslines,'formatted  ',0,nchars,
 c     .                 fslines,lscreen)
 c      endif
 c      print *, "numpecatom", numpecatom, numatomsyn
+      if (debug .gt. 0) print *, "numpecatom", numpecatom, numatomsyn
+
       if (numpecatom .eq. 0 .or. numatomsyn .eq. 0) then
          isynth = 1
          isorun = 1
-         nlines = 0
+c         nlines = 0
          mode = 3
+c        inlines updates nlines and nstrong, so we will have to update them
+
          call inlines (1)
          call eqlib
          call nearly (1)
@@ -281,10 +333,11 @@ c      print *, "computed_fluxes", computed_fluxes(nkount-10:nkount)
 
 c      allocate (output(nkount))
 
-
-      wavelengths = computed_wls(:nkount)
-      fluxes = computed_fluxes(:nkount)
+      wavelengths = computed_wls(:in_npoints)
+      fluxes = computed_fluxes(:in_npoints)
       return
+
+      call f2pystop
 
 c*****format statements
 1001  format ('for syntheses, parameter "plot" must be 0, 1, 2, or 3;',
@@ -292,7 +345,7 @@ c*****format statements
 1002  format ('something wrong:  max number (99) of synthesis ',
      .        'cycles exceeded; I QUIT!')
 
-
+   
 
       end 
 

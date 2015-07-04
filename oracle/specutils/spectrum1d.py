@@ -224,7 +224,8 @@ class Spectrum1D(object):
 
 
     @classmethod
-    def load_GALAH(cls, filename, normalised=False, clean_edges=True, **kwargs):
+    def load_GALAH(cls, filename, normalised=False, rest=True, clean_edges=True,
+        **kwargs):
         """
         Load a Spectrum1D object from the GALAH standardised FITS format.
 
@@ -278,6 +279,13 @@ class Spectrum1D(object):
             flux = flux[lhs_index:rhs_index]
             if variance is not None:
                 variance = variance[lhs_index:rhs_index]
+
+        if rest:
+            vrad = image[4].header.get("VRAD", np.nan)
+            if np.isfinite(vrad):
+                disp *= (1 - vrad/299792.458)
+            else:
+                logger.warn("No velocity information found; spectrum may not be at rest!")
 
         return cls(disp, flux, variance=variance, headers=headers)
 

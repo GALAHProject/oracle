@@ -40,14 +40,22 @@ def _format_transitions(transitions):
 
     d = transitions if hasattr(transitions, "view") else transitions.as_array()
 
-    columns = ("wavelength", "species", "excitation_potential", "loggf",
-        "C6???", "C4???", "equivalent_width")
+    columns = (
+        "wavelength",
+        "species",
+        "excitation_potential",
+        "loggf",
+        #"C1", # RADIATION DAMPING
+        "C6", # Van Der Waals DAMPING
+        "D0", # Dissociation energy [eV]
+        #"C4", # GAMMA, QUADRATIC STARK DAMPING
+        "equivalent_width")
 
     if np.any((d["species"] % 1) > 0.15):
         # [TODO] Maybe we should actually raise an exception here.
         logger.warn("Species with high ionisation states (>1) detected!")
 
-    transitions_arr = np.zeros((len(d), 7))
+    transitions_arr = np.zeros((len(d), 7), dtype=float)
     for i, column in enumerate(columns):
         if column not in d.dtype.names: continue
         transitions_arr[:, i] = d[column]
@@ -71,8 +79,7 @@ def _format_abundances(abundances=None):
         formatted_abundances = np.asfortranarray(np.array([])).reshape(-1, 2)
         
     else:
-        formatted_abundances = np.asfortranarray(np.atleast_2d(
-            photospheric_abundances))
+        formatted_abundances = np.asfortranarray(np.atleast_2d(abundances))
 
     return formatted_abundances
 
@@ -279,7 +286,13 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
     pixels = (synthesis_region[1] - synthesis_region[0])/synthesis_region[2] + 1
     code, wavelengths, fluxes = moog.synthesise(metallicity, microturbulence,
         photosphere_arr, photospheric_abundances, transitions, synthesis_region,
-        opacity_contribution, npoints_=pixels, modtype_=modtype, debug_=debug)
+        opacity_contribution, in_npoints=pixels, in_modtype=modtype,
+        in_debug=debug, #f2pystop=MOOGException(),
+        data_path=os.path.dirname(__file__))
+
+    assert wavelengths.size == fluxes.size
+    assert wavelengths.size == int(pixels)
+
     return (wavelengths, fluxes)
 
 

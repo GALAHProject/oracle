@@ -87,7 +87,7 @@ c     lineprintop =4 outputs line-center opacities
             endif
          endif
       enddo    
-      if (start.ne.0.0 .or. sstop.ne.0.0 .and. debug .gt. 0.0) then
+      if ((start.ne.0.0 .or. sstop.ne.0.0) .and. debug .gt. 0.0) then
          if (iunits .eq. 1) then
             write (nf1out,1011) oldstart,oldstop,oldstep,olddelta
          else 
