@@ -262,18 +262,13 @@ if __name__ == "__main__":
         "loggf": -1.473,
     }])
 
-    """
     import cPickle as pickle
     with open("lines.pkl", "rb") as fp:
         rows = pickle.load(fp)
 
-    del rows[38]
+    for row in rows:
+        row["VDW_DAMP"] = row["C6"]
     t = Table(rows=rows)
-    """
-
-    wavelength_range = [6592.6880, 6593.4500]
-    wavelength_range = [6591.2880, 6594.6500]
-    #wavelength_range = [6592.9124 - 5., 6597.2]
     
     synthesiser_factory = lambda wavelength_range: \
         lambda abundance: oracle.synthesis.moog.synthesise(t,
