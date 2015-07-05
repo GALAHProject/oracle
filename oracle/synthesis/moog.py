@@ -25,7 +25,7 @@ class MOOGException(BaseException):
         raise self.__class__(status)
 
 
-def _format_transitions(transitions):
+def _format_transitions(transitions, damping):
     """
     Format input transitions ready for Fortran.
 
@@ -59,6 +59,18 @@ def _format_transitions(transitions):
     for i, column in enumerate(columns):
         if column not in d.dtype.names: continue
         transitions_arr[:, i] = d[column]
+
+    if damping != 4 \
+    and np.any(transitions_arr[:, columns.index("VDW_DAMP")] > 20):
+
+        warnings.warn(
+            "Ignoring large (>20) van der Waals damping values because they are"
+            " probably int(sigma).alpha values for ABO theory, and ABO theory "
+            "is not turned on (damping != 4)",
+            RuntimeWarning)
+        
+        transitions_arr[:, columns.index("VDW_DAMP")] = \
+            np.clip(transitions_arr[:, columns.index("VDW_DAMP")], -np.inf, 20)
 
     return np.asfortranarray(transitions_arr)
 
@@ -273,7 +285,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
             transitions["wavelength"].max() + opacity_contribution
         ]
 
-    transitions = _format_transitions(transitions)
+    transitions = _format_transitions(transitions, damping)
 
     # Prepare the abundance information
     photospheric_abundances = _format_abundances(photospheric_abundances)
@@ -351,7 +363,7 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
     damping = kwargs.pop("damping", 4)
 
     # Prepare the transitions table.
-    transitions = _format_transitions(transitions)
+    transitions = _format_transitions(transitions, daming)
     
     # Prepare the abundance information
     photospheric_abundances = _format_abundances(photospheric_abundances)
