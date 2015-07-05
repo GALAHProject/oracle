@@ -47,10 +47,14 @@ class AtomicTransition(object):
             element=self.element, ion="I"*self.ion, wavelength=self.wavelength)
 
     def __repr__(self):
-        return "<oracle.transitions.{klass} {element} {ion} at {wavelength:.1f}"\
-            " Angstroms at {location}>".format(klass=self.__class__.__name__,
+        return "<oracle.transitions.{kls} {element} {ion} at {wavelength:.1f} "\
+            "Angstroms at {location}>".format(kls=self.__class__.__name__,
                 element=self.element, ion="I" * self.ion,
                 wavelength=self.wavelength, location=hex(id(self)))
+
+    def __eq__(self, transition):
+        # If we have level information, that should be used.
+        raise NotImplementedError
 
     def to_json(self, **kwargs):
         return json.dumps(self._raw, **kwargs)

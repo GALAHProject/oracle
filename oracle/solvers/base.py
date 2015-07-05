@@ -6,6 +6,7 @@
 from __future__ import absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+__all__ = ["BaseFitter"]
 
 import logging
 import numpy as np
