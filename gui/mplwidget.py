@@ -1,4 +1,9 @@
 from PySide import QtGui
+
+#import matplotlib
+#matplotlib.rcParams["text.usetex"] = True
+#matplotlib.rcParams["text.latex.unicode"] = True
+
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
@@ -7,7 +12,8 @@ class MPLCanvas(FigureCanvas):
     def __init__(self):
 
         self.fig = Figure()
-        self.ax = self.fig.add_subplot(111)
+        #self.ax = self.fig.add_subplot(111)
+        self.fig.patch.set_facecolor("#FFFFFF")
         FigureCanvas.__init__(self, self.fig)
         FigureCanvas.setSizePolicy(self,
             QtGui.QSizePolicy.Expanding,
