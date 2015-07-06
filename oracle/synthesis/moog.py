@@ -26,7 +26,7 @@ class MOOGException(BaseException):
         raise self.__class__(status)
 
 
-def _format_transitions(transitions, damping, wavelength_region):
+def _format_transitions(transitions, damping, wavelength_region=None):
     """
     Format input transitions ready for Fortran.
 
@@ -74,7 +74,7 @@ def _format_transitions(transitions, damping, wavelength_region):
         else:
             use_column = column
 
-        transitions_arr[:, i] = d[column]
+        transitions_arr[:, i] = d[use_column]
 
     if damping != 4 \
     and np.any(transitions_arr[:, columns.index("VDW_DAMP")] > 20):
@@ -88,9 +88,12 @@ def _format_transitions(transitions, damping, wavelength_region):
         transitions_arr[:, columns.index("VDW_DAMP")] = \
             np.clip(transitions_arr[:, columns.index("VDW_DAMP")], -np.inf, 20)
 
-    ok = (wavelength_region[1] > transitions_arr[:,0]) * (transitions_arr[:,0] > wavelength_region[0])
+    if wavelength_region is not None:
+        ok = (wavelength_region[1] > transitions_arr[:,0]) * (transitions_arr[:,0] > wavelength_region[0])
 
-    return np.asfortranarray(transitions_arr[ok])
+        return np.asfortranarray(transitions_arr[ok])
+
+    return np.asfortranarray(transitions_arr)
 
 
 def _format_abundances(abundances=None):
@@ -380,43 +383,31 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
 
     damping = kwargs.pop("damping", 3)
 
+    logger.debug("Passing damping = {} to MOOG".format(damping))
+
     # Prepare the transitions table.
-    transitions = _format_transitions(transitions, daming, wavelength_region)
+    transitions = _format_transitions(transitions, damping)
     
+    # We only want transitions with non-zero equivalent widths.
+    positive_ews = transitions[:, 6] > 0    
+    abundances = np.nan * np.ones(len(transitions))
+    if not any(positive_ews):
+        return abundances
+
     # Prepare the abundance information
     photospheric_abundances = _format_abundances(photospheric_abundances)
 
     # Calculate abundances.
-    if not safe_mode: 
-        code, output = moog.abundances(metallicity, microturbulence,
-            photosphere_arr, photospheric_abundances, transitions,
-            in_modtype=modtype, in_debug=debug, f2pystop=MOOGException(),
-            damping=damping, data_path=os.path.dirname(__file__))
-        return output
+    code, output = moog.abundances(metallicity, microturbulence,
+        photosphere_arr, photospheric_abundances, transitions[positive_ews],
+        in_modtype=modtype, in_debug=debug, f2pystop=MOOGException(),
+        damping=damping, data_path=os.path.dirname(__file__))
 
-    else:
-        raise NotImplementedError
-        print("IN SAFE MODE")
-        p = multiprocessing.Process(target=moog.abundances, args=(metallicity,
-            microturbulence, photosphere_arr, photospheric_abundances,
-            transitions), kwargs={"in_modtype": modtype, "in_debug": debug})
-        p.start()
-        p.join(10)
-        if p.is_alive():
-            logger.warn("Terminating MOOG process that has timed out")
-            p.terminate()
-            p.join()
+    # Update with the abundances from MOOG.
+    abundances[positive_ews] = output
 
-            return np.ones(len(transitions)) * np.nan
-        
-        # So. Slow. But now that we know this will work...
-        code, output = moog.abundances(metallicity, microturbulence,
-            photosphere_arr, photospheric_abundances, transitions,
-            in_modtype=modtype, in_debug=debug)
-        return output
+    return abundances
 
-
-        
 
 
     
