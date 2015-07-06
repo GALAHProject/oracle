@@ -26,7 +26,7 @@ class MOOGException(BaseException):
         raise self.__class__(status)
 
 
-def _format_transitions(transitions, damping):
+def _format_transitions(transitions, damping, wavelength_region):
     """
     Format input transitions ready for Fortran.
 
@@ -42,10 +42,10 @@ def _format_transitions(transitions, damping):
     d = transitions if hasattr(transitions, "view") else transitions.as_array()
 
     columns = (
-        "wavelength",
+        ("wavelength", "lambda"),
         "species",
-        "excitation_potential",
-        "loggf",
+        ("e_low", "excitation_potential"),
+        ("log_gf", "loggf"),
         #"C1", # RADIATION DAMPING
         "VDW_DAMP", # Coefficient for collisional broadening by Hydrogen (vdW)
         "D0", # Dissociation energy [eV]
@@ -58,7 +58,22 @@ def _format_transitions(transitions, damping):
 
     transitions_arr = np.zeros((len(d), 7), dtype=float)
     for i, column in enumerate(columns):
-        if column not in d.dtype.names: continue
+        if isinstance(column, (str, unicode)) and column not in d.dtype.names:
+            logger.warn("Could not find column '{}'".format(column))
+            continue
+        elif isinstance(column, (tuple, list)):
+            # Get the first instance.
+            for _column in column:
+                if _column in d.dtype.names:
+                    use_column = _column
+                    break
+            else:
+                logger.warn("Could not find column '{0}' - searched for {1}"\
+                    .format(column[0], column))
+                continue
+        else:
+            use_column = column
+
         transitions_arr[:, i] = d[column]
 
     if damping != 4 \
@@ -73,7 +88,9 @@ def _format_transitions(transitions, damping):
         transitions_arr[:, columns.index("VDW_DAMP")] = \
             np.clip(transitions_arr[:, columns.index("VDW_DAMP")], -np.inf, 20)
 
-    return np.asfortranarray(transitions_arr)
+    ok = (wavelength_region[1] > transitions_arr[:,0]) * (transitions_arr[:,0] > wavelength_region[0])
+
+    return np.asfortranarray(transitions_arr[ok])
 
 
 def _format_abundances(abundances=None):
@@ -266,7 +283,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
         raise ValueError("opacity contribution must be a positive float")
 
     debug = kwargs.pop("debug", False)
-    damping = kwargs.pop("damping", 4)
+    damping = kwargs.pop("damping", 3)
     modtype, photosphere_arr, metallicity = _format_photosphere(
         photosphere_information, photosphere_kwargs,
         interpolator=kwargs.pop("_interpolator", None))
@@ -286,7 +303,7 @@ def synthesise(transitions, photosphere_information, wavelength_region=None,
             transitions["wavelength"].max() + opacity_contribution
         ]
 
-    transitions = _format_transitions(transitions, damping)
+    transitions = _format_transitions(transitions, damping, wavelength_region)
 
     # Prepare the abundance information
     photospheric_abundances = _format_abundances(photospheric_abundances)
@@ -361,10 +378,10 @@ def atomic_abundances(transitions, photosphere_information, microturbulence,
         photosphere_information, photosphere_kwargs,
         interpolator=kwargs.pop("_interpolator", None))
 
-    damping = kwargs.pop("damping", 4)
+    damping = kwargs.pop("damping", 3)
 
     # Prepare the transitions table.
-    transitions = _format_transitions(transitions, daming)
+    transitions = _format_transitions(transitions, daming, wavelength_region)
     
     # Prepare the abundance information
     photospheric_abundances = _format_abundances(photospheric_abundances)
