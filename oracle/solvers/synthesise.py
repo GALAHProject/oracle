@@ -64,9 +64,11 @@ class SynthesisFitter(BaseSynthesisFitter):
             list of :class:`~oracle.transitions.AtomicTransition` objects
 
         :param synthesiser_factory:
-            A synthesising factory that takes an (lower, upper) wavelength pair
-            and returns a function that accepts one argument (abundance) and
-            returns synthetic spectra over the wavelength range (lower, upper).
+            A synthesising factory that takes two arguments: the atomic number,
+            and a two-length tuple giving the (lower, upper) wavelength to be
+            synthesised. The factory should then return a function that accepts
+            one argument (a relative abundance) and returns synthetic spectra
+            over the wavelength range (lower, upper).
 
         :type synthesiser_factory:
             callable
@@ -82,8 +84,40 @@ class SynthesisFitter(BaseSynthesisFitter):
             return [self._fit(spectrum, each, synthesiser_factory, **kwargs) \
                 for each in transitions]
 
+        raise NotImplementedError
         # Multiple lines, global behaviour required:
         full_output = kwargs.pop("full_output", False)
+
+
+        num_transitions = len(transitions)
+
+
+        def model(disp, *args):
+
+            # args contains:
+            # - abundances of individual regions
+            # - either:
+            #   + single resolution + no continuum coefficients
+            #   + single resolution + continuum coefficients
+            #   + resolution of individual regions + continuum coefficients
+            # - and possibly RV variations (unknown length)
+
+            abundances = args[:num_transitions]
+
+            num_parameters_remaining = len(args) - num_transitions
+            #if self.global_resolution and not self.global_continuum:
+            #    # Single resolution & no continuum coefficients:
+
+            #eif self.global_resolution and self.global_continuum:
+                # Single resolution and self.continuum_degree coefficients
+
+            #eif not self.global_resolution and self.global_continuum:
+            #    # There are self.continuum_degree continuum coefficients
+
+
+            # 
+
+            _error = np.inf * np.ones_like(disp)
 
 
         # Possibilities:
@@ -116,12 +150,14 @@ class SynthesisFitter(BaseSynthesisFitter):
 
         :type transition:
             :class:`~oracle.transitions.AtomicTransition`
-
+        
         :param synthesiser_factory:
-            A synthesising factory that takes an (lower, upper) wavelength pair
-            and returns a function that accepts one argument (abundance) and
-            returns synthetic spectra over the wavelength range (lower, upper).
-
+            A synthesising factory that takes two arguments: the atomic number,
+            and a two-length tuple giving the (lower, upper) wavelength to be
+            synthesised. The factory should then return a function that accepts
+            one argument (a relative abundance) and returns synthetic spectra
+            over the wavelength range (lower, upper).
+        
         :type synthesiser_factory:
             callable
         """
@@ -139,7 +175,11 @@ class SynthesisFitter(BaseSynthesisFitter):
         kwds["v_rad_tolerance"] = transition.v_rad_tolerance
         
         # Set up the synthesiser_factory for this wavelength range.
-        synthesiser = synthesiser_factory(transition.fitting_region)
+        synthesiser = synthesiser_factory(
+            transition.atomic_number, transition.fitting_region)
+        logger.debug("Synthesiser factory will synthesise {0} over {1}".format(
+            transition.element, transition.fitting_region))
+
         indices = spectrum.disp.searchsorted(transition.fitting_region)
 
         disp = spectrum.disp.__getslice__(*indices)
@@ -177,6 +217,8 @@ class SynthesisFitter(BaseSynthesisFitter):
 
         # Create a model for the data.
         def model(disp, abundance, R, *args):
+            logger.debug("Synthesising delta({0}) = {1:.3f} @R = {2:.1f} & {3}"\
+                .format(transition.element, abundance, R, args if args else ""))
 
             _error = np.inf * np.ones_like(disp)
 
@@ -270,10 +312,10 @@ if __name__ == "__main__":
         row["VDW_DAMP"] = row["C6"]
     t = Table(rows=rows)
     
-    synthesiser_factory = lambda wavelength_range: \
+    synthesiser_factory = lambda atomic_number, wavelength_range: \
         lambda abundance: oracle.synthesis.moog.synthesise(t,
             photosphere, wavelength_range, microturbulence=1.07,
-            photospheric_abundances=[26, abundance], damping=4)
+            photospheric_abundances=[atomic_number, abundance], damping=4)
 
     # 0 = 840699499.20031548
     # 1 = 111950631.80524081

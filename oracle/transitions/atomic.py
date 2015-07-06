@@ -52,10 +52,6 @@ class AtomicTransition(object):
                 element=self.element, ion="I" * self.ion,
                 wavelength=self.wavelength, location=hex(id(self)))
 
-    def __eq__(self, transition):
-        # If we have level information, that should be used.
-        raise NotImplementedError
-
     def to_json(self, **kwargs):
         return json.dumps(self._raw, **kwargs)
 

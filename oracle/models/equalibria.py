@@ -7,13 +7,16 @@ from __future__ import absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
+__all__ = ["BaseEqualibriumModel", "EqualibriumModel"]
+
 import logging
 import numpy as np
 from time import time
 from scipy import stats, sparse, ndimage, optimize as op
 from astropy import (modeling, table, units as u)
 
-from oracle import (photospheres, specutils, synthesis, utils)
+from oracle import (photospheres, solvers, specutils, synthesis, utils)
+from oracle.transitions import AtomicTransition
 from oracle.models import Model, utils
 
 logger = logging.getLogger("oracle")
@@ -22,15 +25,32 @@ import matplotlib.pyplot as plt
 
 
 
-
-class EqualibriaModel(Model):
+class BaseEqualibriumModel(Model):
 
     """
     This class performs excitation and ionization balances in order to
     provide a point estimate of the stellar parameters.
     """
 
-    # Default configuration for a EqualibriaModel class
+    # Defaults.
+    DEFAULT_TRANSITION_LIMITS = {
+        "equivalent_width": [20, 120]
+    }
+    DEFAULT_INITIAL_THETA = {
+        "effective_temperature": 5750,
+        "surface_gravity": 4.5,
+        "metallicity": 0.,
+        "xi": 1.0
+    }
+    DEFAULT_INITIAL_THETA = [5750, 4.5, 0, 1.0]
+    DEFAULT_PARAMETER_LIMITS = {
+        "effective_temperature": [3000, 8000],
+        "surface_gravity": [0, 5],
+        "xi": [0, 5],
+        "metallicity": [-5, 0.5]
+    }
+
+    # Default configuration for a BaseEqualibriumModel class
     _default_config = {
         "model": {
             "redshift": True,
@@ -60,7 +80,7 @@ class EqualibriaModel(Model):
             str or dict
         """
 
-        super(EqualibriaModel, self).__init__(configuration)
+        super(BaseEqualibriumModel, self).__init__(configuration)
 
         # Initialise the atomic transitions.
         #self.atomic_transitions = self._initialise_atomic_transitions()
@@ -87,9 +107,10 @@ class EqualibriaModel(Model):
         self.__dict__ = state.copy()
 
 
-    def estimate_stellar_parameters(self, spectra=None, transitions=None,
-        initial_theta=None, transition_solver=None, sigma_clip=2.0, clips=1,
-        transition_limits=None, fixed_parameters=None, parameter_limits=None,
+    def estimate_stellar_parameters(self,
+        atomic_transitions, initial_theta=DEFAULT_INITIAL_THETA,
+        transition_limits=DEFAULT_TRANSITION_LIMITS, sigma_clip=2.0, clips=1,
+        fixed_parameters=None, parameter_limits=DEFAULT_PARAMETER_LIMITS,
         state_tolerance=1e-8, full_output=False, **kwargs):
         """
         Estimate the stellar parameters by performing excitation and ionisation
@@ -97,71 +118,29 @@ class EqualibriaModel(Model):
 
         This method can operate using an atomic transition table with measured
         equivalent widths, or it can measure atomic transitions from spectra.
-
-        If spectral data are provided, the `transition_solver` must also be
-        given, as it determines how the atomic transitions will be measured.
-        Some examples include (in order of descending speed/accuracy):
-
-            - line_fitting.VoigtProfiles
-                + This will fit voight profiles to all data before doing the
-                  excitation/ionisation equalibrum, and allows for continuum,
-                  redshift, etc to be configured.
-
-            - line_fitting.SynthesiseBackgroundAndFitProfile
-                + This will synthesise the background region (not the atomic
-                  lines that we care about) and fit the profile of interest with
-                  a voigt profile.
-
-            - line_fitting.SynthesiseProfiles
-                + This will synthesise individual lines at some frequency (e.g.,
-                  if stellar parameters are very similar it may not re-synth.)
-
-
-
         """
 
-        if spectra is None and transitions is None:
-            raise ValueError("give at least spectra or measured transitions")
+        # If transitions is given and includes equivalent_widths, then that's
+        # all we need.
 
-        if spectra is not None and not isinstance(spectra, list):
-            spectra = [spectra]
-
-        if transitions is None:
-            # Load transitions from the configuration?
-            raise NotImplementedError
+        # If spectra is given, then transitions is needed (measured or not),
+        # as well as a transition_solver. The transition_solver might also have
+        # something like background_transitions.
 
 
+        # atomic_transitions should have measured equivalent widths!
+        measured = np.isfinite(atomic_transitions["equivalent_width"]) \
+            * (atomic_transitions["equivalent_width"] > 0)
+        if not any(measured):
+            raise ValueError("atomic transitions table must have measured "\
+                "equivalent widths, or spectra and a transition_solver are"\
+                " required")
 
-        # if it's data=[spectra], then the initial_theta may need to include vrad, continuum etc,
-
-        # if it's data=[transitions], then we can really start from anywhere, because it is just teff, logg.
-
-
-        if spectra is not None:
-            raise NotImplementedError
-
-        assert transitions is not None
         assert fixed_parameters is None
 
-        if initial_theta is None:
-            # Assume whatever value.
-            initial_theta = {
-                "effective_temperature": 5750,
-                "surface_gravity": 4.5,
-                "metallicity": 0.,
-                "xi": 1.0
-            }
-            initial_theta = [5750, 1.0, 4.5, 0.]
-
-        # Transition limits.
-        if transition_limits is None:
-            transition_limits = {
-                "equivalent_width": [20, 120]
-            }
-
-        else:
-            # Make a copy because we will delete unrecognised elements.
-            transition_limits = transition_limits.copy()
+        initial_theta = initial_theta.copy()
+        transition_limits = transition_limits.copy()
+        parameter_limits = parameter_limits.copy()
 
         # Transition limits can be on wavelength, equivalent_width, rew,
         # log_eps,
@@ -174,16 +153,6 @@ class EqualibriaModel(Model):
             del transition_limits[key]
 
         logger.info("Limiting transitions to range: {}".format(transition_limits))
-
-        # Parameter limits.        
-        if parameter_limits is None:
-            parameter_limits = {
-                "effective_temperature": [3000, 8000],
-                "surface_gravity": [0, 5],
-                "xi": [0, 5],
-                "metallicity": [-5, 0.5]
-            }
-
         logger.info("Limiting parameters to range: {}".format(parameter_limits))
 
         debug = kwargs.pop("debug", False)
@@ -193,12 +162,13 @@ class EqualibriaModel(Model):
 
         sampled_theta = []
         sampled_state_sums = []
-        acceptable = np.ones(len(transitions), dtype=bool)
+        acceptable = np.ones(len(atomic_transitions), dtype=bool)
 
         # Any transition limits that are not dependent on abundances can be
         # applied now, before the objective function.
         for key, (upper, lower) in transition_limits.items():
-            is_ok = (upper >= transitions[key]) * (transitions[key] >= lower)
+            is_ok = (upper >= atomic_transitions[key]) \
+                * (atomic_transitions[key] >= lower)
             if not np.any(~is_ok):
                 logger.info("{0} transitions ignored due to restriction on {1}"\
                     .format((~is_ok).sum(), key))
@@ -243,8 +213,8 @@ class EqualibriaModel(Model):
                 photosphere = self._photosphere_interpolator(
                     effective_temperature, surface_gravity, metallicity)
                 atomic_abundances = synthesis.moog.atomic_abundances(
-                    transitions[acceptable], photosphere, microturbulence=xi,
-                    debug=debug)
+                    atomic_transitions[acceptable], photosphere,
+                    microturbulence=xi, debug=debug)
 
             except:
                 state, atomic_abundances, info = _exception_full_response
@@ -268,7 +238,7 @@ class EqualibriaModel(Model):
 
                 # Calculate the slopes w.r.t. excitation potential and REW, etc.
                 state, info = equalibrium_state(
-                    transitions[acceptable][still_acceptable],
+                    atomic_transitions[acceptable][still_acceptable],
                     atomic_abundances[still_acceptable], metallicity,
                     **equalibrium_state_kwds)
 
@@ -386,7 +356,7 @@ class EqualibriaModel(Model):
                 # We will fit the regression lines to the scaled-solar difference.
                 log_eps_differences = log_eps - metallicity - \
                     photospheres.solar_abundance(
-                        transitions["species"][acceptable])
+                        atomic_transitions["species"][acceptable])
 
                 # Remove anything more than |sigma_clip| from the mean/median.
                 avg = np.nanmean if equalibrium_state_kwds.get(
@@ -438,10 +408,10 @@ class EqualibriaModel(Model):
         final_state, final_abundances, info = objective_function(x, True)
 
         # Create an abundance *table*
-        all_abundances = np.nan * np.ones(len(transitions))
+        all_abundances = np.nan * np.ones(len(atomic_transitions))
         all_abundances[acceptable] = final_abundances
 
-        results_table = table.Table(transitions.copy())
+        results_table = table.Table(atomic_transitions.copy())
         results_table.add_column(table.Column(
             name="log_eps", data=np.round(all_abundances, 3)))
         results_table.add_column(table.Column(name="log_eps_Solar",
@@ -450,7 +420,7 @@ class EqualibriaModel(Model):
         # x = (teff, xi, logg, metallicity)
         results_table.add_column(table.Column(
             name="[X/M]", data=np.round(all_abundances - x[3] \
-                - photospheres.solar_abundance(transitions["species"]), 3)))
+                - photospheres.solar_abundance(atomic_transitions["species"]), 3)))
         results_table.add_column(table.Column(
             name="outlier", data=~acceptable, dtype=bool))
 
@@ -600,12 +570,122 @@ class EqualibriaModel(Model):
         return stellar_parameters
 
 
-def wavelengths_in_data(wavelengths, data):
-    orders = -np.ones(len(wavelengths), dtype=int)
-    for i, spectrum in enumerate(data):
-        orders[(spectrum.disp[-1] >= wavelengths) \
-            * (wavelengths >= spectrum.disp[0])] = i
-    return orders
+
+def associate_transitions(spectra, transitions):
+
+    spectrum_indices = []
+    for i, transition in enumerate(transitions):
+        for j, spectrum in enumerate(spectra):
+            if transition in spectrum:
+                spectrum_indices.append(j)
+                break
+
+        else:
+            spectrum_indices.append(np.nan)
+
+    return np.array(spectrum_indices)
+
+
+class EqualibriumModel(BaseEqualibriumModel):
+
+    def estimate_stellar_parameters(self, spectra, atomic_transitions,
+        transitions_solver=None, initial_theta=BaseEqualibriumModel.DEFAULT_INITIAL_THETA, all_transitions=None,
+        **kwargs):
+
+        # Check the spectra.
+        if not isinstance(spectra, (list, tuple)):
+            spectra = [spectra]
+        for each in spectra:
+            if not isinstance(each, specutils.Spectrum1D):
+                raise TypeError("'{}' is not a Spectrum1D object".format(each))
+
+        # Check that all atomic transitions.
+        if not isinstance(atomic_transitions, (list, tuple)):
+            atomic_transitions = [atomic_transitions]
+        for each in atomic_transitions:
+            if not isinstance(each, AtomicTransition):
+                raise TypeError("'{}' is not an AtomicTransition".format(each))
+
+        # Check the transitions_solver.
+        if transitions_solver is None:
+            transitions_solver = solvers.SynthesisFitter
+
+        if not isinstance(transitions_solver, solvers.BaseFitter):
+            raise TypeError("transitions solver is expected to be a sub-class "\
+                "of oracle.solvers.BaseFitter")
+
+        synth_reqd = isinstance(transitions_solver, solvers.BaseSynthesisFitter)
+
+        # Associate spectra to each atomic_transition. We will do the fitting
+        # for all lines in each spectrum with a separate class. That way if we
+        # are fitting all lines simultaneously, the continuum, etc is handled
+        # properly.
+
+        spectrum_indices = associate_transitions(spectra, atomic_transitions)
+
+
+        # We have:
+        # - photospheres
+        # - radiative transfer code
+        # - atomic transitions (line-specific masks, fitting regions, local continuum degree, RV tolerances)
+        # - solver (global masks, global/local continuum/resolution behaviour)
+        #   the .fit_all() function in the solver should take all atomic transitions for an observed spectrum, and any other relevant things (e.g., a synthesiser factory)
+        #   
+
+        # TODO: The profile and synthesis fitters need updating to be able to
+        #       take an AtomicTransition, which will have its own settings about
+        #       continuum_degree, masks, etc. rather than being instantiated in
+        #       the Solver class itself. The Solver just manages behaviour, and
+        #       the fit_all() function manages global behaviour for a given chan
+
+        
+
+
+        debug = kwargs.pop("debug", False)
+        photosphere = None
+        theta = [] + initial_theta
+        #[initial_theta[k] for k in \
+        #    ("effective_temperature", "surface_gravity", "metallicity", "xi")]
+
+
+        while True:
+
+            stellar_parameters, xi = theta[:3], theta[3]
+
+            fitted_transitions = []
+            # Fit all transitions on a per-channel basis.
+            for i, spectrum in enumerate(spectra):
+
+                channel_transitions = [transition for j, transition in \
+                    zip(spectrum_indices, atomic_transitions) if j == i]
+
+
+                if synth_reqd:
+                    # Create a synthesiser factory.
+                    photosphere = self._photosphere_interpolator(*stellar_parameters)
+                    synthesiser_factory = lambda atomic_number, wavelength_range: \
+                        lambda abundance: oracle.synthesis.moog.synthesise(
+                            all_transitions, photosphere, wavelength_range,
+                            microturbulence=xi, photospheric_abundances=[
+                            atomic_number, abundance], debug=debug)
+
+                    args = (synthesiser_factory, )
+
+                else:
+                    raise NotImplementedError
+
+                fitted_transitions.extend(transitions_solver.fit(spectrum,
+                    channel_transitions, *args, full_output=True))
+
+            # Use the fitted transition abundances to calculate the state.
+
+
+
+        # When we have measured the atomic transitions, use the BaseEqualibriumModel
+        # to yield the stellar parameters.
+
+        return None
+
 
 
 
@@ -760,5 +840,35 @@ def equalibrium_state(transitions, log_eps, metallicity,
 
     # TODO: Include an info dictionary.
     return (state, None)
+
+
+
+
+if __name__ == "__main__":
+
+    import oracle
+    data = [
+        oracle.specutils.Spectrum1D.load_GALAH("/Users/arc/research/galah/data/iDR1/data/benchmark/18Sco_1.fits", normalised=True, rest=True),
+        oracle.specutils.Spectrum1D.load_GALAH("/Users/arc/research/galah/data/iDR1/data/benchmark/18Sco_2.fits", normalised=True, rest=True),
+        oracle.specutils.Spectrum1D.load_GALAH("/Users/arc/research/galah/data/iDR1/data/benchmark/18Sco_3.fits", normalised=True, rest=True),
+        oracle.specutils.Spectrum1D.load_GALAH("/Users/arc/research/galah/data/iDR1/data/benchmark/18Sco_4.fits", normalised=True, rest=True)
+    ]
+
+    from astropy.table import Table
+    table_data = Table.read("/Users/arc/codes/oracle/oracle/solvers/galah_lines_150619.csv")
+    transitions = []
+    for row in table_data:
+        transitions.append(AtomicTransition(wavelength=row["wavelength"],
+            species=row["species"], e_low=row["excitation_potential"],
+            log_gf=row["loggf"]))
+        transitions[-1].v_rad_tolerance = 5
+
+    model = EqualibriumModel()
+    model.estimate_stellar_parameters(data, transitions,
+        transitions_solver=oracle.solvers.SynthesisFitter(global_continuum=False, global_resolution=False),
+        all_transitions=table_data)
+
+
+
 
 

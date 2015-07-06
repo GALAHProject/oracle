@@ -6,6 +6,7 @@
 from __future__ import absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
+__all__ = ["ProfileFitter", "ProfileMixtureFitter"]
 
 import logging
 import numpy as np
@@ -23,31 +24,33 @@ class ProfileFitter(BaseFitter):
     Fit absorption profiles to semi-normalised, near-rest-frame spectra.
     """
 
-    def __init__(self, global_mask=None, profile="gaussian", initial_fwhm=0.10, 
-        central_weighting=True, wavelength_tolerance=0.10, continuum_degree=0):
+    def __init__(self, global_continuum=False, global_resolution=False, **kwargs):
         """
         Fit profiles to absorption lines.
         """
 
-        if profile.lower() not in ("gaussian", "voigt"):
-            raise ValueError("profile must be either gaussian or a voigt")
-
-        if 0 >= initial_fwhm:
-            raise ValueError("initial FWHM value must be positive")
-
-        if 0 > wavelength_tolerance:
-            raise ValueError("wavelength tolerance must be zero or positive")
-
         self._default_kwargs = {
-            "global_mask": global_mask if global_mask is not None else [],
-            "profile": profile.lower(),
-            "initial_fwhm": initial_fwhm,
-            "central_weighting": bool(central_weighting),
-            "wavelength_tolerance": wavelength_tolerance,
+            "mask": [],
+            "profile": "gaussian",
+            "initial_fwhm": 0.10,
+            "central_weighting": True,
+            "wavelength_tolerance": 0.10,
+            "continuum_degree": 0,
             "maximum_wavelength_window": 1.0,
             "clip_model_sigma": 0.0,
-            "continuum_degree": continuum_degree
         }
+        self._default_kwargs.update(**kwargs)
+        self.global_continuum = global_continuum
+        self.global_resolution = global_resolution
+
+        if self._default_kwargs["profile"].lower() not in ("gaussian", "voigt"):
+            raise ValueError("profile must be either gaussian or a voigt")
+
+        if 0 >= self._default_kwargs["initial_fwhm"]:
+            raise ValueError("initial FWHM value must be positive")
+
+        if 0 > self._default_kwargs["wavelength_tolerance"]:
+            raise ValueError("wavelength tolerance must be zero or positive")
 
         return None
 
