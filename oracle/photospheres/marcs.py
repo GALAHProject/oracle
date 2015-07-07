@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class Interpolator(BaseInterpolator):
 
+    opacity_scale = "lgTau5"
     logarithmic_photosphere_quantities = ["Pe", "Pg"]
 
     def __init__(self, **kwargs):
@@ -49,7 +50,7 @@ class Interpolator(BaseInterpolator):
         return np.round(np.median(sph_or_pp[neighbours]))
 
 
-    def interpolate(self, *point):
+    def interpolate(self, *point, **kwargs):
         """ 
         Return the interpolated photospheric quantities on a common opacity
         scale.
@@ -60,7 +61,7 @@ class Interpolator(BaseInterpolator):
 
         p = list(point) + [geometry]
         try:
-            return super(self.__class__, self).interpolate(*p)
+            return super(self.__class__, self).interpolate(*p, **kwargs)
 
         except ValueError:
             # Ok, switch geometry and try again.
@@ -71,7 +72,7 @@ class Interpolator(BaseInterpolator):
                     human_name[geometry], point, human_name[new_geometry]))
 
             p = list(point) + [new_geometry]
-            return super(self.__class__, self).interpolate(*p)
+            return super(self.__class__, self).interpolate(*p, **kwargs)
 
 
 

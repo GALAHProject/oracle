@@ -85,11 +85,8 @@ class BaseInterpolator(object):
         if self.rescale and not has_scipy_requirements:
             logger.warn("scipy >= 0.14.0 is required for auto-rescaling points "
                 "before interpolation")
+            self.rescale = False
         self.neighbours = neighbours
-
-        # Set the common opacity scale to interpolate on.
-        if self.opacity_scale is None:
-            self.opacity_scale = self.photospheric_quantities[0]
 
         # Create unique copies of stellar parameters for faster access
         names = stellar_parameters.dtype.names
@@ -141,24 +138,41 @@ class BaseInterpolator(object):
             self.photospheres[self.nearest_neighbours(point, 1)[0]])
 
 
-    def interpolate(self, *point):
+    def _test_interpolator(self, *point):
+        """
+        Interpolate a photosphere to the given point, and ignore the nearest
+        stellar model.
+        """
+        return self.interpolate(*point, __ignore_nearest=True)
+
+
+    def interpolate(self, *point, **kwargs):
         """
         Interpolate the photospheric structure at the given stellar parameters.
         """
 
         # Is the point actually within the grid?
         point = np.array(point)
+
+        # point will contain: effective temperature, surface gravity, metallicity
+        if 0 >= point[0]:
+            raise ValueError("effective temperature must be positive")
+
+        __ignore_nearest = kwargs.pop("__ignore_nearest", False)
+
         grid = self.stellar_parameters.view(float).reshape(
             len(self.stellar_parameters), -1)
         grid_index = np.all(grid == point, axis=1)
-        if np.any(grid_index):
+        if np.any(grid_index) and not __ignore_nearest:
             grid_index = np.where(grid_index)[0][0]
             return self._return_photosphere(point, self.photospheres[grid_index])
 
         # Work out what the optical depth points will be in our (to-be)-
         # interpolated photosphere.
-        opacity_index = self.photospheric_quantities.index(self.opacity_scale)
-        neighbours = self.nearest_neighbours(point, self.neighbours)
+        if __ignore_nearest:
+            neighbours = self.nearest_neighbours(point, self.neighbours + 1)[1:]
+        else:
+            neighbours = self.nearest_neighbours(point, self.neighbours)
         stellar_parameters = _recarray_to_array(self.stellar_parameters)
 
         # Shapes required for griddata:
@@ -168,37 +182,46 @@ class BaseInterpolator(object):
 
         # Protect Qhull from columns with a single value.
         cols = _protect_qhull(stellar_parameters[neighbours])
-        kwds = {
-            "xi": point[cols].reshape(1, len(cols)),
-            "points": stellar_parameters[neighbours][:, cols],
-            "values": self.photospheres[neighbours, :, opacity_index],
-            "method": self.method
-        }
-        if has_scipy_requirements: kwds["rescale"] = self.rescale
-        common_opacity_scale = interpolate.griddata(**kwds)
-
-        if np.all(~np.isfinite(common_opacity_scale)):
-            if self.live_dangerously: return self.nearest(*point)
-            raise ValueError("cannot interpolate {0} photosphere at {1}".format(
-                self.meta["kind"], point))
-
-        # At the neighbouring N points, create splines of all the values with
-        # respect to their own opacity scales, then calcualte the photospheric
-        # quantities on the common opacity scale.
-
-        #photospheres.shape = (N_model, N_depth, N_quantities)
         shape = [self.neighbours] + list(self.photospheres.shape[1:])
-        neighbour_quantities = np.zeros(shape)
-        for i, neighbour in enumerate(neighbours):
-            neighbour_quantities[i, :, :] = \
-                resample_photosphere(common_opacity_scale,
-                    self.photospheres[neighbour, :, :], opacity_index)
+        if self.opacity_scale is not None:
+            opacity_index = self.photospheric_quantities.index(self.opacity_scale)
+            kwds = {
+                "xi": point[cols].reshape(1, len(cols)),
+                "points": stellar_parameters[neighbours][:, cols],
+                "values": self.photospheres[neighbours, :, opacity_index],
+                "method": self.method,
+                "rescale": self.rescale
+            }
+            common_opacity_scale = interpolate.griddata(**kwds)
+
+            if np.all(~np.isfinite(common_opacity_scale)):
+                if self.live_dangerously: return self.nearest(*point)
+                raise ValueError("cannot interpolate {0} photosphere at {1}"\
+                    .format(self.meta["kind"], point))
+
+            # At the neighbouring N points, create splines of all the values
+            # with respect to their own opacity scales, then calcualte the 
+            # photospheric quantities on the common opacity scale.
+
+            #photospheres.shape = (N_model, N_depth, N_quantities)
+            neighbour_quantities = np.zeros(shape)
+            for i, neighbour in enumerate(neighbours):
+                neighbour_quantities[i, :, :] = \
+                    resample_photosphere(common_opacity_scale,
+                        self.photospheres[neighbour, :, :], opacity_index)
+
+        else:
+            opacity_index = None
+            common_opacity_scale = np.arange(self.photospheres.shape[1])
+            neighbour_quantities = self.photospheres[neighbours, :, :]
 
         # Logify/unlogify any quantities.
         for quantity in self.logarithmic_photosphere_quantities:
             try:
                 index = self.photospheric_quantities.index(quantity)
             except ValueError:
+                logger.warn("Could not find logarithmic photospheric quantity "\
+                    "'{}'".format(quantity))
                 continue
             else:
                 neighbour_quantities[:, :,  index] = \
@@ -209,9 +232,9 @@ class BaseInterpolator(object):
             "xi": point[cols].reshape(1, len(cols)),
             "points": stellar_parameters[neighbours][:, cols],
             "values": neighbour_quantities,
-            "method": self.method
+            "method": self.method,
+            "rescale": self.rescale
         }
-        if has_scipy_requirements: kwds["rescale"] = self.rescale
         interpolated_quantities = interpolate.griddata(**kwds).reshape(shape[1:])
 
         if np.all(~np.isfinite(interpolated_quantities)):
@@ -234,6 +257,9 @@ class BaseInterpolator(object):
 
 def resample_photosphere(opacities, photosphere, opacity_index):
     """ Resample photospheric quantities onto a new opacity scale. """
+
+    if opacity_index is None:
+        return photosphere
 
     resampled_photosphere = np.zeros(photosphere.shape)
     n_quantities = photosphere.shape[1]

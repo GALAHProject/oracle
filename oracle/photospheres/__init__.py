@@ -38,3 +38,6 @@ def interpolator(kind="castelli/kurucz", **kwargs):
     elif kind[:8] == "stagger-" and kind[8] in ("h", "g", "z"):
         return stagger_interp("stagger-2013-height.pkl", **kwargs)
 
+    else:
+        raise ValueError("'{}' model photospheres not recognised".format(kind))
+    

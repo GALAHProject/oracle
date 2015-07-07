@@ -29,12 +29,14 @@ warnings.simplefilter("once", StandardCompositionAssumed)
 
 class Interpolator(BaseInterpolator):
 
+    logarithmic_photosphere_quantities = ["P", "XNE"]
+
     def __init__(self, **kwargs):
         return super(self.__class__, self).__init__("castelli-kurucz-2004.pkl",
             **kwargs)
 
 
-    def interpolate(self, *point):
+    def interpolate(self, *point, **kwargs):
         """ 
         Return the interpolated photospheric quantities on a common opacity
         scale.
@@ -46,7 +48,7 @@ class Interpolator(BaseInterpolator):
             warnings.warn("Assuming standard [alpha/Fe] = 0 composition unless "
                 "otherwise specified.", StandardCompositionAssumed)
 
-        return super(self.__class__, self).interpolate(*point)
+        return super(self.__class__, self).interpolate(*point, **kwargs)
 
 
 def parse_filename(filename, full_output=False):
