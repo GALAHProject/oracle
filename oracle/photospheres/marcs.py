@@ -57,7 +57,7 @@ class Interpolator(BaseInterpolator):
         """
 
         # Try either spherical / plane parallel, and if that fails, switch.
-        geometry = self._spherical_or_plane_parallel(*point)
+        geometry = int(self._spherical_or_plane_parallel(*point))
 
         p = list(point) + [geometry]
         try:
